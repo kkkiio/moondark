@@ -1,0 +1,41 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "xziheng/moondark/database/sql"
+
+import {
+  "moonbitlang/core/debug",
+  "xziheng/moondark/database/sql/driver",
+}
+
+// Values
+
+// Errors
+
+// Types and methods
+pub struct Conn {
+  conn : &@driver.Conn
+}
+
+type DB
+pub fn DB::DB(&@driver.Connector, max_idle? : Int, max_open? : Int) -> Self
+pub async fn DB::close(Self) -> Unit
+pub async fn DB::execute(Self, String, params? : ArrayView[String]) -> Unit
+pub async fn DB::query(Self, String, params? : ArrayView[String]) -> Rows
+pub async fn[T] DB::with_transaction(Self, async (Transaction) -> T) -> T
+
+type Row derive(@debug.Debug)
+pub fn Row::get(Self, String) -> @driver.Value?
+pub fn Row::to_repr(Self) -> @debug.Repr
+
+type Rows
+pub async fn Rows::close(Self) -> Unit
+pub async fn Rows::next(Self) -> Row?
+
+type Transaction
+pub async fn Transaction::commit(Self) -> Unit
+pub async fn Transaction::execute(Self, String, params? : ArrayView[String]) -> Unit
+pub async fn Transaction::query(Self, String, params? : ArrayView[String]) -> Rows
+pub async fn Transaction::rollback(Self) -> Unit
+
+// Type aliases
+
+// Traits
