@@ -1,11 +1,16 @@
 ///|
 priv struct Pool {
-  idle_connections : @aqueue.Queue[Conn]
+  idle_connections : @aqueue.Queue[ConnEntry]
   connector : &@driver.Connector
   mut active_count : Int32
   /// Connections currently checked out of the pool.
   mut in_use : Int32
   max_open : Int32
+  /// Maximum number of prepared statements cached per connection;
+  /// `0` disables the limit (unbounded, as in Go).
+  max_stmts_per_conn : Int32
+  /// Id assigned to the next pooled connection entry.
+  mut next_conn_id : Int64
   /// Maximum connection lifetime in milliseconds; `<= 0` disables it.
   max_lifetime_ms : Int64
   /// Maximum idle time in milliseconds; `<= 0` disables it.
@@ -43,6 +48,7 @@ fn Pool::Pool(
   max_open~ : Int32,
   max_lifetime~ : @time.Duration,
   max_idle_time~ : @time.Duration,
+  max_stmts_per_conn~ : Int32,
 ) -> Pool {
   {
     idle_connections: @aqueue.Queue(kind=Blocking(max_idle)),
@@ -50,6 +56,8 @@ fn Pool::Pool(
     active_count: 0,
     in_use: 0,
     max_open,
+    max_stmts_per_conn,
+    next_conn_id: 1,
     max_lifetime_ms: duration_ms(max_lifetime),
     max_idle_time_ms: duration_ms(max_idle_time),
     wait_count: 0,
@@ -61,19 +69,38 @@ fn Pool::Pool(
 }
 
 ///|
+/// Wrap a driver connection in a pooled entry, assigning it a unique id.
+fn Pool::new_entry(
+  self : Pool,
+  conn : &@driver.Conn,
+  created_at : Int64,
+) -> ConnEntry {
+  let id = self.next_conn_id
+  self.next_conn_id += 1
+  ConnEntry::{
+    id,
+    conn,
+    returned: false,
+    created_at,
+    returned_at: 0,
+    stmt_cache: {},
+  }
+}
+
+///|
 async fn Pool::close(self : Pool) -> Unit {
-  while (self.idle_connections.try_get() catch { _ => None }) is Some(conn) {
-    conn.conn.close()
+  while (self.idle_connections.try_get() catch { _ => None }) is Some(entry) {
+    entry.close()
     self.active_count -= 1
   }
   self.idle_connections.close()
 }
 
 ///|
-async fn Pool::acquire(self : Pool) -> Conn {
+async fn Pool::acquire(self : Pool) -> ConnEntry {
   for ;; {
-    let conn = match self.idle_connections.try_get() {
-      Some(conn) => conn
+    let entry = match self.idle_connections.try_get() {
+      Some(entry) => entry
       None =>
         if self.active_count < self.max_open {
           self.active_count += 1
@@ -82,20 +109,15 @@ async fn Pool::acquire(self : Pool) -> Conn {
           }
           let conn = self.connector.connect()
           self.in_use += 1
-          return Conn::{
-            conn,
-            returned: false,
-            created_at: @env.now().reinterpret_as_int64(),
-            returned_at: 0,
-          }
+          return self.new_entry(conn, @env.now().reinterpret_as_int64())
         } else {
           // The pool is exhausted: block until a connection is
           // released, recording the wait for `DB::stats`.
           let start = @env.now().reinterpret_as_int64()
-          let conn = self.idle_connections.get()
+          let entry = self.idle_connections.get()
           self.wait_count += 1
           self.wait_duration_ms += @env.now().reinterpret_as_int64() - start
-          conn
+          entry
         }
     }
     let now = @env.now().reinterpret_as_int64()
@@ -104,12 +126,12 @@ async fn Pool::acquire(self : Pool) -> Conn {
     // `release`. Freshly created connections skip this check (they
     // return above without touching the idle queue), as in Go.
     let lifetime_expired = self.max_lifetime_ms > 0 &&
-      now - conn.created_at > self.max_lifetime_ms
-    let idle_expired = conn.returned &&
+      now - entry.created_at > self.max_lifetime_ms
+    let idle_expired = entry.returned &&
       self.max_idle_time_ms > 0 &&
-      now - conn.returned_at > self.max_idle_time_ms
+      now - entry.returned_at > self.max_idle_time_ms
     if lifetime_expired || idle_expired {
-      conn.conn.close() catch {
+      entry.close() catch {
         _ => ()
       }
       self.active_count -= 1
@@ -122,17 +144,17 @@ async fn Pool::acquire(self : Pool) -> Conn {
       }
       continue
     }
-    if !conn.conn.is_valid() {
-      conn.conn.close() catch {
+    if !entry.conn.is_valid() {
+      entry.close() catch {
         _ => ()
       }
       self.active_count -= 1
       continue
     }
-    if conn.returned {
-      conn.conn.reset_session() catch {
+    if entry.returned {
+      entry.conn.reset_session() catch {
         _ => {
-          conn.conn.close() catch {
+          entry.close() catch {
             _ => ()
           }
           self.active_count -= 1
@@ -141,24 +163,28 @@ async fn Pool::acquire(self : Pool) -> Conn {
       }
     }
     self.in_use += 1
-    return conn
+    return entry
   }
 }
 
 ///|
-async fn Pool::release(self : Pool, conn : Conn, bad~ : Bool = false) -> Unit {
+async fn Pool::release(
+  self : Pool,
+  entry : ConnEntry,
+  bad~ : Bool = false,
+) -> Unit {
   self.in_use -= 1
   let now = @env.now().reinterpret_as_int64()
   // A connection past its maximum lifetime is discarded through the same
   // path as a `bad` one: close it and eagerly open a replacement.
   let lifetime_expired = self.max_lifetime_ms > 0 &&
-    now - conn.created_at > self.max_lifetime_ms
+    now - entry.created_at > self.max_lifetime_ms
   if bad || lifetime_expired {
     if lifetime_expired {
       self.max_lifetime_closed += 1
     }
     self.active_count -= 1
-    conn.conn.close() catch {
+    entry.close() catch {
       _ => ()
     }
     // Open a replacement so tasks blocked in `acquire` observe the freed
@@ -172,12 +198,7 @@ async fn Pool::release(self : Pool, conn : Conn, bad~ : Bool = false) -> Unit {
           return
         }
       }
-      let queued = self.idle_connections.try_put(Conn::{
-        conn: new_conn,
-        returned: false,
-        created_at: now,
-        returned_at: 0,
-      }) catch {
+      let queued = self.idle_connections.try_put(self.new_entry(new_conn, now)) catch {
         _ => false
       }
       if !queued {
@@ -189,16 +210,16 @@ async fn Pool::release(self : Pool, conn : Conn, bad~ : Bool = false) -> Unit {
     }
     return
   }
-  conn.returned = true
-  conn.returned_at = now
-  let queued = self.idle_connections.try_put(conn) catch { _ => false }
+  entry.returned = true
+  entry.returned_at = now
+  let queued = self.idle_connections.try_put(entry) catch { _ => false }
   if queued {
     return
   }
   // The idle queue is full (`max_idle`): the connection is closed.
   self.active_count -= 1
   self.max_idle_closed += 1
-  conn.conn.close() catch {
+  entry.close() catch {
     _ => ()
   }
 }

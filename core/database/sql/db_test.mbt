@@ -127,6 +127,7 @@ impl @driver.Connector for MockConnector with fn connect(self) {
     fail_begin: None,
     reset_count: 0,
     ping_count: 0,
+    prepare_count: 0,
   }
   self.stats.connect_count += 1
   self.conns.push(conn)
@@ -144,10 +145,12 @@ priv struct MockConn {
   mut fail_begin : Error?
   mut reset_count : Int32
   mut ping_count : Int32
+  mut prepare_count : Int32
 }
 
 ///|
 impl @driver.Conn for MockConn with fn prepare(self, _query) {
+  self.prepare_count += 1
   MockStmt::{ conn: self, executed: [], }
 }
 
@@ -539,4 +542,137 @@ async test "stats counts acquisitions that had to wait for a connection" {
   let stats = db.stats()
   assert_eq(stats.wait_count, 1)
   assert_true(stats.wait_duration_ms > 0)
+}
+
+///|
+async test "conn checks out a dedicated connection" {
+  let connector = MockConnector()
+  let db = @sql.DB(connector)
+  defer db.close()
+  let conn = db.conn()
+  assert_eq(db.stats().in_use, 1)
+  conn.ping()
+  assert_eq(connector.conns[0].ping_count, 1)
+  conn.close()
+  assert_eq(db.stats().in_use, 0)
+  // the returned connection is reused by the next operation
+  db.ping()
+  assert_eq(connector.stats.connect_count, 1)
+  assert_eq(connector.conns[0].ping_count, 2)
+}
+
+///|
+async test "conn query holds the connection until conn.close" {
+  let connector = MockConnector()
+  let db = @sql.DB(connector)
+  defer db.close()
+  let conn = db.conn()
+  let rows = conn.query("SELECT 1")
+  // closing the rows does not return the dedicated connection
+  rows.close()
+  assert_eq(db.stats().in_use, 1)
+  conn.ping()
+  assert_eq(connector.conns[0].ping_count, 1)
+  conn.close()
+  assert_eq(db.stats().in_use, 0)
+}
+
+///|
+async test "conn operations raise after close" {
+  let connector = MockConnector()
+  let db = @sql.DB(connector)
+  defer db.close()
+  let conn = db.conn()
+  conn.close()
+  // closing again is a no-op
+  conn.close()
+  try conn.ping() catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected ping on a closed conn to raise")
+  }
+}
+
+///|
+async test "prepared statement is cached per connection" {
+  let connector = MockConnector()
+  let db = @sql.DB(connector)
+  defer db.close()
+  let stmt = db.prepare("UPDATE answers SET answer = ?")
+  ignore(stmt.execute())
+  // the pool reuses the same connection, so the cached statement is
+  // reused without preparing again
+  ignore(stmt.execute())
+  assert_eq(connector.stats.connect_count, 1)
+  assert_eq(connector.conns[0].prepare_count, 1)
+  stmt.close()
+}
+
+///|
+async test "least recently used cached statement is evicted" {
+  let connector = MockConnector()
+  let db = @sql.DB(connector, max_stmts_per_conn=1)
+  defer db.close()
+  let stmt1 = db.prepare("UPDATE a SET x = 1")
+  let stmt2 = db.prepare("UPDATE b SET x = 1")
+  ignore(stmt1.execute())
+  ignore(stmt2.execute())
+  // the second prepare evicted the first statement
+  assert_eq(connector.conns[0].prepare_count, 2)
+  // re-executing the evicted statement prepares it again
+  ignore(stmt1.execute())
+  assert_eq(connector.conns[0].prepare_count, 3)
+  stmt1.close()
+  stmt2.close()
+}
+
+///|
+async test "statement bound to a conn fails after the conn is closed" {
+  let connector = MockConnector()
+  let db = @sql.DB(connector)
+  defer db.close()
+  let conn = db.conn()
+  let stmt = conn.prepare("UPDATE answers SET answer = ?")
+  ignore(stmt.execute())
+  assert_eq(connector.conns[0].prepare_count, 1)
+  conn.close()
+  try stmt.execute() catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected execute on a bound statement to raise")
+  }
+}
+
+///|
+async test "cached statement is re-prepared on a fresh connection" {
+  let connector = MockConnector()
+  let db = @sql.DB(connector)
+  defer db.close()
+  let stmt = db.prepare("UPDATE answers SET answer = ?")
+  ignore(stmt.execute())
+  assert_eq(connector.conns[0].prepare_count, 1)
+  // the connection dies; the next execute retries on a fresh
+  // connection and re-prepares the statement there
+  connector.conns[0].fail_exec = Some(@driver.BadConn(Failure("exec failed")))
+  ignore(stmt.execute())
+  assert_true(connector.conns[0].closed)
+  assert_eq(connector.stats.connect_count, 2)
+  assert_eq(connector.conns[1].prepare_count, 1)
+  stmt.close()
+}
+
+///|
+async test "prepared statement query reuses the cached statement" {
+  let connector = MockConnector()
+  let db = @sql.DB(connector)
+  defer db.close()
+  let stmt = db.prepare("SELECT answer FROM answers")
+  let rows = stmt.query()
+  assert_true(rows.next() is Some(_))
+  rows.close()
+  // closing the rows keeps the cached statement open for reuse
+  let rows2 = stmt.query()
+  rows2.close()
+  assert_eq(connector.conns[0].prepare_count, 1)
+  stmt.close()
 }

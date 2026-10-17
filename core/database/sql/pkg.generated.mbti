@@ -13,16 +13,22 @@ import {
 
 // Types and methods
 pub struct Conn {
-  conn : &@driver.Conn
-  mut returned : Bool
   // private fields
 }
+pub async fn Conn::close(Self) -> Unit
+pub async fn Conn::execute(Self, String, params? : ArrayView[&@driver.Valuer]) -> @driver.ExecResult
+pub async fn Conn::ping(Self) -> Unit
+pub fn Conn::prepare(Self, String) -> Stmt raise
+pub async fn Conn::query(Self, String, params? : ArrayView[&@driver.Valuer]) -> Rows
+pub async fn[T] Conn::with_transaction(Self, async (Transaction) -> T) -> T
 
 type DB
-pub fn DB::DB(&@driver.Connector, max_idle? : Int, max_open? : Int, max_lifetime? : @time.Duration, max_idle_time? : @time.Duration) -> Self
+pub fn DB::DB(&@driver.Connector, max_idle? : Int, max_open? : Int, max_lifetime? : @time.Duration, max_idle_time? : @time.Duration, max_stmts_per_conn? : Int) -> Self
 pub async fn DB::close(Self) -> Unit
+pub async fn DB::conn(Self) -> Conn
 pub async fn DB::execute(Self, String, params? : ArrayView[&@driver.Valuer]) -> @driver.ExecResult
 pub async fn DB::ping(Self) -> Unit
+pub fn DB::prepare(Self, String) -> Stmt
 pub async fn DB::query(Self, String, params? : ArrayView[&@driver.Valuer]) -> Rows
 pub fn DB::stats(Self) -> DBStats
 pub async fn[T] DB::with_transaction(Self, async (Transaction) -> T) -> T
@@ -47,6 +53,14 @@ pub fn Row::to_repr(Self) -> @debug.Repr
 type Rows
 pub async fn Rows::close(Self) -> Unit
 pub async fn Rows::next(Self) -> Row?
+
+pub struct Stmt {
+  query : String
+  // private fields
+}
+pub async fn Stmt::close(Self) -> Unit
+pub async fn Stmt::execute(Self, params? : ArrayView[&@driver.Valuer]) -> @driver.ExecResult
+pub async fn Stmt::query(Self, params? : ArrayView[&@driver.Valuer]) -> Rows
 
 type Transaction
 pub async fn Transaction::commit(Self) -> Unit
