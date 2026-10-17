@@ -3,6 +3,7 @@ package "xziheng/moondark/database/sql"
 
 import {
   "moonbitlang/core/debug",
+  "moonbitlang/x/time",
   "xziheng/moondark/database/sql/driver",
 }
 
@@ -14,10 +15,11 @@ import {
 pub struct Conn {
   conn : &@driver.Conn
   mut returned : Bool
+  // private fields
 }
 
 type DB
-pub fn DB::DB(&@driver.Connector, max_idle? : Int, max_open? : Int) -> Self
+pub fn DB::DB(&@driver.Connector, max_idle? : Int, max_open? : Int, max_lifetime? : @time.Duration, max_idle_time? : @time.Duration) -> Self
 pub async fn DB::close(Self) -> Unit
 pub async fn DB::execute(Self, String, params? : ArrayView[&@driver.Valuer]) -> @driver.ExecResult
 pub async fn DB::ping(Self) -> Unit

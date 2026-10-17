@@ -400,3 +400,53 @@ async test "with_transaction rolls back and does not retry when f fails" {
   assert_eq(connector.stats.commit_count, 0)
   assert_eq(connector.stats.connect_count, 1)
 }
+
+///|
+async test "connection past max_lifetime is discarded on acquire" {
+  let connector = MockConnector()
+  // A nanosecond-scale lifetime effectively means "expires after ~0ms":
+  // the next acquire observes the connection as expired.
+  let db = @sql.DB(connector, max_lifetime=@time.Duration::of(nanoseconds=1))
+  defer db.close()
+  db.ping()
+  @async.sleep(15)
+  db.ping()
+  assert_true(connector.conns[0].closed)
+  assert_eq(connector.stats.connect_count, 2)
+  assert_eq(connector.conns[1].ping_count, 1)
+}
+
+///|
+async test "connection idle longer than max_idle_time is discarded" {
+  let connector = MockConnector()
+  let db = @sql.DB(connector, max_idle_time=@time.Duration::of(nanoseconds=1))
+  defer db.close()
+  db.ping()
+  // Reused without sleeping, the connection is not discarded: sleeping
+  // is what advances idle time past the ~0ms threshold.
+  db.ping()
+  assert_eq(connector.stats.connect_count, 1)
+  assert_eq(connector.conns[0].ping_count, 2)
+  @async.sleep(15)
+  db.ping()
+  assert_true(connector.conns[0].closed)
+  assert_eq(connector.stats.connect_count, 2)
+  assert_eq(connector.conns[1].ping_count, 1)
+}
+
+///|
+async test "connection past max_lifetime is eagerly replaced on release" {
+  let connector = MockConnector()
+  let db = @sql.DB(connector, max_lifetime=@time.Duration::of(nanoseconds=1))
+  defer db.close()
+  // Keep the connection checked out past its lifetime, then return it:
+  // `release` closes it and opens a replacement right away.
+  let rows = db.query("SELECT 1")
+  @async.sleep(15)
+  rows.close()
+  assert_true(connector.conns[0].closed)
+  // connect_count grew during `release`, before the next operation
+  assert_eq(connector.stats.connect_count, 2)
+  db.ping()
+  assert_eq(connector.conns[1].ping_count, 1)
+}

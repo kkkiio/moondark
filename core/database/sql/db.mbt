@@ -11,12 +11,29 @@ pub type ExecResult = @driver.ExecResult
 pub type Value = @driver.Value
 
 ///|
+/// `max_lifetime` bounds how long a connection may live: connections
+/// older than it are closed instead of being reused or returned to the
+/// pool. `max_idle_time` bounds how long a connection may sit idle in
+/// the pool. `Duration::zero()` (the default) disables each limit.
+/// Expiry is lazy: expired connections are discarded when encountered
+/// while acquiring from or releasing to the pool; there is no
+/// background reaper.
 pub fn DB::DB(
   connector : &@driver.Connector,
   max_idle~ : Int32 = 5,
   max_open~ : Int32 = 10,
+  max_lifetime~ : @time.Duration = @time.Duration::zero(),
+  max_idle_time~ : @time.Duration = @time.Duration::zero(),
 ) -> DB {
-  { pool: Pool::Pool(connector, max_idle~, max_open~), }
+  {
+    pool: Pool::Pool(
+      connector,
+      max_idle~,
+      max_open~,
+      max_lifetime~,
+      max_idle_time~,
+    ),
+  }
 }
 
 ///|
@@ -420,4 +437,9 @@ pub struct Conn {
   conn : &@driver.Conn
   /// Whether the connection was used before and returned to the pool.
   mut returned : Bool
+  /// When the driver connection was opened, in milliseconds.
+  priv created_at : Int64
+  /// When the connection was last returned to the pool, in
+  /// milliseconds; `0` while it has never been returned.
+  priv mut returned_at : Int64
 }

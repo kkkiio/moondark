@@ -12,8 +12,16 @@ pub fn open_db(
   dsn : String,
   max_idle~ : Int32 = 5,
   max_open~ : Int32 = 10,
+  max_lifetime~ : @time.Duration = @time.Duration::zero(),
+  max_idle_time~ : @time.Duration = @time.Duration::zero(),
 ) -> @sql.DB raise {
-  @sql.DB(Driver::new().open(dsn), max_idle~, max_open~)
+  @sql.DB(
+    Driver::new().open(dsn),
+    max_idle~,
+    max_open~,
+    max_lifetime~,
+    max_idle_time~,
+  )
 }
 
 ///|
