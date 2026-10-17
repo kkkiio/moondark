@@ -49,13 +49,18 @@ pub(all) suberror BadConn {
 /// A physical database connection.
 ///
 /// SQL text flows into a driver through `prepare`. `database/sql`
-/// follows the JDBC convention: `?` is the canonical placeholder for
+/// follows the JDBC convention — `?` is the canonical placeholder for
 /// positional parameters, in the order they appear in `Stmt::exec` /
-/// `Stmt::query`'s `args`. Drivers whose backend speaks a different
-/// placeholder syntax (e.g. PostgreSQL's `$1`, `$2`, …) must translate
-/// `?` inside `prepare`, skipping quoted literals, identifiers and
-/// comments; drivers whose backend binds `?` natively (SQLite, MySQL)
-/// pass the text through unchanged.
+/// `Stmt::query`'s `args` (the JDBC specification defines `?` as the
+/// parameter marker for prepared statements, see
+/// <https://docs.oracle.com/javase/tutorial/jdbc/basics/prepared.html>).
+/// Drivers whose backend speaks a different placeholder syntax (e.g.
+/// PostgreSQL's `$1`, `$2`, …) must translate `?` inside `prepare`,
+/// skipping quoted literals, identifiers and comments — pgjdbc does
+/// exactly this translation, including a `??` escape for `?`-containing
+/// operators (<https://jdbc.postgresql.org/documentation/query/>);
+/// drivers whose backend binds `?` natively (SQLite, MySQL) pass the
+/// text through unchanged.
 pub(open) trait Conn {
   /// Prepare `sql` for repeated execution on this connection. `sql`
   /// uses `?` placeholders (see the `Conn` trait documentation).
