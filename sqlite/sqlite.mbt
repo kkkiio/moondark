@@ -19,7 +19,7 @@ pub fn open_db(
   max_lifetime~ : @time.Duration = @time.Duration::zero(),
   max_idle_time~ : @time.Duration = @time.Duration::zero(),
 ) -> (@sql.DB, @sql.DBExecutor) raise {
-  @sql.DB::new(
+  @sql.DB::create(
     Driver::new().open(dsn),
     max_idle~,
     max_open~,
@@ -32,7 +32,7 @@ pub fn open_db(
 /// SQLite driver implementing `@driver.Driver`.
 ///
 /// ```
-/// let (db, executor) = @sql.DB::new(@moondark_sqlite.Driver::new().open("app.db"))
+/// let (db, executor) = @sql.DB::create(@moondark_sqlite.Driver::new().open("app.db"))
 /// ```
 struct Driver {}
 

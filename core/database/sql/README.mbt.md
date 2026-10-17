@@ -1,6 +1,11 @@
 # Database
 
-Database library, mimicking [Go `database/sql`](https://pkg.go.dev/database/sql).
+Database library modelled on
+[moonbit-community/postgres](https://mooncakes.io/docs/moonbit-community/postgres)'s
+`pgpool`: creating a `DB` returns a `(DB, DBExecutor)` pair, and the
+pool's executor drives connection creation and teardown on a task
+group. The query/execute/transaction surface follows Go
+[`database/sql`](https://pkg.go.dev/database/sql).
 
 ## Query
 
@@ -8,7 +13,7 @@ Database library, mimicking [Go `database/sql`](https://pkg.go.dev/database/sql)
 ///|
 async test {
   @async.with_task_group(group => {
-    let (db, executor) = @sql.DB::new(MockAnswerDB())
+    let (db, executor) = @sql.DB::create(MockAnswerDB())
     group.spawn_bg(no_wait=true, () => executor.run())
     db.ready()
     defer db.close()
@@ -44,7 +49,7 @@ async test {
 async test {
   @async.with_task_group(group => {
     let mock = MockAnswerDB()
-    let (db, executor) = @sql.DB::new(mock)
+    let (db, executor) = @sql.DB::create(mock)
     group.spawn_bg(no_wait=true, () => executor.run())
     db.ready()
     defer db.close()

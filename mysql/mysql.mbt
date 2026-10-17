@@ -27,7 +27,7 @@ pub fn open_db(
   max_lifetime~ : @time.Duration = @time.Duration::zero(),
   max_idle_time~ : @time.Duration = @time.Duration::zero(),
 ) -> (@sql.DB, @sql.DBExecutor) raise {
-  @sql.DB::new(
+  @sql.DB::create(
     Driver::new().open(dsn),
     max_idle~,
     max_open~,
@@ -43,7 +43,7 @@ pub fn open_db(
 /// a real server-side transaction).
 ///
 /// ```
-/// let (db, executor) = @sql.DB::new(@moondark_mysql.Driver::new().open("mysql://u:p@h/db"))
+/// let (db, executor) = @sql.DB::create(@moondark_mysql.Driver::new().open("mysql://u:p@h/db"))
 /// ```
 struct Driver {}
 

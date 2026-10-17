@@ -5,7 +5,7 @@ struct DB {
 }
 
 ///|
-/// The background supervisor driving the pool's workers. `DB::new`
+/// The background supervisor driving the pool's workers. `DB::create`
 /// returns it alongside the `DB`; spawn it on a task group that outlives
 /// the database, e.g. `group.spawn_bg(no_wait=true, () => executor.run())`.
 pub struct DBExecutor {
@@ -62,11 +62,11 @@ pub extend DBStats with Debug::{to_repr}
 /// Spawn the executor on a task group that outlives the `DB`:
 ///
 /// ```
-/// let (db, executor) = @sql.DB::new(connector)
+/// let (db, executor) = @sql.DB::create(connector)
 /// group.spawn_bg(no_wait=true, () => executor.run())
 /// db.ready()
 /// ```
-pub fn DB::new(
+pub fn DB::create(
   connector : &@driver.Connector,
   max_idle~ : Int32 = 5,
   max_open~ : Int32 = 10,

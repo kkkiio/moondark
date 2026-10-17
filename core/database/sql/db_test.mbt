@@ -257,13 +257,13 @@ async fn run_db(
 
 ///|
 async test "ping" {
-  run_db(@sql.DB::new(MockAnswerDB()), db => db.ping())
+  run_db(@sql.DB::create(MockAnswerDB()), db => db.ping())
 }
 
 ///|
 async test "reset_session is called when reusing a returned connection" {
   let connector = MockConnector()
-  run_db(@sql.DB::new(connector), db => {
+  run_db(@sql.DB::create(connector), db => {
     db.ping()
     db.ping()
     assert_eq(connector.stats.connect_count, 1)
@@ -275,7 +275,7 @@ async test "reset_session is called when reusing a returned connection" {
 ///|
 async test "idle connection failing is_valid is discarded" {
   let connector = MockConnector()
-  run_db(@sql.DB::new(connector), db => {
+  run_db(@sql.DB::create(connector), db => {
     db.ping()
     connector.conns[0].valid = false
     db.ping()
@@ -291,7 +291,7 @@ async test "idle connection failing is_valid is discarded" {
 ///|
 async test "returned connection failing reset_session is discarded" {
   let connector = MockConnector()
-  run_db(@sql.DB::new(connector), db => {
+  run_db(@sql.DB::create(connector), db => {
     db.ping()
     connector.conns[0].fail_reset = true
     db.ping()
@@ -306,7 +306,7 @@ async test "returned connection failing reset_session is discarded" {
 ///|
 async test "ping raising BadConn discards the connection and retries" {
   let connector = MockConnector()
-  run_db(@sql.DB::new(connector), db => {
+  run_db(@sql.DB::create(connector), db => {
     db.ping()
     connector.conns[0].fail_ping = true
     // the stale connection is discarded and the ping retried on a fresh one
@@ -321,7 +321,7 @@ async test "ping raising BadConn discards the connection and retries" {
 ///|
 async test "discarded bad connection frees capacity for a fresh one" {
   let connector = MockConnector()
-  run_db(@sql.DB::new(connector, max_idle=1, max_open=1), db => {
+  run_db(@sql.DB::create(connector, max_idle=1, max_open=1), db => {
     db.ping()
     connector.conns[0].fail_ping = true
     // the ping fails on the stale connection and is transparently
@@ -338,7 +338,7 @@ async test "discarded bad connection frees capacity for a fresh one" {
 ///|
 async test "execute is retried on a fresh connection after BadConn" {
   let connector = MockConnector()
-  run_db(@sql.DB::new(connector), db => {
+  run_db(@sql.DB::create(connector), db => {
     db.ping()
     connector.conns[0].fail_exec = Some(@driver.BadConn(Failure("exec failed")))
     let result = db.execute("INSERT INTO t VALUES (1)")
@@ -353,7 +353,7 @@ async test "execute is retried on a fresh connection after BadConn" {
 async test "execute gives up after too many BadConn failures" {
   let connector = MockConnector()
   connector.fail_exec = Some(@driver.BadConn(Failure("exec failed")))
-  run_db(@sql.DB::new(connector), db => {
+  run_db(@sql.DB::create(connector), db => {
     try db.execute("INSERT INTO t VALUES (1)") catch {
       e => assert_true(e is @driver.BadConn(_))
     } noraise {
@@ -372,7 +372,7 @@ async test "execute gives up after too many BadConn failures" {
 ///|
 async test "execute does not retry errors other than BadConn" {
   let connector = MockConnector()
-  run_db(@sql.DB::new(connector), db => {
+  run_db(@sql.DB::create(connector), db => {
     db.ping()
     connector.conns[0].fail_exec = Some(Failure("syntax error"))
     try db.execute("INSERT INTO t VALUES (1)") catch {
@@ -389,7 +389,7 @@ async test "execute does not retry errors other than BadConn" {
 ///|
 async test "with_transaction retries when begin raises BadConn" {
   let connector = MockConnector()
-  run_db(@sql.DB::new(connector), db => {
+  run_db(@sql.DB::create(connector), db => {
     db.ping()
     connector.conns[0].fail_begin = Some(
       @driver.BadConn(Failure("begin failed")),
@@ -409,7 +409,7 @@ async test "with_transaction retries when begin raises BadConn" {
 ///|
 async test "with_transaction rolls back and does not retry when f fails" {
   let connector = MockConnector()
-  run_db(@sql.DB::new(connector), db => {
+  run_db(@sql.DB::create(connector), db => {
     let f : async (@sql.Transaction) -> Unit = tx => {
       ignore(tx.execute("INSERT INTO t VALUES (1)"))
       fail("boom")
@@ -431,7 +431,7 @@ async test "connection past max_lifetime is discarded on acquire" {
   // A nanosecond-scale lifetime effectively means "expires after ~0ms":
   // the next acquire observes the connection as expired.
   run_db(
-    @sql.DB::new(connector, max_lifetime=@time.Duration::of(nanoseconds=1)),
+    @sql.DB::create(connector, max_lifetime=@time.Duration::of(nanoseconds=1)),
     db => {
       db.ping()
       @async.sleep(15)
@@ -448,7 +448,7 @@ async test "connection past max_lifetime is discarded on acquire" {
 async test "connection idle longer than max_idle_time is discarded" {
   let connector = MockConnector()
   run_db(
-    @sql.DB::new(connector, max_idle_time=@time.Duration::of(nanoseconds=1)),
+    @sql.DB::create(connector, max_idle_time=@time.Duration::of(nanoseconds=1)),
     db => {
       db.ping()
       // Reused without sleeping, the connection is not discarded: sleeping
@@ -470,7 +470,7 @@ async test "connection idle longer than max_idle_time is discarded" {
 async test "connection past max_lifetime is retired on release" {
   let connector = MockConnector()
   run_db(
-    @sql.DB::new(connector, max_lifetime=@time.Duration::of(nanoseconds=1)),
+    @sql.DB::create(connector, max_lifetime=@time.Duration::of(nanoseconds=1)),
     db => {
       // Keep the connection checked out past its lifetime, then return
       // it: `release` retires it through the close worker, and the next
@@ -492,7 +492,7 @@ async test "connection past max_lifetime is retired on release" {
 ///|
 async test "stats reports open, in_use and idle connections" {
   let connector = MockConnector()
-  run_db(@sql.DB::new(connector), db => {
+  run_db(@sql.DB::create(connector), db => {
     db.ping()
     let stats = db.stats()
     assert_eq(stats.max_open, 10)
@@ -507,7 +507,7 @@ async test "stats reports open, in_use and idle connections" {
 ///|
 async test "stats counts a checked out connection as in_use" {
   let connector = MockConnector()
-  run_db(@sql.DB::new(connector), db => {
+  run_db(@sql.DB::create(connector), db => {
     db.with_transaction(tx => {
       ignore(tx.execute("INSERT INTO t VALUES (1)"))
       let stats = db.stats()
@@ -525,7 +525,7 @@ async test "stats counts a checked out connection as in_use" {
 async test "stats counts connections closed for exceeding max_lifetime" {
   let connector = MockConnector()
   run_db(
-    @sql.DB::new(connector, max_lifetime=@time.Duration::of(nanoseconds=1)),
+    @sql.DB::create(connector, max_lifetime=@time.Duration::of(nanoseconds=1)),
     db => {
       db.ping()
       @async.sleep(15)
@@ -540,7 +540,7 @@ async test "stats counts connections closed for exceeding max_lifetime" {
 async test "stats counts connections closed for exceeding max_idle_time" {
   let connector = MockConnector()
   run_db(
-    @sql.DB::new(connector, max_idle_time=@time.Duration::of(nanoseconds=1)),
+    @sql.DB::create(connector, max_idle_time=@time.Duration::of(nanoseconds=1)),
     db => {
       db.ping()
       @async.sleep(15)
@@ -557,7 +557,7 @@ async test "stats counts connections closed when the idle queue is full" {
   let connector = MockConnector()
   // max_idle=0 means no connection may sit idle, so every release
   // overflows the idle queue and closes the connection.
-  run_db(@sql.DB::new(connector, max_idle=0), db => {
+  run_db(@sql.DB::create(connector, max_idle=0), db => {
     db.ping()
     let stats = db.stats()
     assert_eq(stats.max_idle_closed, 1)
@@ -570,7 +570,7 @@ async test "stats counts connections closed when the idle queue is full" {
 ///|
 async test "stats counts acquisitions that had to wait for a connection" {
   let connector = MockConnector()
-  run_db(@sql.DB::new(connector, max_idle=0, max_open=1), db => {
+  run_db(@sql.DB::create(connector, max_idle=0, max_open=1), db => {
     // Hold the single connection checked out so the spawned ping blocks
     // in `acquire` until `rows.close()` frees its slot.
     let rows = db.query("SELECT 1")
@@ -588,7 +588,7 @@ async test "stats counts acquisitions that had to wait for a connection" {
 ///|
 async test "conn checks out a dedicated connection" {
   let connector = MockConnector()
-  run_db(@sql.DB::new(connector), db => {
+  run_db(@sql.DB::create(connector), db => {
     let conn = db.conn()
     assert_eq(db.stats().in_use, 1)
     conn.ping()
@@ -605,7 +605,7 @@ async test "conn checks out a dedicated connection" {
 ///|
 async test "conn query holds the connection until conn.close" {
   let connector = MockConnector()
-  run_db(@sql.DB::new(connector), db => {
+  run_db(@sql.DB::create(connector), db => {
     let conn = db.conn()
     let rows = conn.query("SELECT 1")
     // closing the rows does not return the dedicated connection
@@ -621,7 +621,7 @@ async test "conn query holds the connection until conn.close" {
 ///|
 async test "conn operations raise after close" {
   let connector = MockConnector()
-  run_db(@sql.DB::new(connector), db => {
+  run_db(@sql.DB::create(connector), db => {
     let conn = db.conn()
     conn.close()
     // closing again is a no-op
@@ -637,7 +637,7 @@ async test "conn operations raise after close" {
 ///|
 async test "prepared statement is cached per connection" {
   let connector = MockConnector()
-  run_db(@sql.DB::new(connector), db => {
+  run_db(@sql.DB::create(connector), db => {
     let stmt = db.prepare("UPDATE answers SET answer = ?")
     ignore(stmt.execute())
     // the pool reuses the same connection, so the cached statement is
@@ -652,7 +652,7 @@ async test "prepared statement is cached per connection" {
 ///|
 async test "least recently used cached statement is evicted" {
   let connector = MockConnector()
-  run_db(@sql.DB::new(connector, max_stmts_per_conn=1), db => {
+  run_db(@sql.DB::create(connector, max_stmts_per_conn=1), db => {
     let stmt1 = db.prepare("UPDATE a SET x = 1")
     let stmt2 = db.prepare("UPDATE b SET x = 1")
     ignore(stmt1.execute())
@@ -670,7 +670,7 @@ async test "least recently used cached statement is evicted" {
 ///|
 async test "statement bound to a conn fails after the conn is closed" {
   let connector = MockConnector()
-  run_db(@sql.DB::new(connector), db => {
+  run_db(@sql.DB::create(connector), db => {
     let conn = db.conn()
     let stmt = conn.prepare("UPDATE answers SET answer = ?")
     ignore(stmt.execute())
@@ -687,7 +687,7 @@ async test "statement bound to a conn fails after the conn is closed" {
 ///|
 async test "cached statement is re-prepared on a fresh connection" {
   let connector = MockConnector()
-  run_db(@sql.DB::new(connector), db => {
+  run_db(@sql.DB::create(connector), db => {
     let stmt = db.prepare("UPDATE answers SET answer = ?")
     ignore(stmt.execute())
     assert_eq(connector.conns[0].prepare_count, 1)
@@ -706,7 +706,7 @@ async test "cached statement is re-prepared on a fresh connection" {
 ///|
 async test "prepared statement query reuses the cached statement" {
   let connector = MockConnector()
-  run_db(@sql.DB::new(connector), db => {
+  run_db(@sql.DB::create(connector), db => {
     let stmt = db.prepare("SELECT answer FROM answers")
     let rows = stmt.query()
     assert_true(rows.next() is Some(_))

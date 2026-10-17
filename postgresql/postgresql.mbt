@@ -38,7 +38,7 @@ pub fn open_db(
   max_lifetime~ : @time.Duration = @time.Duration::zero(),
   max_idle_time~ : @time.Duration = @time.Duration::zero(),
 ) -> (@sql.DB, @sql.DBExecutor) raise {
-  @sql.DB::new(
+  @sql.DB::create(
     Driver::new().open(dsn),
     max_idle~,
     max_open~,
@@ -59,7 +59,7 @@ pub(all) suberror InvalidDsn {
 /// `moonbit-community/postgres`.
 ///
 /// ```
-/// let (db, executor) = @sql.DB::new(@moondark_postgresql.Driver::new().open("postgres://u:p@h/db"))
+/// let (db, executor) = @sql.DB::create(@moondark_postgresql.Driver::new().open("postgres://u:p@h/db"))
 /// ```
 struct Driver {}
 
@@ -142,9 +142,19 @@ async fn[T] Conn::op(self : Conn, f : async () -> T) -> T {
 }
 
 ///|
+/// `moondark` SQL uses `?` placeholders (the JDBC convention, shared with
+/// the sqlite and mysql drivers); they are rewritten to `$1`, `$2`, …
+/// here at the driver's only statement entry point. `?` inside string
+/// literals, quoted identifiers, dollar-quoted bodies and comments is
+/// left alone; `??` escapes to a literal `?` for PostgreSQL's
+/// `?`-containing operators (jsonb `?`, `?|`, `?&`), following pgjdbc.
 pub impl @driver.Conn for Conn with fn prepare(self, sql) {
   self.op(() => {
-    (Stmt::{ conn: self, inner: self.inner.prepare(sql), } : &@driver.Stmt)
+    (
+      Stmt::{
+        conn: self,
+        inner: self.inner.prepare(translate_placeholders(sql)),
+      } : &@driver.Stmt)
   })
 }
 
@@ -613,4 +623,119 @@ fn percent_decode(s : String) -> String raise {
   @percent.decode(s[:]) catch {
     _ => raise InvalidDsn("invalid percent-encoding: \{s}")
   }
+}
+
+///|
+/// Rewrite `?` placeholders in `sql` to PostgreSQL's `$1`, `$2`, …
+/// parameters, following pgjdbc's native-query parsing: single-quoted
+/// literals (`''` escapes a quote), double-quoted identifiers,
+/// dollar-quoted bodies (`$tag$…$tag$` where the tag follows identifier
+/// rules and may be empty, `$$`) and `--` / `/* */` comments are copied
+/// verbatim, and a doubled `??` escapes to a literal `?` so PostgreSQL's
+/// `?`-containing operators (jsonb `?`, `?|`, `?&`) can still be
+/// written. An unterminated quoted span is copied to the end of input
+/// and left for the server to reject.
+fn translate_placeholders(sql : String) -> String {
+  let n = sql.length()
+  if !sql.contains("?") {
+    return sql
+  }
+  let out = StringBuilder()
+  let mut param = 0
+  // `seg` starts the current verbatim segment; `i` is the scan cursor.
+  let mut seg = 0
+  let mut i = 0
+  while i < n {
+    let c = sql[i]
+    if c == '\'' || c == '"' {
+      // Quoted literal or identifier: skip to the closing quote, where
+      // a doubled quote escapes itself.
+      i += 1
+      while i < n {
+        if sql[i] == c {
+          i += 1
+          if i < n && sql[i] == c {
+            i += 1
+          } else {
+            break
+          }
+        } else {
+          i += 1
+        }
+      }
+    } else if c == '-' && i + 1 < n && sql[i + 1] == '-' {
+      while i < n && sql[i] != '\n' {
+        i += 1
+      }
+    } else if c == '/' && i + 1 < n && sql[i + 1] == '*' {
+      i += 2
+      while i < n && !(sql[i] == '*' && i + 1 < n && sql[i + 1] == '/') {
+        i += 1
+      }
+      if i + 1 < n {
+        i += 2
+      }
+    } else if c == '$' {
+      match dollar_tag_length(sql, i) {
+        Some(tag_len) => i = skip_dollar_quoted(sql, i, tag_len)
+        None => i += 1
+      }
+    } else if c == '?' {
+      if i + 1 < n && sql[i + 1] == '?' {
+        out.write_string(sql[seg:i].to_owned())
+        out.write_char('?')
+        i += 2
+      } else {
+        param += 1
+        out.write_string(sql[seg:i].to_owned())
+        out.write_string("$\{param}")
+        i += 1
+      }
+      seg = i
+    } else {
+      i += 1
+    }
+  }
+  out.write_string(sql[seg:n].to_owned())
+  out.to_string()
+}
+
+///|
+/// Length of the dollar-quote tag opening at `i` (`sql[i] == '$'`),
+/// counting both `$`s, or `None` when `i` does not open a dollar-quoted
+/// string. The tag may be empty (`$$`) or follow identifier rules
+/// without a leading digit, which is exactly why `$1` parameters can
+/// never be mistaken for a tag.
+fn dollar_tag_length(sql : String, i : Int32) -> Int32? {
+  let n = sql.length()
+  let mut j = i + 1
+  if j < n && sql[j] == '$' {
+    return Some(2)
+  }
+  guard j < n && sql[j] is ('a'..<='z' | 'A'..<='Z' | '_') else { return None }
+  j += 1
+  while j < n && sql[j] is ('a'..<='z' | 'A'..<='Z' | '0'..<='9' | '_') {
+    j += 1
+  }
+  if j < n && sql[j] == '$' {
+    Some(j + 1 - i)
+  } else {
+    None
+  }
+}
+
+///|
+/// Skip a dollar-quoted body: the opening tag spans `i..<i + tag_len`
+/// and the string ends just past the next occurrence of the same tag,
+/// or at end of input when it is unterminated.
+fn skip_dollar_quoted(sql : String, i : Int32, tag_len : Int32) -> Int32 {
+  let n = sql.length()
+  let mut j = i + tag_len
+  while j + tag_len <= n {
+    if sql[j] == '$' && sql[j:j + tag_len] == sql[i:i + tag_len] {
+      return j + tag_len
+    }
+    j += 1
+  }
+  n
 }

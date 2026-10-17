@@ -25,8 +25,8 @@ pub async fn[T] Conn::with_transaction(Self, async (Transaction) -> T) -> T
 type DB
 pub async fn DB::close(Self) -> Unit
 pub async fn DB::conn(Self) -> Conn
+pub fn DB::create(&@driver.Connector, max_idle? : Int, max_open? : Int, max_lifetime? : @time.Duration, max_idle_time? : @time.Duration, max_stmts_per_conn? : Int) -> (Self, DBExecutor)
 pub async fn DB::execute(Self, String, params? : ArrayView[&@driver.Valuer]) -> @driver.ExecResult
-pub fn DB::new(&@driver.Connector, max_idle? : Int, max_open? : Int, max_lifetime? : @time.Duration, max_idle_time? : @time.Duration, max_stmts_per_conn? : Int) -> (Self, DBExecutor)
 pub async fn DB::ping(Self) -> Unit
 pub fn DB::prepare(Self, String) -> Stmt
 pub async fn DB::query(Self, String, params? : ArrayView[&@driver.Valuer]) -> Rows
