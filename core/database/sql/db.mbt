@@ -11,6 +11,32 @@ pub type ExecResult = @driver.ExecResult
 pub type Value = @driver.Value
 
 ///|
+/// Snapshot of connection pool statistics, mirroring `sql.DBStats` in Go.
+pub struct DBStats {
+  /// Maximum number of open connections (`max_open`).
+  max_open : Int32
+  /// Total connections managed by the pool (in_use + idle).
+  open : Int32
+  /// Connections currently checked out.
+  in_use : Int32
+  /// Connections idle in the pool (open - in_use).
+  idle : Int32
+  /// Total number of times a caller had to block waiting for a connection.
+  wait_count : Int64
+  /// Cumulative time blocked waiting for a connection, in milliseconds.
+  wait_duration_ms : Int64
+  /// Connections closed because the idle queue was full (max_idle).
+  max_idle_closed : Int64
+  /// Connections closed because they exceeded max_idle_time.
+  max_idle_time_closed : Int64
+  /// Connections closed because they exceeded max_lifetime.
+  max_lifetime_closed : Int64
+} derive(Debug)
+
+///|
+pub extend DBStats with Debug::{to_repr}
+
+///|
 /// `max_lifetime` bounds how long a connection may live: connections
 /// older than it are closed instead of being reused or returned to the
 /// pool. `max_idle_time` bounds how long a connection may sit idle in
@@ -40,6 +66,24 @@ pub fn DB::DB(
 /// Close the database connection pool.
 pub async fn DB::close(self : DB) -> Unit {
   self.pool.close()
+}
+
+///|
+/// Return a snapshot of the connection pool's statistics. Counters like
+/// `wait_count` are cumulative since the `DB` was created; gauges like
+/// `open`, `in_use` and `idle` reflect the current state.
+pub fn DB::stats(self : DB) -> DBStats {
+  {
+    max_open: self.pool.max_open,
+    open: self.pool.active_count,
+    in_use: self.pool.in_use,
+    idle: self.pool.active_count - self.pool.in_use,
+    wait_count: self.pool.wait_count,
+    wait_duration_ms: self.pool.wait_duration_ms,
+    max_idle_closed: self.pool.max_idle_closed,
+    max_idle_time_closed: self.pool.max_idle_time_closed,
+    max_lifetime_closed: self.pool.max_lifetime_closed,
+  }
 }
 
 ///|

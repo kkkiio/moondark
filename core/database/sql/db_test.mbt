@@ -450,3 +450,93 @@ async test "connection past max_lifetime is eagerly replaced on release" {
   db.ping()
   assert_eq(connector.conns[1].ping_count, 1)
 }
+
+///|
+async test "stats reports open, in_use and idle connections" {
+  let connector = MockConnector()
+  let db = @sql.DB(connector)
+  defer db.close()
+  db.ping()
+  let stats = db.stats()
+  assert_eq(stats.max_open, 10)
+  assert_eq(stats.open, 1)
+  assert_eq(stats.in_use, 0)
+  assert_eq(stats.idle, 1)
+  assert_eq(stats.wait_count, 0)
+  assert_eq(stats.wait_duration_ms, 0)
+}
+
+///|
+async test "stats counts a checked out connection as in_use" {
+  let connector = MockConnector()
+  let db = @sql.DB(connector)
+  defer db.close()
+  db.with_transaction(tx => {
+    ignore(tx.execute("INSERT INTO t VALUES (1)"))
+    let stats = db.stats()
+    assert_eq(stats.in_use, 1)
+    assert_eq(stats.idle, 0)
+    assert_eq(stats.open, 1)
+  })
+  let stats = db.stats()
+  assert_eq(stats.in_use, 0)
+  assert_eq(stats.idle, 1)
+}
+
+///|
+async test "stats counts connections closed for exceeding max_lifetime" {
+  let connector = MockConnector()
+  let db = @sql.DB(connector, max_lifetime=@time.Duration::of(nanoseconds=1))
+  defer db.close()
+  db.ping()
+  @async.sleep(15)
+  // the expired connection is discarded on the next acquire
+  db.ping()
+  assert_eq(db.stats().max_lifetime_closed, 1)
+}
+
+///|
+async test "stats counts connections closed for exceeding max_idle_time" {
+  let connector = MockConnector()
+  let db = @sql.DB(connector, max_idle_time=@time.Duration::of(nanoseconds=1))
+  defer db.close()
+  db.ping()
+  @async.sleep(15)
+  // the connection idle past max_idle_time is discarded on acquire
+  db.ping()
+  assert_eq(db.stats().max_idle_time_closed, 1)
+  assert_eq(db.stats().max_lifetime_closed, 0)
+}
+
+///|
+async test "stats counts connections closed when the idle queue is full" {
+  let connector = MockConnector()
+  // max_idle=0 means no connection may sit idle, so every release
+  // overflows the idle queue and closes the connection.
+  let db = @sql.DB(connector, max_idle=0)
+  defer db.close()
+  db.ping()
+  let stats = db.stats()
+  assert_eq(stats.max_idle_closed, 1)
+  assert_eq(stats.open, 0)
+  assert_eq(stats.in_use, 0)
+  assert_eq(stats.idle, 0)
+}
+
+///|
+async test "stats counts acquisitions that had to wait for a connection" {
+  let connector = MockConnector()
+  let db = @sql.DB(connector, max_idle=0, max_open=1)
+  defer db.close()
+  // Hold the single connection checked out so the spawned ping blocks
+  // in `acquire` until `rows.close()` returns it to the pool.
+  let rows = db.query("SELECT 1")
+  @async.with_task_group(group => {
+    group.spawn_bg(allow_failure=true, () => db.ping())
+    @async.sleep(15)
+    rows.close()
+  })
+  let stats = db.stats()
+  assert_eq(stats.wait_count, 1)
+  assert_true(stats.wait_duration_ms > 0)
+}

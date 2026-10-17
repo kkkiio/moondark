@@ -24,7 +24,21 @@ pub async fn DB::close(Self) -> Unit
 pub async fn DB::execute(Self, String, params? : ArrayView[&@driver.Valuer]) -> @driver.ExecResult
 pub async fn DB::ping(Self) -> Unit
 pub async fn DB::query(Self, String, params? : ArrayView[&@driver.Valuer]) -> Rows
+pub fn DB::stats(Self) -> DBStats
 pub async fn[T] DB::with_transaction(Self, async (Transaction) -> T) -> T
+
+pub struct DBStats {
+  max_open : Int
+  open : Int
+  in_use : Int
+  idle : Int
+  wait_count : Int64
+  wait_duration_ms : Int64
+  max_idle_closed : Int64
+  max_idle_time_closed : Int64
+  max_lifetime_closed : Int64
+} derive(@debug.Debug)
+pub fn DBStats::to_repr(Self) -> @debug.Repr
 
 type Row derive(@debug.Debug)
 pub fn Row::get(Self, String) -> @driver.Value?
