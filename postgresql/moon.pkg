@@ -1,4 +1,8 @@
 import {
+  "moonbit-community/postgres/client",
+  "moonbit-community/postgres/protocol" @proto,
+  "moonbitlang/core/encoding/percent",
+  "moonbitlang/core/string",
   "xziheng/moondark/database/sql",
   "xziheng/moondark/database/sql/driver",
   "moonbitlang/x/time",
@@ -7,8 +11,6 @@ import {
 import {
   "moonbitlang/async",
   "xziheng/testcontainers/postgres",
-  "xziheng/moondark/sessions",
-  "xziheng/moondark/sessions/db",
 } for "test"
 
 supported_targets = "native"
