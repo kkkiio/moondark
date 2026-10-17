@@ -67,9 +67,9 @@ pub async fn Rows::close(self : Self) -> Unit {
 }
 
 ///|
-struct Row {
-  columns : Array[String]
-  values : Array[@driver.Value]
+pub struct Row {
+  columns : ArrayView[String]
+  values : ArrayView[@driver.Value]
 } derive(Debug)
 
 ///|

@@ -21,15 +21,17 @@ async test "execute, query and value round trip" {
     row,
     content=(
       #|{
-      #|  columns: ["name", "price", "flag", "data", "note"],
-      #|  values: [
-      #|    String("apple"),
-      #|    Double(1.5),
-      #|    Int64(1),
-      #|    Bytes(<Bytes: [0x01, 0x02]>),
-      #|    Null,
-      #|  ],
+      #|  columns: <ArrayView: ["name", "price", "flag", "data", "note"]>,
+      #|  values: <ArrayView:
+      #|    [
+      #|      String("apple"),
+      #|      Double(1.5),
+      #|      Int64(1),
+      #|      Bytes(<Bytes: [0x01, 0x02]>),
+      #|      Null,
+      #|    ]>,
       #|}
+
     ),
   )
   assert_true(rows.next() is None)

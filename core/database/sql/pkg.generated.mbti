@@ -46,7 +46,10 @@ pub struct DBStats {
 } derive(@debug.Debug)
 pub fn DBStats::to_repr(Self) -> @debug.Repr
 
-type Row derive(@debug.Debug)
+pub struct Row {
+  columns : ArrayView[String]
+  values : ArrayView[@driver.Value]
+} derive(@debug.Debug)
 pub fn Row::get(Self, String) -> @driver.Value?
 pub fn Row::to_repr(Self) -> @debug.Repr
 
@@ -63,10 +66,8 @@ pub async fn Stmt::execute(Self, params? : ArrayView[&@driver.Valuer]) -> @drive
 pub async fn Stmt::query(Self, params? : ArrayView[&@driver.Valuer]) -> Rows
 
 type Transaction
-pub async fn Transaction::commit(Self) -> Unit
 pub async fn Transaction::execute(Self, String, params? : ArrayView[&@driver.Valuer]) -> @driver.ExecResult
 pub async fn Transaction::query(Self, String, params? : ArrayView[&@driver.Valuer]) -> Rows
-pub async fn Transaction::rollback(Self) -> Unit
 
 // Type aliases
 pub using @driver {type ExecResult}

@@ -3,7 +3,6 @@
 /// `DB::with_transaction` or `Conn::with_transaction`.
 struct Transaction {
   conn : ConnEntry
-  tx : &@driver.Tx
 }
 
 ///|
@@ -26,16 +25,4 @@ pub async fn Transaction::execute(
   let stmt = self.conn.conn.prepare(query)
   defer stmt.close()
   exec_stmt(stmt, params)
-}
-
-///|
-/// Commit the transaction. Normally called by `DB::with_transaction`.
-pub async fn Transaction::commit(self : Self) -> Unit {
-  self.tx.commit()
-}
-
-///|
-/// Rollback the transaction. Normally called by `DB::with_transaction`.
-pub async fn Transaction::rollback(self : Self) -> Unit {
-  self.tx.rollback()
 }

@@ -20,13 +20,15 @@ async test {
     content=(
       #|[
       #|  {
-      #|    columns: ["question", "answer"],
-      #|    values: [
-      #|      String("Answer to the Ultimate Question of Life, the Universe, and Everything"),
-      #|      String("42"),
-      #|    ],
+      #|    columns: <ArrayView: ["question", "answer"]>,
+      #|    values: <ArrayView:
+      #|      [
+      #|        String("Answer to the Ultimate Question of Life, the Universe, and Everything"),
+      #|        String("42"),
+      #|      ]>,
       #|  },
       #|]
+
     ),
   )
 }
