@@ -9,6 +9,9 @@ import {
 // Values
 
 // Errors
+pub(all) suberror BadConn {
+  BadConn(Error)
+}
 
 // Types and methods
 pub(all) struct ExecResult {
@@ -37,6 +40,9 @@ pub(open) trait Conn {
   async fn prepare(Self, String) -> &Stmt
   async fn close(Self) -> Unit
   async fn begin(Self) -> &Tx
+  async fn reset_session(Self) -> Unit = _
+  fn is_valid(Self) -> Bool = _
+  async fn ping(Self) -> Unit = _
 }
 
 pub(open) trait Connector {

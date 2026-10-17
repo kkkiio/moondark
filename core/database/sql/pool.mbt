@@ -31,25 +31,82 @@ async fn Pool::close(self : Pool) -> Unit {
 
 ///|
 async fn Pool::acquire(self : Pool) -> Conn {
-  if self.idle_connections.try_get() is Some(conn) {
+  for ;; {
+    let conn = match self.idle_connections.try_get() {
+      Some(conn) => conn
+      None =>
+        if self.active_count < self.max_open {
+          self.active_count += 1
+          errdefer {
+            self.active_count -= 1
+          }
+          return Conn::{ conn: self.connector.connect(), returned: false, }
+        } else {
+          self.idle_connections.get()
+        }
+    }
+    if !conn.conn.is_valid() {
+      conn.conn.close() catch {
+        _ => ()
+      }
+      self.active_count -= 1
+      continue
+    }
+    if conn.returned {
+      conn.conn.reset_session() catch {
+        _ => {
+          conn.conn.close() catch {
+            _ => ()
+          }
+          self.active_count -= 1
+          continue
+        }
+      }
+    }
     return conn
   }
-  if self.active_count < self.max_open {
-    self.active_count += 1
-    errdefer {
-      self.active_count -= 1
-    }
-    return Conn::{ conn: self.connector.connect(), }
-  }
-  self.idle_connections.get()
 }
 
 ///|
-async fn Pool::release(self : Pool, conn : Conn) -> Unit {
+async fn Pool::release(self : Pool, conn : Conn, bad~ : Bool = false) -> Unit {
+  if bad {
+    self.active_count -= 1
+    conn.conn.close() catch {
+      _ => ()
+    }
+    // Open a replacement so tasks blocked in `acquire` observe the freed
+    // capacity instead of starving when connections die en masse
+    // (e.g. a database outage where every conn raises `BadConn`).
+    if self.active_count < self.max_open {
+      self.active_count += 1
+      let new_conn = self.connector.connect() catch {
+        _ => {
+          self.active_count -= 1
+          return
+        }
+      }
+      let queued = self.idle_connections.try_put(Conn::{
+        conn: new_conn,
+        returned: false,
+      }) catch {
+        _ => false
+      }
+      if !queued {
+        self.active_count -= 1
+        new_conn.close() catch {
+          _ => ()
+        }
+      }
+    }
+    return
+  }
+  conn.returned = true
   let queued = self.idle_connections.try_put(conn) catch { _ => false }
   if queued {
     return
   }
   self.active_count -= 1
-  conn.conn.close()
+  conn.conn.close() catch {
+    _ => ()
+  }
 }

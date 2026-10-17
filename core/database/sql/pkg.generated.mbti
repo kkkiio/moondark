@@ -13,12 +13,14 @@ import {
 // Types and methods
 pub struct Conn {
   conn : &@driver.Conn
+  mut returned : Bool
 }
 
 type DB
 pub fn DB::DB(&@driver.Connector, max_idle? : Int, max_open? : Int) -> Self
 pub async fn DB::close(Self) -> Unit
 pub async fn DB::execute(Self, String, params? : ArrayView[&@driver.Valuer]) -> @driver.ExecResult
+pub async fn DB::ping(Self) -> Unit
 pub async fn DB::query(Self, String, params? : ArrayView[&@driver.Valuer]) -> Rows
 pub async fn[T] DB::with_transaction(Self, async (Transaction) -> T) -> T
 

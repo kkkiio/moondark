@@ -89,6 +89,21 @@ pub async fn DB::execute(
 }
 
 ///|
+/// Verify a connection to the database is still alive, establishing one
+/// if necessary. Connections failing `ping` with `BadConn` are discarded.
+pub async fn DB::ping(self : Self) -> Unit {
+  let conn = self.pool.acquire()
+  let result : Result[Unit, Error] = Ok(conn.conn.ping()) catch { e => Err(e) }
+  match result {
+    Err(e) => {
+      self.pool.release(conn, bad=e is @driver.BadConn(_))
+      raise e
+    }
+    Ok(_) => self.pool.release(conn)
+  }
+}
+
+///|
 /// Execute a transaction and commit it if no error occurs.
 pub async fn[T] DB::with_transaction(
   self : Self,
@@ -206,4 +221,6 @@ pub async fn Transaction::rollback(self : Self) -> Unit {
 ///|
 pub struct Conn {
   conn : &@driver.Conn
+  /// Whether the connection was used before and returned to the pool.
+  mut returned : Bool
 }

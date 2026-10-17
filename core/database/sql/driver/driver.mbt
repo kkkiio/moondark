@@ -9,10 +9,49 @@ pub(open) trait Connector {
 }
 
 ///|
+/// An error raised by a driver to signal that the connection is no longer
+/// usable. The pool discards the connection; when raised before the
+/// operation was sent to the server, the operation may be retried on a new
+/// connection. Carries the underlying error.
+pub(all) suberror BadConn {
+  BadConn(Error)
+}
+
+///|
 pub(open) trait Conn {
   async fn prepare(Self, String) -> &Stmt
   async fn close(Self) -> Unit
   async fn begin(Self) -> &Tx
+  /// ResetSession is called prior to executing a query on the connection
+  /// if the connection has been used before. If the driver returns ErrBadConn
+  /// the connection is discarded.
+  async fn reset_session(Self) -> Unit = _
+  /// is_valid is called before reusing a pooled connection that was
+  /// previously returned to the pool. Return `false` to have the
+  /// connection discarded instead of reused. Default: `true`.
+  fn is_valid(Self) -> Bool = _
+  /// ping checks that the connection is still alive.
+  /// The default implementation does nothing.
+  async fn ping(Self) -> Unit = _
+}
+
+///|
+/// Default implementation of reset_session that does nothing.
+impl Conn with fn reset_session(self) {
+  ignore(self)
+}
+
+///|
+/// Default implementation of is_valid that reports the connection as valid.
+impl Conn with fn is_valid(self) {
+  ignore(self)
+  true
+}
+
+///|
+/// Default implementation of ping that does nothing.
+impl Conn with fn ping(self) {
+  ignore(self)
 }
 
 ///|
