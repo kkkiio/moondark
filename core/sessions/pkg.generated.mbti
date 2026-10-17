@@ -1,0 +1,51 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "xziheng/moondark/sessions"
+
+import {
+  "moonbitlang/core/json",
+  "moonbitlang/moonback",
+}
+
+// Values
+pub fn get_session(@moonback.Request) -> Session?
+
+pub fn middleware(&SessionStore, session_cookie_name? : String, max_age? : UInt64) -> @moonback.Middleware
+
+// Errors
+
+// Types and methods
+type MemorySessionStore
+pub fn MemorySessionStore::MemorySessionStore(sessions? : Map[String, SessionModel]) -> Self
+pub async fn MemorySessionStore::create(Self, Session) -> Bool
+pub async fn MemorySessionStore::delete(Self, String) -> Unit
+pub async fn MemorySessionStore::get(Self, String) -> Session?
+pub async fn MemorySessionStore::update(Self, Session) -> Bool
+pub impl SessionStore for MemorySessionStore
+
+type Session
+pub fn Session::default() -> Self
+#alias("_[_]")
+pub fn Session::get(Self, String) -> Json?
+pub fn Session::of_model(SessionModel) -> Self
+#alias("_[_]=_")
+pub fn Session::set(Self, String, Json) -> Unit
+pub fn Session::to_model(Self) -> SessionModel
+pub impl Default for Session
+
+pub(all) struct SessionModel {
+  key : String
+  data : Map[String, Json]
+  expires_at : Int
+} derive(ToJson, @json.FromJson)
+pub fn SessionModel::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn SessionModel::to_json(Self) -> Json
+
+// Type aliases
+
+// Traits
+pub(open) trait SessionStore {
+  async fn get(Self, String) -> Session?
+  async fn create(Self, Session) -> Bool
+  async fn update(Self, Session) -> Bool
+  async fn delete(Self, String) -> Unit
+}

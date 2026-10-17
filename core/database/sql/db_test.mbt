@@ -45,6 +45,7 @@ impl @driver.Stmt for MockAnswerDB with fn num_input(self) {
 ///|
 impl @driver.Stmt for MockAnswerDB with fn exec(self, args) {
   self.executed.push(args)
+  @driver.ExecResult::{ rows_affected: Some(1), last_insert_id: None, }
 }
 
 ///|

@@ -5,6 +5,12 @@ struct DB {
 }
 
 ///|
+pub type ExecResult = @driver.ExecResult
+
+///|
+pub type Value = @driver.Value
+
+///|
 pub fn DB::DB(
   connector : &@driver.Connector,
   max_idle~ : Int32 = 5,
@@ -20,8 +26,8 @@ pub async fn DB::close(self : DB) -> Unit {
 }
 
 ///|
-fn values_of(params : ArrayView[String]) -> Array[@driver.Value] {
-  params.map(fn(param) { @driver.Value::String(param) })
+fn values_of(params : ArrayView[&@driver.Valuer]) -> Array[@driver.Value] {
+  params.map(fn(param) { param.to_value() })
 }
 
 ///|
@@ -29,7 +35,7 @@ fn values_of(params : ArrayView[String]) -> Array[@driver.Value] {
 /// `num_input` may return a negative value to skip the check.
 fn check_num_input(
   stmt : &@driver.Stmt,
-  params : ArrayView[String],
+  params : ArrayView[&@driver.Valuer],
 ) -> Unit raise {
   let expected = stmt.num_input()
   if expected >= 0 && expected != params.length() {
@@ -40,14 +46,17 @@ fn check_num_input(
 ///|
 async fn query_rows(
   stmt : &@driver.Stmt,
-  params : ArrayView[String],
+  params : ArrayView[&@driver.Valuer],
 ) -> &@driver.Rows {
   check_num_input(stmt, params)
   stmt.query(values_of(params))
 }
 
 ///|
-async fn exec_stmt(stmt : &@driver.Stmt, params : ArrayView[String]) -> Unit {
+async fn exec_stmt(
+  stmt : &@driver.Stmt,
+  params : ArrayView[&@driver.Valuer],
+) -> ExecResult {
   check_num_input(stmt, params)
   stmt.exec(values_of(params))
 }
@@ -56,7 +65,7 @@ async fn exec_stmt(stmt : &@driver.Stmt, params : ArrayView[String]) -> Unit {
 pub async fn DB::query(
   self : Self,
   query : String,
-  params~ : ArrayView[String] = [],
+  params~ : ArrayView[&@driver.Valuer] = [],
 ) -> Rows {
   let conn = self.pool.acquire()
   errdefer self.pool.release(conn)
@@ -70,8 +79,8 @@ pub async fn DB::query(
 pub async fn DB::execute(
   self : Self,
   query : String,
-  params~ : ArrayView[String] = [],
-) -> Unit {
+  params~ : ArrayView[&@driver.Valuer] = [],
+) -> ExecResult {
   let conn = self.pool.acquire()
   defer self.pool.release(conn)
   let stmt = conn.conn.prepare(query)
@@ -145,7 +154,7 @@ pub extend Row with Debug::{to_repr}
 
 ///|
 /// Get the value of the column with the given name.
-pub fn Row::get(self : Self, name : String) -> @driver.Value? {
+pub fn Row::get(self : Self, name : String) -> Value? {
   for i, column in self.columns {
     if column == name {
       return Some(self.values[i])
@@ -164,7 +173,7 @@ struct Transaction {
 pub async fn Transaction::query(
   self : Self,
   query : String,
-  params~ : ArrayView[String] = [],
+  params~ : ArrayView[&@driver.Valuer] = [],
 ) -> Rows {
   let stmt = self.conn.conn.prepare(query)
   let rows = query_rows(stmt, params)
@@ -175,8 +184,8 @@ pub async fn Transaction::query(
 pub async fn Transaction::execute(
   self : Self,
   query : String,
-  params~ : ArrayView[String] = [],
-) -> Unit {
+  params~ : ArrayView[&@driver.Valuer] = [],
+) -> ExecResult {
   let stmt = self.conn.conn.prepare(query)
   defer stmt.close()
   exec_stmt(stmt, params)

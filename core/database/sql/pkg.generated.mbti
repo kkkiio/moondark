@@ -18,8 +18,8 @@ pub struct Conn {
 type DB
 pub fn DB::DB(&@driver.Connector, max_idle? : Int, max_open? : Int) -> Self
 pub async fn DB::close(Self) -> Unit
-pub async fn DB::execute(Self, String, params? : ArrayView[String]) -> Unit
-pub async fn DB::query(Self, String, params? : ArrayView[String]) -> Rows
+pub async fn DB::execute(Self, String, params? : ArrayView[&@driver.Valuer]) -> @driver.ExecResult
+pub async fn DB::query(Self, String, params? : ArrayView[&@driver.Valuer]) -> Rows
 pub async fn[T] DB::with_transaction(Self, async (Transaction) -> T) -> T
 
 type Row derive(@debug.Debug)
@@ -32,10 +32,13 @@ pub async fn Rows::next(Self) -> Row?
 
 type Transaction
 pub async fn Transaction::commit(Self) -> Unit
-pub async fn Transaction::execute(Self, String, params? : ArrayView[String]) -> Unit
-pub async fn Transaction::query(Self, String, params? : ArrayView[String]) -> Rows
+pub async fn Transaction::execute(Self, String, params? : ArrayView[&@driver.Valuer]) -> @driver.ExecResult
+pub async fn Transaction::query(Self, String, params? : ArrayView[&@driver.Valuer]) -> Rows
 pub async fn Transaction::rollback(Self) -> Unit
 
 // Type aliases
+pub using @driver {type ExecResult}
+
+pub using @driver {type Value}
 
 // Traits

@@ -40,11 +40,11 @@ async test {
   let mock = MockAnswerDB()
   let db = @sql.DB(mock)
   defer db.close()
-  db.execute("UPDATE answers SET answer = ?", params=["42"])
+  let result = db.execute("UPDATE answers SET answer = ?", params=["42"])
   debug_inspect(
-    (mock.last_prepared, mock.executed),
+    (mock.last_prepared, mock.executed, result.rows_affected),
     content=(
-      #|("UPDATE answers SET answer = ?", [[String("42")]])
+      #|("UPDATE answers SET answer = ?", [[String("42")]], Some(1))
     ),
   )
 }

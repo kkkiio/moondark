@@ -19,8 +19,18 @@ pub(open) trait Conn {
 pub(open) trait Stmt {
   async fn close(Self) -> Unit
   fn num_input(Self) -> Int32
-  async fn exec(Self, Array[Value]) -> Unit
+  async fn exec(Self, Array[Value]) -> ExecResult
   async fn query(Self, Array[Value]) -> &Rows
+}
+
+///|
+/// The result of executing a statement.
+pub(all) struct ExecResult {
+  /// `None` if the database did not report a row count (e.g. DDL statements).
+  rows_affected : Int64?
+  /// `None` if the database does not report generated ids (e.g. PostgreSQL)
+  /// or the statement generated none.
+  last_insert_id : Int64?
 }
 
 ///|
@@ -56,8 +66,22 @@ pub(open) trait Valuer {
 }
 
 ///|
+pub impl Valuer for Value with fn to_value(self) -> Value {
+  self
+}
+
+///|
+#deprecated
+pub extend Value with Valuer::{to_value}
+
+///|
 pub impl Valuer for Bool with fn to_value(self) -> Value {
   Value::Bool(self)
+}
+
+///|
+pub impl Valuer for Int32 with fn to_value(self) -> Value {
+  Value::Int64(self.to_int64())
 }
 
 ///|
