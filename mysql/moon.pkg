@@ -1,6 +1,11 @@
 import {
   "xziheng/moondark/database/sql",
   "xziheng/moondark/database/sql/driver",
+  "moonbitstack/moonmysql",
+  "moonbitstack/moonmysql/client",
+  "moonbitstack/moondb",
+  "moonbitlang/core/string",
+  "moonbitlang/core/encoding/percent",
   "moonbitlang/x/time",
 }
 
