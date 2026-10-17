@@ -5,8 +5,36 @@ pub(open) trait Driver {
 
 ///|
 pub(open) trait Connector {
-  async fn connect(Self) -> &Conn
+  /// Open a new physical connection together with the executor driving
+  /// its protocol. The pool spawns the executor on its own task group;
+  /// callers only ever see the connection half of the pair.
+  async fn connect(Self) -> (&Conn, &ConnExecutor)
 }
+
+///|
+/// A long-running background task that drives a connection's wire protocol.
+/// Drivers whose connections need a dedicated task (e.g. network protocol
+/// clients) return their own executor from `Connector::connect`; drivers
+/// whose connections are self-sufficient return `@driver.NoopExecutor`.
+pub(open) trait ConnExecutor {
+  /// Drive the connection's protocol loop until the connection is closed
+  /// or the executor is cancelled. Called exactly once by the pool, on the
+  /// pool's task group.
+  async fn run(Self) -> Unit
+}
+
+///|
+/// Executor for drivers whose connections need no background task. `run`
+/// returns immediately.
+pub(all) struct NoopExecutor {}
+
+///|
+pub impl ConnExecutor for NoopExecutor with fn run(_self) {
+  ()
+}
+
+///|
+pub extend NoopExecutor with ConnExecutor::{run}
 
 ///|
 /// An error raised by a driver to signal that the connection is no longer
@@ -33,6 +61,11 @@ pub(open) trait Conn {
   /// ping checks that the connection is still alive.
   /// The default implementation does nothing.
   async fn ping(Self) -> Unit = _
+  /// Wait until the connection is usable. The pool calls this after the
+  /// connection's executor has been spawned. The default implementation
+  /// returns immediately: self-sufficient connections are ready as soon
+  /// as `connect` returns.
+  async fn ready(Self) -> Unit = _
 }
 
 ///|
@@ -51,6 +84,12 @@ impl Conn with fn is_valid(self) {
 ///|
 /// Default implementation of ping that does nothing.
 impl Conn with fn ping(self) {
+  ignore(self)
+}
+
+///|
+/// Default implementation of ready that does nothing.
+impl Conn with fn ready(self) {
   ignore(self)
 }
 

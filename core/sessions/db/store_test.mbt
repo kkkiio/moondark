@@ -20,7 +20,7 @@ fn MockDB::MockDB() -> MockDB {
 
 ///|
 impl @driver.Connector for MockDB with fn connect(self) {
-  self
+  ((self : &@driver.Conn), @driver.NoopExecutor::{ })
 }
 
 ///|
@@ -102,83 +102,103 @@ fn test_session() -> @sessions.Session {
 }
 
 ///|
+/// Build a session store over `mock`'s pool and run `f` with it; the
+/// pool's executor is stopped by the scope's `defer`.
+async fn with_store(
+  mock : MockDB,
+  f : async (@db.DBSessionStore) -> Unit,
+) -> Unit {
+  let (db, executor) = @sql.DB::new(mock)
+  @async.with_task_group(group => {
+    group.spawn_bg(no_wait=true, () => executor.run())
+    db.ready()
+    defer db.close()
+    f(@db.DBSessionStore::DBSessionStore(db))
+  })
+}
+
+///|
 async test "get returns stored session" {
   let mock = MockDB()
-  let store = @db.DBSessionStore::DBSessionStore(@sql.DB(mock))
-  mock.query_columns = ["session_data", "expires_at"]
-  mock.query_rows = [
-    [@driver.Value::String("{\"a\": 1}"), @driver.Value::Int64(2_000_000_000)],
-  ]
-  json_inspect(store.get("abc").unwrap().to_model(), content={
-    "key": "abc",
-    "data": { "a": 1 },
-    "expires_at": 2000000000,
+  with_store(mock, store => {
+    mock.query_columns = ["session_data", "expires_at"]
+    mock.query_rows = [
+      [@driver.Value::String("{\"a\": 1}"), @driver.Value::Int64(2_000_000_000)],
+    ]
+    json_inspect(store.get("abc").unwrap().to_model(), content={
+      "key": "abc",
+      "data": { "a": 1 },
+      "expires_at": 2000000000,
+    })
   })
 }
 
 ///|
 async test "get returns None when missing" {
-  let store = @db.DBSessionStore::DBSessionStore(@sql.DB(MockDB()))
-  assert_true(store.get("abc") is None)
+  with_store(MockDB(), store => assert_true(store.get("abc") is None))
 }
 
 ///|
 async test "create inserts when key is free" {
   let mock = MockDB()
-  let store = @db.DBSessionStore::DBSessionStore(@sql.DB(mock))
-  assert_true(store.create(test_session()))
-  debug_inspect(
-    mock.statements,
-    content=(
-      #|[
-      #|  ("SELECT 1 FROM sessions WHERE session_key = ?", [String("abc")]),
-      #|  (
-      #|    "INSERT INTO sessions (session_key, session_data, expires_at) VALUES (?, ?, ?)",
-      #|    [String("abc"), String("{\"a\":1}"), Int64(2000000000)],
-      #|  ),
-      #|]
-    ),
-  )
+  with_store(mock, store => {
+    assert_true(store.create(test_session()))
+    debug_inspect(
+      mock.statements,
+      content=(
+        #|[
+        #|  ("SELECT 1 FROM sessions WHERE session_key = ?", [String("abc")]),
+        #|  (
+        #|    "INSERT INTO sessions (session_key, session_data, expires_at) VALUES (?, ?, ?)",
+        #|    [String("abc"), String("{\"a\":1}"), Int64(2000000000)],
+        #|  ),
+        #|]
+      ),
+    )
+  })
 }
 
 ///|
 async test "create returns false when key exists" {
   let mock = MockDB()
-  let store = @db.DBSessionStore::DBSessionStore(@sql.DB(mock))
-  mock.query_columns = ["1"]
-  mock.query_rows = [[@driver.Value::Int64(1)]]
-  assert_false(store.create(test_session()))
+  with_store(mock, store => {
+    mock.query_columns = ["1"]
+    mock.query_rows = [[@driver.Value::Int64(1)]]
+    assert_false(store.create(test_session()))
+  })
 }
 
 ///|
 async test "update returns true on affected row" {
-  let store = @db.DBSessionStore::DBSessionStore(@sql.DB(MockDB()))
-  assert_true(store.update(test_session()))
+  with_store(MockDB(), store => assert_true(store.update(test_session())))
 }
 
 ///|
 async test "update falls back to existence check" {
   // e.g. MySQL reports 0 when the data did not change
   let mock = MockDB()
-  let store = @db.DBSessionStore::DBSessionStore(@sql.DB(mock))
-  mock.exec_result = { rows_affected: Some(0), last_insert_id: None, }
-  mock.query_columns = ["1"]
-  mock.query_rows = [[@driver.Value::Int64(1)]]
-  assert_true(store.update(test_session()))
+  with_store(mock, store => {
+    mock.exec_result = { rows_affected: Some(0), last_insert_id: None, }
+    mock.query_columns = ["1"]
+    mock.query_rows = [[@driver.Value::Int64(1)]]
+    assert_true(store.update(test_session()))
+  })
 }
 
 ///|
 async test "update returns false when row is missing" {
   let mock = MockDB()
-  let store = @db.DBSessionStore::DBSessionStore(@sql.DB(mock))
-  mock.exec_result = { rows_affected: Some(0), last_insert_id: None, }
-  assert_false(store.update(test_session()))
+  with_store(mock, store => {
+    mock.exec_result = { rows_affected: Some(0), last_insert_id: None, }
+    assert_false(store.update(test_session()))
+  })
 }
 
 ///|
 async test "delete issues DELETE" {
   let mock = MockDB()
-  let store = @db.DBSessionStore::DBSessionStore(@sql.DB(mock))
-  store.delete("abc")
-  assert_true(mock.statements[0].0.contains("DELETE FROM sessions"))
+  with_store(mock, store => {
+    store.delete("abc")
+    assert_true(mock.statements[0].0.contains("DELETE FROM sessions"))
+  })
 }

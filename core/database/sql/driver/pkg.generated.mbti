@@ -19,6 +19,11 @@ pub(all) struct ExecResult {
   last_insert_id : Int64?
 }
 
+pub(all) struct NoopExecutor {
+}
+pub async fn NoopExecutor::run(Self) -> Unit
+pub impl ConnExecutor for NoopExecutor
+
 pub(all) enum Value {
   Null
   Bool(Bool)
@@ -43,10 +48,15 @@ pub(open) trait Conn {
   async fn reset_session(Self) -> Unit = _
   fn is_valid(Self) -> Bool = _
   async fn ping(Self) -> Unit = _
+  async fn ready(Self) -> Unit = _
+}
+
+pub(open) trait ConnExecutor {
+  async fn run(Self) -> Unit
 }
 
 pub(open) trait Connector {
-  async fn connect(Self) -> &Conn
+  async fn connect(Self) -> (&Conn, &ConnExecutor)
 }
 
 pub(open) trait Driver {

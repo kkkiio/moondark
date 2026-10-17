@@ -186,7 +186,7 @@ pub async fn[T] Conn::with_transaction(
         }
     }
     // The transaction has begun; do not retry past this point.
-    let f_result : Result[T, Error] = Ok(f(Transaction::{ conn: entry })) catch {
+    let f_result : Result[T, Error] = Ok(f(Transaction::{ conn: entry, })) catch {
       e => Err(e)
     }
     let result = match f_result {

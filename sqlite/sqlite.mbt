@@ -5,8 +5,12 @@
 /// `":memory:"`). Note that each pooled connection to `":memory:"` gets its
 /// own private database; use `max_open=1` or a file for shared state.
 ///
+/// Returns the `DB` and its `DBExecutor`; spawn the executor on a task
+/// group that outlives the database:
+///
 /// ```
-/// let db = @moondark_sqlite.open_db("app.db")
+/// let (db, executor) = @moondark_sqlite.open_db("app.db")
+/// group.spawn_bg(no_wait=true, () => executor.run())
 /// ```
 pub fn open_db(
   dsn : String,
@@ -14,8 +18,8 @@ pub fn open_db(
   max_open~ : Int32 = 10,
   max_lifetime~ : @time.Duration = @time.Duration::zero(),
   max_idle_time~ : @time.Duration = @time.Duration::zero(),
-) -> @sql.DB raise {
-  @sql.DB(
+) -> (@sql.DB, @sql.DBExecutor) raise {
+  @sql.DB::new(
     Driver::new().open(dsn),
     max_idle~,
     max_open~,
@@ -28,7 +32,7 @@ pub fn open_db(
 /// SQLite driver implementing `@driver.Driver`.
 ///
 /// ```
-/// let db = @sql.DB(@moondark_sqlite.Driver::new().open("app.db"))
+/// let (db, executor) = @sql.DB::new(@moondark_sqlite.Driver::new().open("app.db"))
 /// ```
 struct Driver {}
 
@@ -53,8 +57,13 @@ struct Connector {
 }
 
 ///|
+/// SQLite connections are self-sufficient: `connect` pairs the fresh
+/// `sqlite3.Connection` with a `@driver.NoopExecutor`.
 pub impl @driver.Connector for Connector with fn connect(self) {
-  Conn::{ inner: @sqlite3.Connection::open_async(self.dsn), }
+  (
+    (Conn::{ inner: @sqlite3.Connection::open_async(self.dsn), } : &@driver.Conn),
+    @driver.NoopExecutor::{ },
+  )
 }
 
 ///|
@@ -104,6 +113,7 @@ pub extend Conn with @driver.Conn::{
   prepare,
   is_valid,
   ping,
+  ready,
   reset_session,
 }
 

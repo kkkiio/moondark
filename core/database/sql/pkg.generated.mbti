@@ -23,15 +23,21 @@ pub async fn Conn::query(Self, String, params? : ArrayView[&@driver.Valuer]) -> 
 pub async fn[T] Conn::with_transaction(Self, async (Transaction) -> T) -> T
 
 type DB
-pub fn DB::DB(&@driver.Connector, max_idle? : Int, max_open? : Int, max_lifetime? : @time.Duration, max_idle_time? : @time.Duration, max_stmts_per_conn? : Int) -> Self
 pub async fn DB::close(Self) -> Unit
 pub async fn DB::conn(Self) -> Conn
 pub async fn DB::execute(Self, String, params? : ArrayView[&@driver.Valuer]) -> @driver.ExecResult
+pub fn DB::new(&@driver.Connector, max_idle? : Int, max_open? : Int, max_lifetime? : @time.Duration, max_idle_time? : @time.Duration, max_stmts_per_conn? : Int) -> (Self, DBExecutor)
 pub async fn DB::ping(Self) -> Unit
 pub fn DB::prepare(Self, String) -> Stmt
 pub async fn DB::query(Self, String, params? : ArrayView[&@driver.Valuer]) -> Rows
+pub async fn DB::ready(Self) -> Unit
 pub fn DB::stats(Self) -> DBStats
 pub async fn[T] DB::with_transaction(Self, async (Transaction) -> T) -> T
+
+pub struct DBExecutor {
+  // private fields
+}
+pub async fn DBExecutor::run(Self) -> Unit
 
 pub struct DBStats {
   max_open : Int

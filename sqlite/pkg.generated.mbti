@@ -8,7 +8,7 @@ import {
 }
 
 // Values
-pub fn open_db(String, max_idle? : Int, max_open? : Int, max_lifetime? : @time.Duration, max_idle_time? : @time.Duration) -> @sql.DB raise
+pub fn open_db(String, max_idle? : Int, max_open? : Int, max_lifetime? : @time.Duration, max_idle_time? : @time.Duration) -> (@sql.DB, @sql.DBExecutor) raise
 
 // Errors
 
@@ -19,11 +19,12 @@ pub async fn Conn::close(Self) -> Unit
 pub fn Conn::is_valid(Self) -> Bool
 pub async fn Conn::ping(Self) -> Unit
 pub async fn Conn::prepare(Self, String) -> &@driver.Stmt
+pub async fn Conn::ready(Self) -> Unit
 pub async fn Conn::reset_session(Self) -> Unit
 pub impl @driver.Conn for Conn
 
 type Connector
-pub async fn Connector::connect(Self) -> &@driver.Conn
+pub async fn Connector::connect(Self) -> (&@driver.Conn, &@driver.ConnExecutor)
 pub impl @driver.Connector for Connector
 
 type Driver

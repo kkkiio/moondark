@@ -1,7 +1,38 @@
 ///|
+/// Shared pool state, driven by `DBExecutor`. The package runs on the
+/// single-threaded async runtime, so `mut` fields are coroutine-safe as
+/// long as no mutation is left half-done across a suspension point.
 priv struct Pool {
-  idle_connections : @aqueue.Queue[ConnEntry]
   connector : &@driver.Connector
+  /// Capacity semaphore pre-filled with `max_open` tokens. A token is a
+  /// checkout permit: it travels with the connection while it is checked
+  /// out, being created, or waiting for `serve_closes` to close it, and
+  /// goes back to the queue when the connection goes idle or finishes
+  /// closing. Idle connections carry no token, so a free token always
+  /// exists when a reusable connection does.
+  slots : @aqueue.Queue[Unit]
+  /// Requests to open a physical connection, served by the executor's
+  /// `serve_creations` worker.
+  create_requests : @aqueue.Queue[CreateRequest]
+  /// Connections retired by `acquire`/`release`, closed by the
+  /// executor's `serve_closes` worker.
+  close_requests : @aqueue.Queue[ConnEntry]
+  /// Idle connections available for reuse; bounded by `max_idle`.
+  idle_connections : @aqueue.Queue[ConnEntry]
+  /// Completed by `DBExecutor::run` once its workers are running, and by
+  /// `Pool::close` so waiters never hang.
+  ready : Completion
+  /// Completed by `Pool::close`; `DBExecutor::run` waits on it before
+  /// starting teardown.
+  shutdown : Completion
+  /// Completed by `DBExecutor::run` when it exits; `Pool::close` waits
+  /// on it when the executor was started.
+  done : Completion
+  /// Whether `DBExecutor::run` was called.
+  mut started : Bool
+  /// Whether `Pool::close` was called.
+  mut closed : Bool
+  /// Total live connections managed by the pool (in_use + idle).
   mut active_count : Int32
   /// Connections currently checked out of the pool.
   mut in_use : Int32
@@ -28,6 +59,48 @@ priv struct Pool {
 }
 
 ///|
+/// A request sent to `serve_creations` asking for a new physical
+/// connection. The result is delivered on a one-slot queue: on success
+/// the entry is `put` into it, on failure the queue is closed with the
+/// connection error so `acquire` observes the driver's original error.
+priv struct CreateRequest {
+  result : @aqueue.Queue[ConnEntry]
+}
+
+///|
+/// A one-shot latch for pool lifecycle transitions, modelled on pgpool's
+/// `Completion`: `complete` wakes all current and future `wait`ers, and
+/// completing twice is a no-op.
+priv struct Completion {
+  mut done : Bool
+  signal : @aqueue.Queue[Unit]
+}
+
+///|
+fn Completion::Completion() -> Completion {
+  { done: false, signal: @aqueue.Queue(kind=Unbounded), }
+}
+
+///|
+fn Completion::complete(self : Completion) -> Unit {
+  if self.done {
+    return
+  }
+  self.done = true
+  self.signal.close()
+}
+
+///|
+async fn Completion::wait(self : Completion) -> Unit {
+  if !self.done {
+    ignore(self.signal.get()) catch {
+      @aqueue.QueueAlreadyClosed => ()
+      e => raise e
+    }
+  }
+}
+
+///|
 /// Convert a `Duration` to milliseconds for internal storage. A positive
 /// duration smaller than one millisecond is clamped to 1ms so that it
 /// still enables expiry (`<= 0` means disabled); it effectively means
@@ -50,9 +123,23 @@ fn Pool::Pool(
   max_idle_time~ : @time.Duration,
   max_stmts_per_conn~ : Int32,
 ) -> Pool {
+  let slots : @aqueue.Queue[Unit] = @aqueue.Queue(kind=Blocking(max_open))
+  for _ in 0..<max_open {
+    ignore(slots.try_put(())) catch {
+      _ => ()
+    }
+  }
   {
-    idle_connections: @aqueue.Queue(kind=Blocking(max_idle)),
     connector,
+    slots,
+    create_requests: @aqueue.Queue(kind=Unbounded),
+    close_requests: @aqueue.Queue(kind=Unbounded),
+    idle_connections: @aqueue.Queue(kind=Blocking(max_idle)),
+    ready: Completion::Completion(),
+    shutdown: Completion::Completion(),
+    done: Completion::Completion(),
+    started: false,
+    closed: false,
     active_count: 0,
     in_use: 0,
     max_open,
@@ -88,86 +175,229 @@ fn Pool::new_entry(
 }
 
 ///|
-async fn Pool::close(self : Pool) -> Unit {
+/// Return one capacity token; a closed token queue swallows it, which is
+/// fine since a closed pool no longer needs capacity accounting.
+fn Pool::release_slot(self : Pool) -> Unit {
+  ignore(self.slots.try_put(())) catch {
+    _ => ()
+  }
+}
+
+///|
+/// Retire `entry`: hand it to the executor's `serve_closes` worker, which
+/// closes it and returns the capacity token travelling with it. If the
+/// worker is already gone the connection is closed inline and the token
+/// freed directly.
+async fn Pool::discard_entry(self : Pool, entry : ConnEntry) -> Unit {
+  self.active_count -= 1
+  let queued = self.close_requests.try_put(entry) catch { _ => false }
+  if !queued {
+    entry.close() catch {
+      _ => ()
+    }
+    self.release_slot()
+  }
+}
+
+///|
+/// Close every idle connection and the idle queue itself.
+async fn Pool::drain_idle(self : Pool) -> Unit {
   while (self.idle_connections.try_get() catch { _ => None }) is Some(entry) {
-    entry.close()
     self.active_count -= 1
+    entry.close() catch {
+      _ => ()
+    }
   }
   self.idle_connections.close()
 }
 
 ///|
-async fn Pool::acquire(self : Pool) -> ConnEntry {
-  for ;; {
-    let entry = match self.idle_connections.try_get() {
-      Some(entry) => entry
-      None =>
-        if self.active_count < self.max_open {
-          self.active_count += 1
-          errdefer {
-            self.active_count -= 1
-          }
-          let conn = self.connector.connect()
-          self.in_use += 1
-          return self.new_entry(conn, @env.now().reinterpret_as_int64())
-        } else {
-          // The pool is exhausted: block until a connection is
-          // released, recording the wait for `DB::stats`.
-          let start = @env.now().reinterpret_as_int64()
-          let entry = self.idle_connections.get()
-          self.wait_count += 1
-          self.wait_duration_ms += @env.now().reinterpret_as_int64() - start
-          entry
-        }
-    }
-    let now = @env.now().reinterpret_as_int64()
-    // Expiry is lazy: there is no background reaper, so expired
-    // connections are only discarded when encountered here or in
-    // `release`. Freshly created connections skip this check (they
-    // return above without touching the idle queue), as in Go.
-    let lifetime_expired = self.max_lifetime_ms > 0 &&
-      now - entry.created_at > self.max_lifetime_ms
-    let idle_expired = entry.returned &&
-      self.max_idle_time_ms > 0 &&
-      now - entry.returned_at > self.max_idle_time_ms
-    if lifetime_expired || idle_expired {
-      entry.close() catch {
-        _ => ()
-      }
-      self.active_count -= 1
-      // A connection expired on both counts is attributed to its
-      // lifetime, matching Go's ordering of the checks.
-      if lifetime_expired {
-        self.max_lifetime_closed += 1
-      } else {
-        self.max_idle_time_closed += 1
-      }
-      continue
-    }
-    if !entry.conn.is_valid() {
-      entry.close() catch {
-        _ => ()
-      }
-      self.active_count -= 1
-      continue
-    }
-    if entry.returned {
-      entry.conn.reset_session() catch {
-        _ => {
-          entry.close() catch {
-            _ => ()
-          }
-          self.active_count -= 1
-          continue
-        }
-      }
-    }
-    self.in_use += 1
-    return entry
+/// Stop the pool: wake anyone waiting on `ready`/`shutdown`, unblock
+/// acquirers parked on the capacity semaphore, then either wait for the
+/// executor's teardown (`done`) or, when it was never started, clean up
+/// inline. Idempotent.
+async fn Pool::close(self : Pool) -> Unit {
+  if self.closed {
+    return
+  }
+  self.closed = true
+  self.ready.complete()
+  self.shutdown.complete()
+  self.slots.close()
+  if self.started {
+    self.done.wait()
+  } else {
+    self.create_requests.close()
+    self.close_requests.close()
+    self.drain_idle()
   }
 }
 
 ///|
+/// Check out a connection. Reusable idle connections are preferred; when
+/// none is available the executor's `serve_creations` worker opens a new
+/// one. A capacity token is reserved before each attempt: it becomes the
+/// checkout permit of the acquired connection, is consumed by a
+/// discarded connection (which keeps it until `serve_closes` finishes
+/// closing it), and is returned if the attempt fails.
+async fn Pool::acquire(self : Pool) -> ConnEntry {
+  // Wait for the executor so requests are actually served; acquisitions
+  // made before `DBExecutor::run` starts queue up instead of hanging on
+  // an unserved create request.
+  self.ready.wait()
+  for ;; {
+    if (self.slots.try_get() catch { _ => None }) is None {
+      // The pool is exhausted: block until a connection is released or
+      // closed, recording the wait for `DB::stats`.
+      let start = @env.now().reinterpret_as_int64()
+      self.slots.get() catch {
+        @aqueue.QueueAlreadyClosed => fail("connection pool is closed")
+        e => raise e
+      }
+      self.wait_count += 1
+      self.wait_duration_ms += @env.now().reinterpret_as_int64() - start
+    }
+    let idle = self.idle_connections.try_get() catch { _ => None }
+    match idle {
+      Some(entry) => {
+        let now = @env.now().reinterpret_as_int64()
+        // Expiry is lazy: there is no background reaper, so expired
+        // connections are only discarded when encountered here or in
+        // `release`.
+        let lifetime_expired = self.max_lifetime_ms > 0 &&
+          now - entry.created_at > self.max_lifetime_ms
+        let idle_expired = entry.returned &&
+          self.max_idle_time_ms > 0 &&
+          now - entry.returned_at > self.max_idle_time_ms
+        if lifetime_expired || idle_expired {
+          // A connection expired on both counts is attributed to its
+          // lifetime, matching Go's ordering of the checks.
+          if lifetime_expired {
+            self.max_lifetime_closed += 1
+          } else {
+            self.max_idle_time_closed += 1
+          }
+          self.discard_entry(entry)
+          // The discarded connection consumed the token, which
+          // `serve_closes` returns after closing it; take a fresh
+          // token before retrying.
+          continue
+        }
+        if !entry.conn.is_valid() {
+          self.discard_entry(entry)
+          continue
+        }
+        if entry.returned {
+          entry.conn.reset_session() catch {
+            _ => {
+              self.discard_entry(entry)
+              continue
+            }
+          }
+        }
+        self.in_use += 1
+        return entry
+      }
+      None => {
+        let request = CreateRequest::{
+          result: @aqueue.Queue(kind=Blocking(1)),
+        }
+        // If the caller failed or was cancelled after the worker
+        // already delivered an entry, retire it instead of leaking
+        // the connection and its token; otherwise free the token.
+        errdefer (if (request.result.try_get() catch { _ => None })
+          is Some(entry) {
+          self.discard_entry(entry)
+        } else {
+          self.release_slot()
+        })
+        self.create_requests.put(request) catch {
+          @aqueue.QueueAlreadyClosed => fail("connection pool is closed")
+          e => raise e
+        }
+        let entry = request.result.get()
+        self.in_use += 1
+        return entry
+      }
+    }
+  }
+  panic() // unreachable: the loop only exits via return or raise
+}
+
+///|
+/// Serve connection creation requests on the executor's task group.
+/// Each request is handled by its own background task so a slow
+/// handshake does not block other creations; failures are reported to
+/// the requester through the request's result queue. Exits when
+/// `create_requests` is closed during teardown.
+async fn serve_creations(pool : Pool, group : @async.TaskGroup[Unit]) -> Unit {
+  for ;; {
+    let request = pool.create_requests.get() catch {
+      @aqueue.QueueAlreadyClosed => return
+      e => raise e
+    }
+    group.spawn_bg(no_wait=true, allow_failure=true, () => {
+      create_physical(pool, group, request)
+    })
+  }
+}
+
+///|
+/// Open one physical connection for `request`: connect through the
+/// driver, spawn the connection's executor on the pool's task group,
+/// wait for the connection to become ready, then deliver the entry to
+/// the requester. On any failure the requester's result queue is closed
+/// with the original error.
+async fn create_physical(
+  pool : Pool,
+  group : @async.TaskGroup[Unit],
+  request : CreateRequest,
+) -> Unit {
+  let created : Result[ConnEntry, Error] = Ok(
+    {
+      let (conn, executor) = pool.connector.connect()
+      group.spawn_bg(no_wait=true, allow_failure=true, () => executor.run())
+      conn.ready()
+      pool.new_entry(conn, @env.now().reinterpret_as_int64())
+    },
+  ) catch {
+    e => Err(e)
+  }
+  match created {
+    Err(e) => request.result.close(error=e)
+    Ok(entry) => {
+      pool.active_count += 1
+      let delivered = !pool.closed &&
+        (request.result.try_put(entry) catch { _ => false })
+      if !delivered {
+        // The pool closed mid-creation, or the requester went away:
+        // retire the connection through the normal close path.
+        pool.discard_entry(entry)
+      }
+    }
+  }
+}
+
+///|
+/// Serve connection close requests, closing each retired connection and
+/// returning its capacity token afterwards. Exits when `close_requests`
+/// is closed during teardown.
+async fn serve_closes(pool : Pool) -> Unit {
+  for ;; {
+    let entry = pool.close_requests.get() catch {
+      @aqueue.QueueAlreadyClosed => return
+      e => raise e
+    }
+    @async.protect_from_cancel(() => entry.close() catch { _ => () })
+    pool.release_slot()
+  }
+}
+
+///|
+/// Return a connection to the pool. Connections that are `bad`, past
+/// their `max_lifetime`, overflow `max_idle`, or arrive after close are
+/// retired through `close_requests`; healthy ones go back to the idle
+/// queue and their capacity token is returned to the semaphore.
 async fn Pool::release(
   self : Pool,
   entry : ConnEntry,
@@ -176,52 +406,28 @@ async fn Pool::release(
   self.in_use -= 1
   let now = @env.now().reinterpret_as_int64()
   // A connection past its maximum lifetime is discarded through the same
-  // path as a `bad` one: close it and eagerly open a replacement.
+  // path as a `bad` one.
   let lifetime_expired = self.max_lifetime_ms > 0 &&
     now - entry.created_at > self.max_lifetime_ms
-  if bad || lifetime_expired {
+  if bad || lifetime_expired || self.closed {
     if lifetime_expired {
       self.max_lifetime_closed += 1
     }
-    self.active_count -= 1
-    entry.close() catch {
-      _ => ()
-    }
-    // Open a replacement so tasks blocked in `acquire` observe the freed
-    // capacity instead of starving when connections die en masse
-    // (e.g. a database outage where every conn raises `BadConn`).
-    if self.active_count < self.max_open {
-      self.active_count += 1
-      let new_conn = self.connector.connect() catch {
-        _ => {
-          self.active_count -= 1
-          return
-        }
-      }
-      let queued = self.idle_connections.try_put(self.new_entry(new_conn, now)) catch {
-        _ => false
-      }
-      if !queued {
-        self.active_count -= 1
-        new_conn.close() catch {
-          _ => ()
-        }
-      }
-    }
+    self.discard_entry(entry)
     return
   }
   entry.returned = true
   entry.returned_at = now
   let queued = self.idle_connections.try_put(entry) catch { _ => false }
   if queued {
+    // The idle connection no longer needs the checkout permit: return
+    // the token so a blocked acquirer can pick the connection up.
+    self.release_slot()
     return
   }
   // The idle queue is full (`max_idle`): the connection is closed.
-  self.active_count -= 1
   self.max_idle_closed += 1
-  entry.close() catch {
-    _ => ()
-  }
+  self.discard_entry(entry)
 }
 
 ///|

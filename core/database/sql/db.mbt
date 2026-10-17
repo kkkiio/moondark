@@ -5,6 +5,14 @@ struct DB {
 }
 
 ///|
+/// The background supervisor driving the pool's workers. `DB::new`
+/// returns it alongside the `DB`; spawn it on a task group that outlives
+/// the database, e.g. `group.spawn_bg(no_wait=true, () => executor.run())`.
+pub struct DBExecutor {
+  priv pool : Pool
+}
+
+///|
 pub type ExecResult = @driver.ExecResult
 
 ///|
@@ -48,28 +56,84 @@ pub extend DBStats with Debug::{to_repr}
 /// `max_stmts_per_conn` bounds the number of prepared statements cached
 /// on each pooled connection (see `DB::prepare`); `0` (the default)
 /// disables the limit, matching Go.
-pub fn DB::DB(
+///
+/// Returns the `DB` and its `DBExecutor`. Creating them only allocates
+/// shared state: no connection is opened until the executor is running.
+/// Spawn the executor on a task group that outlives the `DB`:
+///
+/// ```
+/// let (db, executor) = @sql.DB::new(connector)
+/// group.spawn_bg(no_wait=true, () => executor.run())
+/// db.ready()
+/// ```
+pub fn DB::new(
   connector : &@driver.Connector,
   max_idle~ : Int32 = 5,
   max_open~ : Int32 = 10,
   max_lifetime~ : @time.Duration = @time.Duration::zero(),
   max_idle_time~ : @time.Duration = @time.Duration::zero(),
   max_stmts_per_conn~ : Int32 = 0,
-) -> DB {
-  {
-    pool: Pool::Pool(
-      connector,
-      max_idle~,
-      max_open~,
-      max_lifetime~,
-      max_idle_time~,
-      max_stmts_per_conn~,
-    ),
-  }
+) -> (DB, DBExecutor) {
+  let pool = Pool::Pool(
+    connector,
+    max_idle~,
+    max_open~,
+    max_lifetime~,
+    max_idle_time~,
+    max_stmts_per_conn~,
+  )
+  ({ pool, }, { pool, })
 }
 
 ///|
-/// Close the database connection pool.
+/// Run the pool's workers until `DB::close`: one worker serves
+/// connection-creation requests (spawning each physical connection's
+/// `ConnExecutor` on the same task group), another serves close
+/// requests. Calling `run` more than once raises an error.
+pub async fn DBExecutor::run(self : DBExecutor) -> Unit {
+  let pool = self.pool
+  if pool.started {
+    fail("DBExecutor::run called more than once")
+  }
+  pool.started = true
+  defer pool.done.complete()
+  if pool.closed {
+    pool.ready.complete()
+    return
+  }
+  @async.with_task_group(group => {
+    group.spawn_bg(no_wait=true, () => serve_creations(pool, group))
+    group.spawn_bg(no_wait=true, () => serve_closes(pool))
+    pool.ready.complete()
+    pool.shutdown.wait()
+    // Teardown: stop the workers by closing their request queues, reject
+    // pending creations, and close everything still reachable.
+    pool.create_requests.close()
+    pool.close_requests.close()
+    while (pool.create_requests.try_get() catch { _ => None }) is Some(request) {
+      request.result.close()
+    }
+    while (pool.close_requests.try_get() catch { _ => None }) is Some(entry) {
+      entry.close() catch {
+        _ => ()
+      }
+    }
+    pool.drain_idle()
+  })
+}
+
+///|
+/// Wait until the pool's background workers are running. This is not a
+/// database connectivity check: it only reports that `DBExecutor::run`
+/// has started serving requests.
+pub async fn DB::ready(self : DB) -> Unit {
+  self.pool.ready.wait()
+}
+
+///|
+/// Close the database connection pool. Returns once the executor has
+/// finished closing every pooled connection; if the executor was never
+/// started, connections are closed inline instead of waiting.
 pub async fn DB::close(self : DB) -> Unit {
   self.pool.close()
 }
@@ -280,7 +344,7 @@ pub async fn[T] DB::with_transaction(
         }
     }
     // The transaction has begun; do not retry past this point.
-    let f_result : Result[T, Error] = Ok(f(Transaction::{ conn: entry })) catch {
+    let f_result : Result[T, Error] = Ok(f(Transaction::{ conn: entry, })) catch {
       e => Err(e)
     }
     let result = match f_result {
