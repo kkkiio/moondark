@@ -108,7 +108,7 @@ async fn with_store(
   mock : MockDB,
   f : async (@db.DBSessionStore) -> Unit,
 ) -> Unit {
-  let (db, executor) = @sql.DB::new(mock)
+  let (db, executor) = @sql.DB::create(mock)
   @async.with_task_group(group => {
     group.spawn_bg(no_wait=true, () => executor.run())
     db.ready()

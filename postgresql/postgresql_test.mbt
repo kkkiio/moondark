@@ -113,7 +113,7 @@ async test "errors propagate without killing the connection" {
 ///|
 async test "session store over postgresql" {
   run_db(db => {
-    let store = @db.DBSessionStore::DBSessionStore(db, dialect=@db.Dollar)
+    let store = @db.DBSessionStore::DBSessionStore(db)
     store.migrate()
     store.delete("k1")
     let session = @sessions.Session::of_model(@sessions.SessionModel::{
