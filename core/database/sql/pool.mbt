@@ -223,3 +223,78 @@ async fn Pool::release(
     _ => ()
   }
 }
+
+///|
+/// Maximum number of times an operation is retried after its connection
+/// raises `BadConn` (2 retries, 3 attempts total, as in Go). Retrying is
+/// only safe because `BadConn` guarantees the operation was never sent
+/// to the server.
+let max_bad_conn_retries : Int32 = 2
+
+///|
+/// Acquire a connection for attempt `attempt` of a retried operation.
+/// Returns `None` when acquisition fails with `BadConn` and attempts
+/// remain, signaling the caller to retry; any other error is raised.
+async fn acquire_retry(pool : Pool, attempt : Int32) -> ConnEntry? {
+  let result : Result[ConnEntry, Error] = Ok(pool.acquire()) catch {
+    e => Err(e)
+  }
+  match result {
+    Ok(entry) => Some(entry)
+    Err(e) =>
+      if e is @driver.BadConn(_) && attempt < max_bad_conn_retries {
+        None
+      } else {
+        raise e
+      }
+  }
+}
+
+///|
+/// Release `entry` after a failed operation, discarding it when `e` is
+/// `BadConn`. Returns `true` when the error is a `BadConn` and attempts
+/// remain, i.e. the operation may be retried on a fresh connection.
+async fn release_failed(
+  pool : Pool,
+  entry : ConnEntry,
+  e : Error,
+  attempt : Int32,
+) -> Bool {
+  let bad = e is @driver.BadConn(_)
+  pool.release(entry, bad~)
+  bad && attempt < max_bad_conn_retries
+}
+
+///|
+/// A connection managed by the pool: the queue element wrapping a
+/// driver connection with its identity, bookkeeping timestamps and
+/// per-connection prepared statement cache.
+priv struct ConnEntry {
+  /// Unique id assigned by the pool; keys `Stmt::handles`.
+  id : Int64
+  conn : &@driver.Conn
+  /// Whether the connection was used before and returned to the pool.
+  mut returned : Bool
+  /// When the driver connection was opened, in milliseconds.
+  created_at : Int64
+  /// When the connection was last returned to the pool, in
+  /// milliseconds; `0` while it has never been returned.
+  mut returned_at : Int64
+  /// Cached prepared statements on this connection, keyed by query
+  /// text; insertion order is the LRU order (oldest first).
+  stmt_cache : Map[String, ConnStmt]
+}
+
+///|
+/// Close the driver connection and every statement cached on it,
+/// unregistering each from its owning `Stmt`.
+async fn ConnEntry::close(self : ConnEntry) -> Unit {
+  for _, cs in self.stmt_cache {
+    cs.stmt.close() catch {
+      _ => ()
+    }
+    cs.owner.handles.remove(self.id)
+  }
+  self.stmt_cache.clear()
+  self.conn.close()
+}
