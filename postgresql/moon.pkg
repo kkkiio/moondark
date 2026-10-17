@@ -11,6 +11,8 @@ import {
 import {
   "moonbitlang/async",
   "xziheng/testcontainers/postgres",
+  "xziheng/moondark/sessions",
+  "xziheng/moondark/sessions/db",
 } for "test"
 
 supported_targets = "native"

@@ -1,18 +1,38 @@
 ///|
+/// SQL placeholder style used by the database backing the store.
+pub(all) enum Dialect {
+  /// `?` placeholders — SQLite and MySQL.
+  Question
+  /// `$1`, `$2`, ... placeholders — PostgreSQL.
+  Dollar
+}
+
+///|
+fn Dialect::placeholder(self : Dialect, n : Int32) -> String {
+  match self {
+    Question => "?"
+    Dollar => "$\{n}"
+  }
+}
+
+///|
 struct DBSessionStore {
   db : @sql.DB
   table : String
+  dialect : Dialect
 }
 
 ///|
 /// `table` is the name of the session table, see `migrate` for its schema.
 /// It is interpolated into SQL statements verbatim, so it must be a trusted
-/// identifier.
+/// identifier. `dialect` selects the parameter placeholder syntax; the
+/// default `Question` covers SQLite and MySQL, use `Dollar` for PostgreSQL.
 pub fn DBSessionStore::DBSessionStore(
   db : @sql.DB,
   table~ : String = "sessions",
+  dialect~ : Dialect = Question,
 ) -> DBSessionStore {
-  DBSessionStore::{ db, table, }
+  DBSessionStore::{ db, table, dialect, }
 }
 
 ///|
@@ -28,7 +48,7 @@ pub async fn DBSessionStore::migrate(self : Self) -> Unit {
 ///|
 async fn DBSessionStore::exists(self : Self, key : String) -> Bool {
   let rows = self.db.query(
-    "SELECT 1 FROM \{self.table} WHERE session_key = ?",
+    "SELECT 1 FROM \{self.table} WHERE session_key = \{self.dialect.placeholder(1)}",
     params=[key],
   )
   defer rows.close()
@@ -38,7 +58,7 @@ async fn DBSessionStore::exists(self : Self, key : String) -> Bool {
 ///|
 pub impl @sessions.SessionStore for DBSessionStore with fn get(self, key) {
   let rows = self.db.query(
-    "SELECT session_data, expires_at FROM \{self.table} WHERE session_key = ?",
+    "SELECT session_data, expires_at FROM \{self.table} WHERE session_key = \{self.dialect.placeholder(1)}",
     params=[key],
   )
   defer rows.close()
@@ -69,7 +89,7 @@ pub impl @sessions.SessionStore for DBSessionStore with fn create(self, session)
   }
   ignore(
     self.db.execute(
-      "INSERT INTO \{self.table} (session_key, session_data, expires_at) VALUES (?, ?, ?)",
+      "INSERT INTO \{self.table} (session_key, session_data, expires_at) VALUES (\{self.dialect.placeholder(1)}, \{self.dialect.placeholder(2)}, \{self.dialect.placeholder(3)})",
       params=[model.key, Json::object(model.data).stringify(), model.expires_at],
     ),
   )
@@ -80,7 +100,7 @@ pub impl @sessions.SessionStore for DBSessionStore with fn create(self, session)
 pub impl @sessions.SessionStore for DBSessionStore with fn update(self, session) {
   let model = session.to_model()
   let result = self.db.execute(
-    "UPDATE \{self.table} SET session_data = ?, expires_at = ? WHERE session_key = ?",
+    "UPDATE \{self.table} SET session_data = \{self.dialect.placeholder(1)}, expires_at = \{self.dialect.placeholder(2)} WHERE session_key = \{self.dialect.placeholder(3)}",
     params=[Json::object(model.data).stringify(), model.expires_at, model.key],
   )
   match result.rows_affected {
@@ -94,9 +114,10 @@ pub impl @sessions.SessionStore for DBSessionStore with fn update(self, session)
 ///|
 pub impl @sessions.SessionStore for DBSessionStore with fn delete(self, key) {
   ignore(
-    self.db.execute("DELETE FROM \{self.table} WHERE session_key = ?", params=[
-      key,
-    ]),
+    self.db.execute(
+      "DELETE FROM \{self.table} WHERE session_key = \{self.dialect.placeholder(1)}",
+      params=[key],
+    ),
   )
 }
 

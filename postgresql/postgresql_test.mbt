@@ -111,6 +111,33 @@ async test "errors propagate without killing the connection" {
 }
 
 ///|
+async test "session store over postgresql" {
+  run_db(db => {
+    let store = @db.DBSessionStore::DBSessionStore(db, dialect=@db.Dollar)
+    store.migrate()
+    store.delete("k1")
+    let session = @sessions.Session::of_model(@sessions.SessionModel::{
+      key: "k1",
+      data: { "user": Json::number(1) },
+      expires_at: 2_000_000_000,
+    })
+    assert_true(store.create(session))
+    assert_false(store.create(session))
+    guard store.get("k1") is Some(loaded) else { fail("session not found") }
+    let model = loaded.to_model()
+    assert_eq(model.key, "k1")
+    assert_eq(model.expires_at, 2_000_000_000)
+    assert_true(model.data["user"] == Json::number(1))
+    loaded.set("user", Json::number(2))
+    assert_true(store.update(loaded))
+    guard store.get("k1") is Some(updated) else { fail("session not found") }
+    assert_true(updated.to_model().data["user"] == Json::number(2))
+    store.delete("k1")
+    assert_true(store.get("k1") is None)
+  })
+}
+
+///|
 async test "concurrent queries serialize on pool slots" {
   run_db(max_open=2, db => {
     let results = @async.all(
