@@ -46,13 +46,25 @@ pub(all) suberror BadConn {
 }
 
 ///|
+/// A physical database connection.
+///
+/// SQL text flows into a driver through `prepare`. `database/sql`
+/// follows the JDBC convention: `?` is the canonical placeholder for
+/// positional parameters, in the order they appear in `Stmt::exec` /
+/// `Stmt::query`'s `args`. Drivers whose backend speaks a different
+/// placeholder syntax (e.g. PostgreSQL's `$1`, `$2`, …) must translate
+/// `?` inside `prepare`, skipping quoted literals, identifiers and
+/// comments; drivers whose backend binds `?` natively (SQLite, MySQL)
+/// pass the text through unchanged.
 pub(open) trait Conn {
+  /// Prepare `sql` for repeated execution on this connection. `sql`
+  /// uses `?` placeholders (see the `Conn` trait documentation).
   async fn prepare(Self, String) -> &Stmt
   async fn close(Self) -> Unit
   async fn begin(Self) -> &Tx
-  /// ResetSession is called prior to executing a query on the connection
-  /// if the connection has been used before. If the driver returns ErrBadConn
-  /// the connection is discarded.
+  /// `reset_session` is called prior to executing a query on the
+  /// connection if the connection has been used before. If the driver
+  /// raises `BadConn` the connection is discarded.
   async fn reset_session(Self) -> Unit = _
   /// is_valid is called before reusing a pooled connection that was
   /// previously returned to the pool. Return `false` to have the
@@ -96,8 +108,15 @@ impl Conn with fn ready(self) {
 ///|
 pub(open) trait Stmt {
   async fn close(Self) -> Unit
+  /// The number of `?` placeholders the prepared statement takes, in
+  /// binding order; `-1` when the driver cannot determine it and the
+  /// caller-side arity check is skipped.
   fn num_input(Self) -> Int32
+  /// Run the statement for its side effect. `args` binds to the `?`
+  /// placeholders in order.
   async fn exec(Self, Array[Value]) -> ExecResult
+  /// Run the statement and stream its result rows. `args` binds to the
+  /// `?` placeholders in order.
   async fn query(Self, Array[Value]) -> &Rows
 }
 
