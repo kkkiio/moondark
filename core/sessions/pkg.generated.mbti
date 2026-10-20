@@ -23,7 +23,9 @@ pub async fn MemorySessionStore::update(Self, Session) -> Bool
 pub impl SessionStore for MemorySessionStore
 
 type Session
+pub fn Session::cycle_key(Self) -> Unit
 pub fn Session::default() -> Self
+pub fn Session::flush(Self) -> Unit
 #alias("_[_]")
 pub fn Session::get(Self, String) -> Json?
 pub fn Session::of_model(SessionModel) -> Self

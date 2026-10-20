@@ -1,0 +1,73 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "xziheng/moondark/auth/oauth2"
+
+import {
+  "moonbitlang/core/debug",
+  "moonbitlang/core/json",
+}
+
+// Values
+pub fn generate_token() -> String raise OAuthError
+
+// Errors
+pub(all) suberror OAuthError {
+  EntropyUnavailable
+  TokenExchangeFailed(Int, String)
+  InvalidTokenResponse(String)
+  InvalidIdToken(String)
+  ClaimMismatch(String)
+  TokenExpired(Int64, Int64)
+  UserInfoFailed(Int, String)
+} derive(Eq, @debug.Debug)
+pub fn OAuthError::equal(Self, Self) -> Bool
+pub fn OAuthError::not_equal(Self, Self) -> Bool
+pub fn OAuthError::to_repr(Self) -> @debug.Repr
+
+// Types and methods
+pub(all) struct Identity {
+  provider : String
+  sub : String
+  email : String?
+  email_verified : Bool
+  display_name : String
+  tokens : TokenResponse
+} derive(Eq, @debug.Debug)
+pub fn Identity::equal(Self, Self) -> Bool
+pub fn Identity::not_equal(Self, Self) -> Bool
+pub fn Identity::to_repr(Self) -> @debug.Repr
+
+pub(all) struct Provider {
+  name : String
+  client_id : String
+  client_secret : String
+  redirect_uri : String
+  auth_url : String
+  token_url : String
+  issuer : String
+  userinfo_url : String
+  scopes : Array[String]
+} derive(Eq, @debug.Debug)
+pub async fn Provider::authenticate(Self, code~ : String, code_verifier~ : String, nonce? : String) -> Identity raise OAuthError
+pub fn Provider::authorize_url(Self, state~ : String, code_verifier~ : String, nonce? : String) -> String
+pub fn Provider::equal(Self, Self) -> Bool
+pub fn Provider::google(client_id~ : String, client_secret~ : String, redirect_uri~ : String, scopes? : Array[String]) -> Self
+pub fn Provider::not_equal(Self, Self) -> Bool
+pub fn Provider::to_repr(Self) -> @debug.Repr
+
+pub(all) struct TokenResponse {
+  access_token : String
+  token_type : String
+  expires_in : Int64?
+  refresh_token : String?
+  scope : String?
+  id_token : String?
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn TokenResponse::equal(Self, Self) -> Bool
+pub fn TokenResponse::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn TokenResponse::not_equal(Self, Self) -> Bool
+pub fn TokenResponse::to_json(Self) -> Json
+pub fn TokenResponse::to_repr(Self) -> @debug.Repr
+
+// Type aliases
+
+// Traits

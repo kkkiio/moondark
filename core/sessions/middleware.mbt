@@ -56,6 +56,25 @@ pub fn middleware(
         if status is (500..<600) || !session.modified {
           return res(status, headers)
         }
+        if session.cycled || session.flushed {
+          if !session.key.is_empty() {
+            session_store.delete(session.key)
+            session.key = ""
+          }
+          if session.flushed && session.data.is_empty() {
+            // nothing left to persist: expire the client-side cookie
+            return res(
+              status,
+              headers
+              .to_mut()
+              ..set(
+                "set-cookie",
+                "\{session_cookie_name}=; Path=/; HttpOnly; Max-Age=0",
+              )
+              .to_immut(),
+            )
+          }
+        }
         session.expires_at = (@env.now() / 1000 + max_age).to_int()
         let saved = if session.key.is_empty() {
           create_session(session_store, session)

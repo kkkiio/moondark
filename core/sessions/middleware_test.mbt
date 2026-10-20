@@ -332,3 +332,124 @@ async test "session creation gives up after repeated key collisions" {
     }
   })
 }
+
+///|
+async test "cycle_key rotates the key and keeps the data" {
+  let store = @sessions.MemorySessionStore(sessions={
+    "old-key": @sessions.SessionModel::{
+      key: "old-key",
+      data: { "user": Json("bob") },
+      expires_at: 2_000_000_000,
+    },
+  })
+  let app = @moonback.App(ctx => {
+    ctx.add_middleware(@sessions.middleware(store))
+    ctx.get("/", (req, res) => {
+      let session = @sessions.get_session(req).unwrap()
+      session.cycle_key()
+      res.send_text("ok")
+    })
+  })
+  defer app.close()
+  @async.with_task_group(group => {
+    let server = @moonback.listen(port=0)
+    defer server.close()
+    let serve_task = group.spawn(() => app.serve(server))
+    let (resp, _) = @http.get("http://127.0.0.1:\{server.addr.port()}/", headers={
+      "cookie": "sessionid=old-key",
+    })
+    guard resp.cookies is [cookie] else { fail("expected rotated Set-Cookie") }
+    assert_true(cookie.value != "old-key")
+    assert_eq(cookie.value.length(), 32)
+    // the row moved to the new key with its data intact
+    assert_true(store.get("old-key") is None)
+    guard store.get(cookie.value) is Some(moved) else {
+      fail("session was not re-keyed")
+    }
+    assert_true(moved["user"] is Some(String("bob")))
+    serve_task.cancel()
+    serve_task.wait() catch {
+      @async.WaitedTaskAlreadyCancelled => ()
+      err => raise err
+    }
+  })
+}
+
+///|
+async test "flush deletes the session and expires the cookie" {
+  let store = @sessions.MemorySessionStore(sessions={
+    "doomed": @sessions.SessionModel::{
+      key: "doomed",
+      data: { "user": Json("bob") },
+      expires_at: 2_000_000_000,
+    },
+  })
+  let app = @moonback.App(ctx => {
+    ctx.add_middleware(@sessions.middleware(store))
+    ctx.get("/", (req, res) => {
+      let session = @sessions.get_session(req).unwrap()
+      session.flush()
+      res.send_text("ok")
+    })
+  })
+  defer app.close()
+  @async.with_task_group(group => {
+    let server = @moonback.listen(port=0)
+    defer server.close()
+    let serve_task = group.spawn(() => app.serve(server))
+    let (resp, _) = @http.get("http://127.0.0.1:\{server.addr.port()}/", headers={
+      "cookie": "sessionid=doomed",
+    })
+    guard resp.cookies is [cookie] else { fail("expected expired Set-Cookie") }
+    assert_eq(cookie.value, "")
+    assert_true(store.get("doomed") is None)
+    serve_task.cancel()
+    serve_task.wait() catch {
+      @async.WaitedTaskAlreadyCancelled => ()
+      err => raise err
+    }
+  })
+}
+
+///|
+async test "flush then write starts a fresh session" {
+  let store = @sessions.MemorySessionStore(sessions={
+    "old-key": @sessions.SessionModel::{
+      key: "old-key",
+      data: { "user": Json("bob") },
+      expires_at: 2_000_000_000,
+    },
+  })
+  let app = @moonback.App(ctx => {
+    ctx.add_middleware(@sessions.middleware(store))
+    ctx.get("/", (req, res) => {
+      let session = @sessions.get_session(req).unwrap()
+      session.flush()
+      session["user2"] = Json("carol")
+      res.send_text("ok")
+    })
+  })
+  defer app.close()
+  @async.with_task_group(group => {
+    let server = @moonback.listen(port=0)
+    defer server.close()
+    let serve_task = group.spawn(() => app.serve(server))
+    let (resp, _) = @http.get("http://127.0.0.1:\{server.addr.port()}/", headers={
+      "cookie": "sessionid=old-key",
+    })
+    guard resp.cookies is [cookie] else { fail("expected fresh Set-Cookie") }
+    assert_true(cookie.value != "old-key")
+    assert_true(store.get("old-key") is None)
+    guard store.get(cookie.value) is Some(fresh) else {
+      fail("fresh session was not persisted")
+    }
+    // only post-flush data survived; the flushed data is gone
+    assert_true(fresh["user"] is None)
+    assert_true(fresh["user2"] is Some(String("carol")))
+    serve_task.cancel()
+    serve_task.wait() catch {
+      @async.WaitedTaskAlreadyCancelled => ()
+      err => raise err
+    }
+  })
+}

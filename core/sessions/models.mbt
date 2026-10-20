@@ -20,11 +20,22 @@ struct Session {
   /// expires at (unix timestamp in seconds)
   mut expires_at : Int32
   mut modified : Bool
+  /// rotate to a fresh key on the next save (see `cycle_key`)
+  mut cycled : Bool
+  /// drop the stored row on the next save (see `flush`)
+  mut flushed : Bool
 }
 
 ///|
 pub impl Default for Session with fn default() {
-  Session::{ key: "", data: {}, expires_at: 0, modified: false, }
+  Session::{
+    key: "",
+    data: {},
+    expires_at: 0,
+    modified: false,
+    cycled: false,
+    flushed: false,
+  }
 }
 
 ///|
@@ -57,7 +68,30 @@ pub fn Session::of_model(model : SessionModel) -> Session {
     data: model.data,
     expires_at: model.expires_at,
     modified: false,
+    cycled: false,
+    flushed: false,
   }
+}
+
+///|
+/// Rotate the session key on the next save, keeping the data — Django's
+/// `cycle_key()`: the stored row is moved to a fresh key and the response
+/// carries the new cookie. Call on privilege transitions (login) to
+/// prevent session fixation.
+pub fn Session::cycle_key(self : Self) -> Unit {
+  self.cycled = true
+  self.modified = true
+}
+
+///|
+/// Delete the stored session and all its data — Django's `flush()`. When
+/// nothing is written afterwards the response expires the session cookie;
+/// writing new data starts a fresh session under a new key. Call on
+/// logout.
+pub fn Session::flush(self : Self) -> Unit {
+  self.data.clear()
+  self.flushed = true
+  self.modified = true
 }
 
 ///|
@@ -122,6 +156,8 @@ pub impl SessionStore for MemorySessionStore with fn get(self, key : String) -> 
     data: m.data,
     expires_at: m.expires_at,
     modified: false,
+    cycled: false,
+    flushed: false,
   })
 }
 
