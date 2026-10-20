@@ -72,7 +72,7 @@ pub(open) trait Rows {
 
 pub(open) trait Stmt {
   async fn close(Self) -> Unit
-  fn num_input(Self) -> Int
+  fn num_input(Self) -> Int32
   async fn exec(Self, Array[Value]) -> ExecResult
   async fn query(Self, Array[Value]) -> &Rows
 }
@@ -86,7 +86,7 @@ pub(open) trait Valuer {
   fn to_value(Self) -> Value
 }
 pub impl Valuer for Bool
-pub impl Valuer for Int
+pub impl Valuer for Int32
 pub impl Valuer for Int64
 pub impl Valuer for Double
 pub impl Valuer for String

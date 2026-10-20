@@ -3,3 +3,5 @@ check:
 fmt:
     moon fmt
     moon info
+test:
+    moon test

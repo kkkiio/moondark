@@ -8,7 +8,7 @@ import {
 }
 
 // Values
-pub fn open_db(String, max_idle? : Int, max_open? : Int, max_lifetime? : @time.Duration, max_idle_time? : @time.Duration) -> (@sql.DB, @sql.DBExecutor) raise
+pub fn open_db(String, max_idle? : Int32, max_open? : Int32, max_lifetime? : @time.Duration, max_idle_time? : @time.Duration) -> (@sql.DB, @sql.DBExecutor) raise
 
 // Errors
 pub(all) suberror InvalidDsn {
@@ -49,7 +49,7 @@ pub impl @driver.Rows for Rows
 type Stmt
 pub async fn Stmt::close(Self) -> Unit
 pub async fn Stmt::exec(Self, Array[@driver.Value]) -> @driver.ExecResult
-pub fn Stmt::num_input(Self) -> Int
+pub fn Stmt::num_input(Self) -> Int32
 pub async fn Stmt::query(Self, Array[@driver.Value]) -> &@driver.Rows
 pub impl @driver.Stmt for Stmt
 

@@ -21,9 +21,9 @@ pub fn AuthError::to_repr(Self) -> @debug.Repr
 // Types and methods
 pub struct Auth {
   store : &CredentialStore
-  bcrypt_cost : Int
+  bcrypt_cost : Int32
 }
-pub fn Auth::Auth(&CredentialStore, bcrypt_cost? : Int) -> Self
+pub fn Auth::Auth(&CredentialStore, bcrypt_cost? : Int32) -> Self
 pub async fn Auth::authenticate_oauth(Self, provider~ : String, identifier~ : String) -> String?
 pub async fn Auth::authenticate_password(Self, identifier~ : String, password~ : String) -> String?
 pub async fn Auth::bind_oauth(Self, String, provider~ : String, identifier~ : String, secret? : String, verified? : Bool) -> Unit

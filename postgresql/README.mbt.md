@@ -14,7 +14,7 @@ plus the `DBExecutor` that runs the pool's workers:
   group.spawn_bg(no_wait=true, () => executor.run())
   db.ready()
   defer db.close()
-  let rows = db.query("SELECT $1::int4 + 1 AS n", params=[41])
+  let rows = db.query("SELECT ?::int4 + 1 AS n", params=[41])
   defer rows.close()
 })
 ```
@@ -31,9 +31,13 @@ plus the `DBExecutor` that runs the pool's workers:
 
 ## Notes
 
+- Write `?` placeholders (the JDBC convention shared with the other
+  moondark drivers); the driver rewrites them to PostgreSQL's `$1`,
+  `$2`, … before preparing. `?` inside string literals, quoted
+  identifiers, dollar-quoted bodies and comments is left alone, and
+  `??` escapes to a literal `?` for jsonb operators (`?`, `?|`, `?&`).
 - Parameters are sent in text format; PostgreSQL performs the
-  conversion, so `?`-style untyped binds work for every `driver.Value`
-  (placeholders are still PostgreSQL `$1`, `$2`, …).
+  conversion, so untyped binds work for every `driver.Value`.
 - `ExecResult.last_insert_id` is always `None`; use `RETURNING`.
 - Errors that mean the connection is dead are reported as
   `driver.BadConn` and retried on a fresh pooled connection.
