@@ -3,5 +3,4 @@ members = [
   "./sqlite",
   "./postgresql",
   "./mysql",
-  "../testcontainers-mbt",
 ]
