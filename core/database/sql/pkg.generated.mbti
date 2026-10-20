@@ -17,6 +17,7 @@ pub struct Conn {
 }
 pub async fn Conn::close(Self) -> Unit
 pub async fn Conn::execute(Self, String, params? : ArrayView[&@driver.Valuer]) -> @driver.ExecResult
+pub async fn Conn::execute_script(Self, String) -> Unit
 pub async fn Conn::ping(Self) -> Unit
 pub fn Conn::prepare(Self, String) -> Stmt raise
 pub async fn Conn::query(Self, String, params? : ArrayView[&@driver.Valuer]) -> Rows

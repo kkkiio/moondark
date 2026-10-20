@@ -203,6 +203,16 @@ pub impl @driver.Conn for Conn with fn ping(self) {
 }
 
 ///|
+/// `execute_script` sends the whole script through the simple query
+/// protocol: the server parses the statements itself (dollar-quoted
+/// bodies and all) and runs them in a single implicit transaction —
+/// any failing statement rolls back the whole script unless it
+/// contains explicit `BEGIN`/`COMMIT`.
+pub impl @driver.Conn for Conn with fn execute_script(self, script) {
+  self.op(() => self.inner.batch_execute(script))
+}
+
+///|
 pub extend Conn with @driver.Conn::{
   begin,
   close,
@@ -211,6 +221,7 @@ pub extend Conn with @driver.Conn::{
   ping,
   ready,
   reset_session,
+  execute_script,
 }
 
 ///|

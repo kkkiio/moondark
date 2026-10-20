@@ -107,6 +107,28 @@ pub impl @driver.Conn for Conn with fn ping(self) {
 }
 
 ///|
+/// `execute_script` splits `script` with `split_script` and runs each
+/// statement through `prepare`/`exec` — the sqlite3 bindings reject
+/// multi-statement input to `prepare_async` outright. No implicit
+/// transaction: statements before a failing one stay committed
+/// unless the script (or the caller) brackets them in `BEGIN`/`COMMIT`.
+pub impl @driver.Conn for Conn with fn execute_script(self, script) {
+  for sql in split_script(script) {
+    let stmt = self.prepare(sql)
+    let executed : Result[@driver.ExecResult, Error] = Ok(stmt.exec([])) catch {
+      e => Err(e)
+    }
+    stmt.close() catch {
+      _ => ()
+    }
+    match executed {
+      Ok(_) => ()
+      Err(e) => raise e
+    }
+  }
+}
+
+///|
 pub extend Conn with @driver.Conn::{
   begin,
   close,
@@ -115,6 +137,7 @@ pub extend Conn with @driver.Conn::{
   ping,
   ready,
   reset_session,
+  execute_script,
 }
 
 ///|

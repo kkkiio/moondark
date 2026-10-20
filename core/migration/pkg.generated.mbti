@@ -1,0 +1,66 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "xziheng/moondark/migration"
+
+import {
+  "xziheng/moondark/database/sql",
+}
+
+// Values
+pub async fn load_schema(dir~ : String, dialect~ : Dialect) -> String?
+
+// Errors
+pub suberror MigrationError {
+  DirtyState(Array[String])
+  ChecksumMismatch(name~ : String, stored~ : String, current~ : String)
+  ApplyFailed(name~ : String, Error)
+  NotFresh
+  InvalidName(String)
+}
+
+// Types and methods
+pub(all) enum Dialect {
+  Sqlite
+  Postgres
+  Mysql
+}
+pub fn Dialect::suffix(Self) -> String
+
+pub(all) enum Migration {
+  Sql(name~ : String, sql~ : String, use_tx~ : Bool)
+  Run(name~ : String, use_tx~ : Bool, run~ : async (@sql.Conn) -> Unit)
+}
+pub async fn Migration::load_dir(dir~ : String, dialect~ : Dialect, use_tx? : Bool) -> Array[Self]
+pub fn Migration::name(Self) -> String
+pub fn Migration::run(name~ : String, run~ : async (@sql.Conn) -> Unit, use_tx? : Bool) -> Self
+pub fn Migration::sql(name~ : String, sql~ : String, use_tx? : Bool) -> Self
+
+pub(all) struct MigrationStatus {
+  name : String
+  applied : Bool
+  applied_at : Int64?
+  drifted : Bool
+  last_status : RecordStatus?
+}
+
+pub struct Migrator {
+  conn : @sql.Conn
+  dialect : Dialect
+  migrations_table : String
+  records_table : String
+}
+pub async fn Migrator::bootstrap(Self, schema~ : String, migrations~ : ArrayView[Migration], use_tx? : Bool) -> Unit
+pub async fn Migrator::ensure_tables(Self) -> Unit
+pub fn Migrator::new(conn~ : @sql.Conn, dialect~ : Dialect, migrations_table? : String, records_table? : String) -> Self raise
+pub async fn Migrator::pending(Self, ArrayView[Migration]) -> Array[Migration]
+pub async fn Migrator::status(Self, ArrayView[Migration]) -> Array[MigrationStatus]
+pub async fn Migrator::up(Self, ArrayView[Migration]) -> Array[String]
+
+pub(all) enum RecordStatus {
+  Started
+  Done
+  Failed
+}
+
+// Type aliases
+
+// Traits

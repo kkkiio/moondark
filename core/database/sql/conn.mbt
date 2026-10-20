@@ -159,6 +159,34 @@ pub async fn Conn::execute(
 }
 
 ///|
+/// Execute `script` verbatim on the dedicated connection — the text
+/// may contain multiple statements; no parameters are bound. Failures
+/// with `BadConn` discard the connection and are retried on a fresh
+/// one; like `execute`, a retry is only possible when the script never
+/// reached the server.
+pub async fn Conn::execute_script(self : Self, script : String) -> Unit {
+  for attempt in 0..<=max_bad_conn_retries {
+    let entry = match self.acquire_entry(attempt) {
+      Some(entry) => entry
+      None => continue
+    }
+    let result : Result[Unit, Error] = Ok(entry.conn.execute_script(script)) catch {
+      e => Err(e)
+    }
+    match result {
+      Ok(_) => return
+      Err(e) =>
+        if self.fail_entry(entry, e, attempt) {
+          continue
+        } else {
+          raise e
+        }
+    }
+  }
+  panic() // the last attempt either returns or raises
+}
+
+///|
 /// Execute a transaction on the dedicated connection and commit it if
 /// no error occurs. Beginning the transaction is retried on `BadConn`;
 /// once `f` runs the transaction may have produced side effects, so

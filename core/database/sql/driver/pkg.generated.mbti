@@ -49,6 +49,7 @@ pub(open) trait Conn {
   fn is_valid(Self) -> Bool = _
   async fn ping(Self) -> Unit = _
   async fn ready(Self) -> Unit = _
+  async fn execute_script(Self, String) -> Unit
 }
 
 pub(open) trait ConnExecutor {

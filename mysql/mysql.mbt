@@ -266,6 +266,13 @@ pub impl @driver.Conn for Conn with fn reset_session(self) {
 }
 
 ///|
+/// `execute_script` is unsupported: moonmysql's text protocol is
+/// single-statement (`CLIENT_MULTI_STATEMENTS` is not negotiated).
+pub impl @driver.Conn for Conn with fn execute_script(_self, _script) {
+  fail("mysql: execute_script is not supported by the moonmysql client")
+}
+
+///|
 pub extend Conn with @driver.Conn::{
   begin,
   close,
@@ -274,6 +281,7 @@ pub extend Conn with @driver.Conn::{
   ping,
   ready,
   reset_session,
+  execute_script,
 }
 
 ///|

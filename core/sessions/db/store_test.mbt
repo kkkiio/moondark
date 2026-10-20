@@ -41,6 +41,11 @@ impl @driver.Conn for MockDB with fn begin(self) {
 }
 
 ///|
+impl @driver.Conn for MockDB with fn execute_script(_self, _script) {
+  fail("not supported")
+}
+
+///|
 impl @driver.Stmt for MockDB with fn close(self) {
   ignore(self)
 }

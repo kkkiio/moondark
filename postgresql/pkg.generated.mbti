@@ -19,6 +19,7 @@ pub(all) suberror InvalidDsn {
 type Conn
 pub async fn Conn::begin(Self) -> &@driver.Tx
 pub async fn Conn::close(Self) -> Unit
+pub async fn Conn::execute_script(Self, String) -> Unit
 pub fn Conn::is_valid(Self) -> Bool
 pub async fn Conn::ping(Self) -> Unit
 pub async fn Conn::prepare(Self, String) -> &@driver.Stmt

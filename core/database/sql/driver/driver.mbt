@@ -83,6 +83,18 @@ pub(open) trait Conn {
   /// returns immediately: self-sufficient connections are ready as soon
   /// as `connect` returns.
   async fn ready(Self) -> Unit = _
+  /// Execute `script` verbatim — the text may contain multiple
+  /// statements separated by `;`. No parameters are bound and result
+  /// rows are discarded; execution stops at the first failing
+  /// statement and raises its error. Only server-side SQL is accepted:
+  /// client-tool directives (psql `\i`, mysql `DELIMITER`, sqlcmd
+  /// `GO`) are not.
+  ///
+  /// Transaction semantics are driver-defined and each driver must
+  /// document them: PostgreSQL runs the whole script as one implicit
+  /// transaction, SQLite commits statement by statement. Drivers
+  /// without a multi-statement path raise.
+  async fn execute_script(Self, String) -> Unit
 }
 
 ///|

@@ -32,6 +32,11 @@ impl @driver.Conn for MockAnswerDB with fn begin(self) {
 }
 
 ///|
+impl @driver.Conn for MockAnswerDB with fn execute_script(_self, _script) {
+  fail("not supported")
+}
+
+///|
 impl @driver.Stmt for MockAnswerDB with fn close(self) {
   ignore(self)
 }
@@ -166,6 +171,11 @@ impl @driver.Conn for MockConn with fn begin(self) {
     raise e
   }
   MockTx::{ stats: self.stats, }
+}
+
+///|
+impl @driver.Conn for MockConn with fn execute_script(_self, _script) {
+  fail("not supported")
 }
 
 ///|

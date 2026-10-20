@@ -43,6 +43,40 @@ async test "execute, query and value round trip" {
 }
 
 ///|
+async test "execute_script runs statements and keeps trigger bodies whole" {
+  @async.with_task_group(group => {
+    let (db, executor) = @moondark_sqlite.open_db(
+      "_build/moondark-sqlite-script-test.db",
+    )
+    group.spawn_bg(no_wait=true, () => executor.run())
+    db.ready()
+    defer db.close()
+    let conn = db.conn()
+    defer conn.close()
+    conn.execute_script(
+      (
+        #|DROP TABLE IF EXISTS src; DROP TABLE IF EXISTS audit;
+        #|CREATE TABLE src(v TEXT);
+        #|CREATE TABLE audit(v TEXT);
+        #|-- the trigger body holds two `;`
+        #|CREATE TRIGGER src_audit AFTER INSERT ON src BEGIN
+        #|  INSERT INTO audit VALUES (new.v);
+        #|  INSERT INTO audit VALUES (new.v || '!');
+        #|END;
+        #|INSERT INTO src VALUES ('a;b');
+      ),
+    )
+    let rows = db.query("SELECT v FROM audit ORDER BY v")
+    defer rows.close()
+    guard rows.next() is Some(first) else { fail("expected two rows") }
+    assert_true(first.get("v") is Some(String("a;b")))
+    guard rows.next() is Some(second) else { fail("expected two rows") }
+    assert_true(second.get("v") is Some(String("a;b!")))
+    assert_true(rows.next() is None)
+  })
+}
+
+///|
 async test "with_transaction commits and rolls back" {
   @async.with_task_group(group => {
     let (db, executor) = @moondark_sqlite.open_db(
