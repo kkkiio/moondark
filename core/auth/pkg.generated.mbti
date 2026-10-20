@@ -5,6 +5,7 @@ import {
   "moonbitlang/core/debug",
   "moonbitlang/core/json",
   "moonbitlang/moonback",
+  "xziheng/moondark/auth/oauth2",
 }
 
 // Values
@@ -74,9 +75,21 @@ pub struct SessionAuth[U] {
 pub fn[U] SessionAuth::SessionAuth(key~ : @moonback.TypedKey[U?], load_user~ : async (String) -> U?) -> Self[U]
 pub fn[U] SessionAuth::get_user(Self[U], @moonback.Request) -> U?
 pub fn[U : AuthUser] SessionAuth::login(Self[U], @moonback.Request, U) -> Unit raise AuthError
+pub async fn[U : AuthUser] SessionAuth::login_by_id(Self[U], @moonback.Request, String) -> Bool
 pub fn[U] SessionAuth::login_required(Self[U], async (@moonback.Request, @moonback.Responder, U) -> Unit, login_url? : String) -> async (@moonback.Request, @moonback.Responder) -> Unit
 pub fn[U] SessionAuth::logout(Self[U], @moonback.Request) -> Unit raise AuthError
 pub fn[U : AuthUser] SessionAuth::middleware(Self[U]) -> @moonback.Middleware
+
+pub struct SocialFlow[U] {
+  provider : @oauth2.Provider
+  auth : Auth
+  session_auth : SessionAuth[U]
+  create_user : async (@oauth2.Identity) -> U?
+  use_pkce : Bool
+}
+pub fn[U] SocialFlow::SocialFlow(provider~ : @oauth2.Provider, auth~ : Auth, session_auth~ : SessionAuth[U], create_user~ : async (@oauth2.Identity) -> U?, use_pkce? : Bool) -> Self[U]
+pub fn[U : AuthUser] SocialFlow::callback_handler(Self[U]) -> async (@moonback.Request, @moonback.Responder) -> Unit
+pub fn[U] SocialFlow::login_handler(Self[U]) -> async (@moonback.Request, @moonback.Responder) -> Unit
 
 // Type aliases
 

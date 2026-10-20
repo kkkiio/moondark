@@ -1,2 +1,14 @@
 import {
+  "moonbitlang/async/http",
+  "moonbitlang/x/codec/base64",
+  "moonbitlang/x/crypto",
+  "moonbitlang/x/encoding/percent",
+  "moonbitlang/core/encoding/utf8",
+  "moonbitlang/core/env",
+  "moonbitlang/core/json",
 }
+
+import {
+  "moonbitlang/async",
+  "moonbitlang/moonback",
+} for "test"

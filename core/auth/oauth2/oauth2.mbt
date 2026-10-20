@@ -1,18 +1,47 @@
 ///|
 /// Build the provider's authorization URL for the Authorization Code Flow
-/// (RFC 6749 Section 4.1) with PKCE `S256` (RFC 7636).
+/// (RFC 6749 Section 4.1). Pass a `code_verifier` to opt into PKCE `S256`
+/// (RFC 7636) and a `nonce` for OIDC replay protection; empty strings
+/// leave both out, matching allauth's defaults.
 ///
-/// The caller generates and persists `state` (CSRF token) and
-/// `code_verifier` (PKCE secret) in the user's session before redirecting
-/// the user-agent to the returned URL.
+/// The caller generates and persists `state` (CSRF token), `nonce` and
+/// `code_verifier` in the user's session before redirecting the
+/// user-agent to the returned URL.
 pub fn Provider::authorize_url(
   self : Self,
   state~ : String,
-  code_verifier~ : String,
+  code_verifier~ : String = "",
   nonce~ : String = "",
 ) -> String {
-  ignore((self, state, code_verifier, nonce))
-  abort("todo")
+  let url = StringBuilder()
+  url.write_string(self.auth_url)
+  url.write_char('?')
+  url.write_string("response_type=code&client_id=")
+  url.write_string(@percent.encode(self.client_id, escape_chars=query_escapes))
+  url.write_string("&redirect_uri=")
+  url.write_string(
+    @percent.encode(self.redirect_uri, escape_chars=query_escapes),
+  )
+  url.write_string("&scope=")
+  url.write_string(
+    @percent.encode(self.scopes.join(" "), escape_chars=query_escapes),
+  )
+  url.write_string("&state=")
+  url.write_string(@percent.encode(state, escape_chars=query_escapes))
+  if nonce != "" {
+    url.write_string("&nonce=")
+    url.write_string(@percent.encode(nonce, escape_chars=query_escapes))
+  }
+  if code_verifier != "" {
+    url.write_string("&code_challenge=")
+    url.write_string(
+      b64url(
+        @crypto.sha256(@utf8.encode(code_verifier)).unsafe_reinterpret_as_bytes(),
+      ),
+    )
+    url.write_string("&code_challenge_method=S256")
+  }
+  url.to_string()
 }
 
 ///|
@@ -39,18 +68,180 @@ pub fn Provider::authorize_url(
 pub async fn Provider::authenticate(
   self : Self,
   code~ : String,
-  code_verifier~ : String,
+  code_verifier~ : String = "",
   nonce~ : String = "",
 ) -> Identity raise OAuthError {
-  ignore((self, code, code_verifier, nonce))
-  abort("todo")
+  // Exchange the authorization code at the token endpoint (RFC 6749 4.1.3).
+  let form = StringBuilder()
+  form.write_string("grant_type=authorization_code&code=")
+  form.write_string(@percent.encode(code, escape_chars=query_escapes))
+  form.write_string("&redirect_uri=")
+  form.write_string(
+    @percent.encode(self.redirect_uri, escape_chars=query_escapes),
+  )
+  form.write_string("&client_id=")
+  form.write_string(@percent.encode(self.client_id, escape_chars=query_escapes))
+  form.write_string("&client_secret=")
+  form.write_string(
+    @percent.encode(self.client_secret, escape_chars=query_escapes),
+  )
+  if code_verifier != "" {
+    form.write_string("&code_verifier=")
+    form.write_string(
+      @percent.encode(code_verifier, escape_chars=query_escapes),
+    )
+  }
+  let (response, data) = @http.post(self.token_url, form.to_string(), headers={
+    "Content-Type": "application/x-www-form-urlencoded",
+    "Accept": "application/json",
+  }) catch {
+    _ => raise TokenExchangeFailed(0, "token endpoint unreachable")
+  }
+  let text = data.text() catch {
+    _ => raise TokenExchangeFailed(response.code, "")
+  }
+  guard response.code == 200 else {
+    raise TokenExchangeFailed(response.code, text)
+  }
+  let tokens : TokenResponse = @json.from_json(
+    @json.parse(text) catch {
+      _ => raise InvalidTokenResponse(text)
+    },
+  ) catch {
+    _ => raise InvalidTokenResponse(text)
+  }
+  // OIDC providers (issuer set) answer who the user is in the id_token;
+  // everyone else needs a userinfo round-trip with the access token.
+  let claims = if self.issuer != "" {
+    guard tokens.id_token is Some(id_token) else {
+      raise InvalidTokenResponse("missing id_token")
+    }
+    guard id_token.split(".").collect() is [_, payload, _] else {
+      raise InvalidIdToken("malformed JWT")
+    }
+    let decoded = @base64.decode(payload, url_safe=true) catch {
+      _ => raise InvalidIdToken("payload is not base64url")
+    }
+    guard (@json.parse(
+        @utf8.decode(decoded[:]) catch {
+          _ => raise InvalidIdToken("payload is not UTF-8")
+        },
+      ) catch {
+        _ => raise InvalidIdToken("payload is not JSON")
+      })
+      is Object(claims) else {
+      raise InvalidIdToken("payload is not an object")
+    }
+    let now = (@env.now() / 1000).reinterpret_as_int64()
+    guard claims.get("iss") is Some(String(iss)) && iss == self.issuer else {
+      raise ClaimMismatch("iss")
+    }
+    let aud_ok = match claims.get("aud") {
+      Some(String(a)) => a == self.client_id
+      Some(Array(list)) =>
+        list.iter().any(a => a is String(a) && a == self.client_id)
+      _ => false
+    }
+    guard aud_ok else { raise ClaimMismatch("aud") }
+    match claims.get("exp") {
+      Some(Number(exp, ..)) if exp > now.to_double() => ()
+      Some(Number(exp, ..)) => raise TokenExpired(exp.to_int64(), now)
+      _ => raise InvalidIdToken("missing exp")
+    }
+    if nonce != "" {
+      guard claims.get("nonce") is Some(String(n)) && n == nonce else {
+        raise ClaimMismatch("nonce")
+      }
+    }
+    claims
+  } else {
+    guard self.userinfo_url != "" else {
+      raise InvalidTokenResponse("no id_token and no userinfo endpoint")
+    }
+    let (response, data) = @http.get(self.userinfo_url, headers={
+      "Authorization": "Bearer \{tokens.access_token}",
+      "Accept": "application/json",
+    }) catch {
+      _ => raise UserInfoFailed(0, "userinfo endpoint unreachable")
+    }
+    let text = data.text() catch {
+      _ => raise UserInfoFailed(response.code, "")
+    }
+    guard response.code == 200 else {
+      raise UserInfoFailed(response.code, text)
+    }
+    guard (@json.parse(text) catch { _ => raise UserInfoFailed(0, text) })
+      is Object(claims) else {
+      raise UserInfoFailed(0, text)
+    }
+    claims
+  }
+  // Map the verified claims onto an Identity. `sub` is required (OIDC);
+  // plain-OAuth providers that only expose `id` get coerced into it.
+  let sub = match claims.get("sub") {
+    Some(String(sub)) => sub
+    _ =>
+      match claims.get("id") {
+        Some(Number(id, ..)) => id.to_int64().to_string()
+        Some(String(id)) => id
+        _ => raise InvalidIdToken("missing sub")
+      }
+  }
+  let email = match claims.get("email") {
+    Some(String(email)) => Some(email)
+    _ => None
+  }
+  // some providers serialize the flag as a string
+  let email_verified = match claims.get("email_verified") {
+    Some(True) | Some(String("true")) => true
+    _ => false
+  }
+  let display_name = match claims.get("name") {
+    Some(String(name)) => name
+    _ =>
+      match claims.get("preferred_username") {
+        Some(String(name)) => name
+        _ =>
+          match claims.get("login") {
+            Some(String(name)) => name
+            _ => email.unwrap_or(sub)
+          }
+      }
+  }
+  Identity::{
+    provider: self.name,
+    sub,
+    email,
+    email_verified,
+    display_name,
+    tokens,
+  }
 }
 
 ///|
 /// Generate a cryptographically random URL-safe token suitable for CSRF
 /// `state`, PKCE `code_verifier`, or OIDC `nonce`.
 pub fn generate_token() -> String raise OAuthError {
-  abort("todo")
+  guard @env.rand(32) is Some(bytes) else { raise EntropyUnavailable }
+  b64url(bytes[:])
+}
+
+///|
+/// The printable ASCII symbols that must be percent-escaped inside a
+/// form/query value — everything outside RFC 3986's unreserved set
+/// (`A-Z a-z 0-9 - . _ ~`, which always pass through).
+let query_escapes : String = "!\"#$%&'()*+,/:;<=>?@[\\]^`{|} "
+
+///|
+/// base64url without padding — the encoding PKCE challenges, OIDC tokens
+/// and JWT segments share (RFC 4648 Section 5).
+fn b64url(bytes : BytesView) -> String {
+  let s = @base64.encode(bytes, url_safe=true)
+  let mut end = s.length()
+  while end > 0 && s[end - 1] == '=' {
+    end -= 1
+  }
+  s[:end].to_owned()
 }
 
 ///|
@@ -127,7 +318,8 @@ pub extend Identity with Eq::{equal, not_equal}
 pub(all) struct TokenResponse {
   access_token : String
   token_type : String
-  expires_in : Int64?
+  /// seconds until `access_token` expiry; a JSON number on the wire
+  expires_in : Double?
   refresh_token : String?
   scope : String?
   id_token : String?

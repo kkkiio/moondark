@@ -47,8 +47,8 @@ pub(all) struct Provider {
   userinfo_url : String
   scopes : Array[String]
 } derive(Eq, @debug.Debug)
-pub async fn Provider::authenticate(Self, code~ : String, code_verifier~ : String, nonce? : String) -> Identity raise OAuthError
-pub fn Provider::authorize_url(Self, state~ : String, code_verifier~ : String, nonce? : String) -> String
+pub async fn Provider::authenticate(Self, code~ : String, code_verifier? : String, nonce? : String) -> Identity raise OAuthError
+pub fn Provider::authorize_url(Self, state~ : String, code_verifier? : String, nonce? : String) -> String
 pub fn Provider::equal(Self, Self) -> Bool
 pub fn Provider::google(client_id~ : String, client_secret~ : String, redirect_uri~ : String, scopes? : Array[String]) -> Self
 pub fn Provider::not_equal(Self, Self) -> Bool
@@ -57,7 +57,7 @@ pub fn Provider::to_repr(Self) -> @debug.Repr
 pub(all) struct TokenResponse {
   access_token : String
   token_type : String
-  expires_in : Int64?
+  expires_in : Double?
   refresh_token : String?
   scope : String?
   id_token : String?

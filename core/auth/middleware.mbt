@@ -153,6 +153,26 @@ pub fn[U] SessionAuth::logout(
 }
 
 ///|
+/// Log in by a stored `user_id`: resolve it through `load_user` and
+/// delegate to `login`. Returns `false` when the id no longer resolves
+/// to an active user (deleted or deactivated row) — the caller decides
+/// how to report that. Raises `NoSession`/`UserInactive` plus whatever
+/// `load_user` itself may raise.
+pub async fn[U : AuthUser] SessionAuth::login_by_id(
+  self : SessionAuth[U],
+  req : @moonback.Request,
+  user_id : String,
+) -> Bool {
+  match (self.load_user)(user_id) {
+    Some(user) => {
+      self.login(req, user)
+      true
+    }
+    None => false
+  }
+}
+
+///|
 /// The `login_required` decorator: anonymous requests get a 302 to
 /// `login_url?next=<current path>`; authenticated ones run `handler` with
 /// the resolved user as a third argument. A request that never saw
