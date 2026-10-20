@@ -1,0 +1,32 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "xziheng/moondark/signing"
+
+import {
+  "moonbitlang/core/debug",
+}
+
+// Values
+pub fn dumps(Json, key~ : String, salt? : String) -> String
+
+pub fn loads(String, key~ : String, salt? : String, max_age? : Int64) -> Json raise SignError
+
+// Errors
+pub(all) suberror SignError {
+  BadSignature
+  SignatureExpired
+} derive(@debug.Debug)
+pub fn SignError::to_repr(Self) -> @debug.Repr
+
+// Types and methods
+pub struct Signer {
+  // private fields
+}
+pub fn Signer::Signer(key~ : String, salt? : String, now? : () -> UInt64) -> Self
+pub fn Signer::dumps(Self, Json) -> String
+pub fn Signer::loads(Self, String, max_age? : Int64) -> Json raise SignError
+pub fn Signer::sign(Self, String) -> String
+pub fn Signer::unsign(Self, String, max_age? : Int64) -> String raise SignError
+
+// Type aliases
+
+// Traits
