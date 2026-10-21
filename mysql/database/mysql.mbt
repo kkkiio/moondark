@@ -17,7 +17,7 @@
 /// group that outlives the database:
 ///
 /// ```
-/// let (db, executor) = @moondark_mysql.open_db("mysql://root@127.0.0.1/app")
+/// let (db, executor) = @mysql_database.open_db("mysql://root@127.0.0.1/app")
 /// group.spawn_bg(no_wait=true, () => executor.run())
 /// ```
 pub fn open_db(
@@ -43,7 +43,7 @@ pub fn open_db(
 /// a real server-side transaction).
 ///
 /// ```
-/// let (db, executor) = @sql.DB::create(@moondark_mysql.Driver::new().open("mysql://u:p@h/db"))
+/// let (db, executor) = @sql.DB::create(@mysql_database.Driver::new().open("mysql://u:p@h/db"))
 /// ```
 struct Driver {}
 

@@ -48,22 +48,17 @@ pub(all) suberror BadConn {
 ///|
 /// A physical database connection.
 ///
-/// SQL text flows into a driver through `prepare`. `database/sql`
-/// follows the JDBC convention — `?` is the canonical placeholder for
-/// positional parameters, in the order they appear in `Stmt::exec` /
-/// `Stmt::query`'s `args` (the JDBC specification defines `?` as the
-/// parameter marker for prepared statements, see
-/// <https://docs.oracle.com/javase/tutorial/jdbc/basics/prepared.html>).
-/// Drivers whose backend speaks a different placeholder syntax (e.g.
-/// PostgreSQL's `$1`, `$2`, …) must translate `?` inside `prepare`,
-/// skipping quoted literals, identifiers and comments — pgjdbc does
-/// exactly this translation, including a `??` escape for `?`-containing
-/// operators (<https://jdbc.postgresql.org/documentation/query/>);
-/// drivers whose backend binds `?` natively (SQLite, MySQL) pass the
-/// text through unchanged.
+/// SQL text flows into a driver through `prepare` verbatim. Like Go's
+/// `database/sql` and Rust's `sqlx`, `database/sql` does not define a
+/// canonical placeholder syntax and never rewrites SQL: parameters use
+/// the backend's native markers (`?` for SQLite and MySQL, `$1`, `$2`,
+/// … for PostgreSQL), and drivers must pass the text to the server
+/// unchanged. Code that targets several backends writes one statement
+/// per backend.
+/// Context: https://github.com/golang/go/issues/3602.
 pub(open) trait Conn {
   /// Prepare `sql` for repeated execution on this connection. `sql`
-  /// uses `?` placeholders (see the `Conn` trait documentation).
+  /// uses the backend's native placeholders.
   async fn prepare(Self, String) -> &Stmt
   async fn close(Self) -> Unit
   async fn begin(Self) -> &Tx
@@ -125,15 +120,15 @@ impl Conn with fn ready(self) {
 ///|
 pub(open) trait Stmt {
   async fn close(Self) -> Unit
-  /// The number of `?` placeholders the prepared statement takes, in
-  /// binding order; `-1` when the driver cannot determine it and the
-  /// caller-side arity check is skipped.
+  /// The number of parameters the prepared statement takes; `-1` when
+  /// the driver cannot determine it and the caller-side arity check is
+  /// skipped.
   fn num_input(Self) -> Int32
-  /// Run the statement for its side effect. `args` binds to the `?`
-  /// placeholders in order.
+  /// Run the statement for its side effect. `args` binds to the
+  /// statement's parameters in the backend's positional order.
   async fn exec(Self, Array[Value]) -> ExecResult
   /// Run the statement and stream its result rows. `args` binds to the
-  /// `?` placeholders in order.
+  /// statement's parameters in the backend's positional order.
   async fn query(Self, Array[Value]) -> &Rows
 }
 

@@ -9,7 +9,7 @@
 /// group that outlives the database:
 ///
 /// ```
-/// let (db, executor) = @moondark_sqlite.open_db("app.db")
+/// let (db, executor) = @sqlite_database.open_db("app.db")
 /// group.spawn_bg(no_wait=true, () => executor.run())
 /// ```
 pub fn open_db(
@@ -32,7 +32,7 @@ pub fn open_db(
 /// SQLite driver implementing `@driver.Driver`.
 ///
 /// ```
-/// let (db, executor) = @sql.DB::create(@moondark_sqlite.Driver::new().open("app.db"))
+/// let (db, executor) = @sql.DB::create(@sqlite_database.Driver::new().open("app.db"))
 /// ```
 struct Driver {}
 

@@ -1,6 +1,6 @@
 ///|
 fn open(file : String) -> (@sql.DB, @sql.DBExecutor) raise {
-  @moondark_sqlite.open_db("_build/\{file}")
+  @database.open_db("_build/\{file}")
 }
 
 ///|

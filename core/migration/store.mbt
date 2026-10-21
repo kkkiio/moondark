@@ -1,9 +1,9 @@
 ///|
 /// Bookkeeping I/O for `moondark_migrations` (the applied set) and
 /// `moondark_migration_records` (the attempt log). Queries run through
-/// the normal prepared-statement path with `?` placeholders; table
-/// names are interpolated but validated to identifier shape by
-/// `Migrator::new`.
+/// the normal prepared-statement path with each dialect's native
+/// placeholders (`$N` for Postgres, `?` otherwise); table names are
+/// interpolated but validated to identifier shape by `Migrator::new`.
 
 ///|
 /// The applied set: `name -> (checksum, applied_at)`.
@@ -58,7 +58,7 @@ async fn Migrator::last_status(self : Migrator) -> Map[String, String] {
 async fn Migrator::insert_started(self : Migrator, name : String) -> Int64 {
   if self.dialect is Postgres {
     let rows = self.conn.query(
-      "INSERT INTO \{self.records_table} (name, status, started_at) VALUES (?, 'started', ?) RETURNING id",
+      "INSERT INTO \{self.records_table} (name, status, started_at) VALUES ($1, 'started', $2) RETURNING id",
       params=[name, now_s()],
     )
     let id = match rows.next() {
@@ -88,11 +88,20 @@ async fn Migrator::finish_record(
   if id < 0 {
     return
   }
+  let sql = match self.dialect {
+    Postgres =>
+      "UPDATE \{self.records_table} SET status = $1, error = $2, finished_at = $3, duration_ms = $4 WHERE id = $5"
+    Sqlite | Mysql =>
+      "UPDATE \{self.records_table} SET status = ?, error = ?, finished_at = ?, duration_ms = ? WHERE id = ?"
+  }
   ignore(
-    self.conn.execute(
-      "UPDATE \{self.records_table} SET status = ?, error = ?, finished_at = ?, duration_ms = ? WHERE id = ?",
-      params=[status, error, now_s(), now_ms() - started_ms, id],
-    ),
+    self.conn.execute(sql, params=[
+      status,
+      error,
+      now_s(),
+      now_ms() - started_ms,
+      id,
+    ]),
   )
 }
 
@@ -105,12 +114,13 @@ async fn Migrator::insert_applied(
   checksum : String,
   applied_at : Int64,
 ) -> Unit {
-  ignore(
-    self.conn.execute(
-      "INSERT INTO \{self.migrations_table} (name, checksum, applied_at) VALUES (?, ?, ?)",
-      params=[name, checksum, applied_at],
-    ),
-  )
+  let sql = match self.dialect {
+    Postgres =>
+      "INSERT INTO \{self.migrations_table} (name, checksum, applied_at) VALUES ($1, $2, $3)"
+    Sqlite | Mysql =>
+      "INSERT INTO \{self.migrations_table} (name, checksum, applied_at) VALUES (?, ?, ?)"
+  }
+  ignore(self.conn.execute(sql, params=[name, checksum, applied_at]))
 }
 
 ///|

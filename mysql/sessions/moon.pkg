@@ -1,0 +1,15 @@
+import {
+  "xziheng/moondark/database/sql",
+  "xziheng/moondark/database/sql/driver",
+  "xziheng/moondark/sessions" @moondark_sessions,
+  "moonbitlang/core/json",
+}
+
+import {
+  "moonbitlang/async",
+  "xziheng/moondark/sessions/sessionstest",
+  "xziheng/moondark_mysql/database" @mysql_database,
+  "xziheng/testcontainers/mysql",
+} for "test"
+
+supported_targets = "native"

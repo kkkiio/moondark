@@ -1,0 +1,17 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "xziheng/moondark/sessions/sessionstest"
+
+import {
+  "xziheng/moondark/sessions",
+}
+
+// Values
+pub async fn check_session_store(&@sessions.SessionStore) -> Unit
+
+// Errors
+
+// Types and methods
+
+// Type aliases
+
+// Traits

@@ -4,7 +4,7 @@ async test "execute, query and value round trip" {
     let container = @mysql.run()
     defer container.cleanup()
     // Go-style DSN: user:pass@tcp(host:port)/db
-    let (db, executor) = @moondark_mysql.open_db(container.dsn())
+    let (db, executor) = @database.open_db(container.dsn())
     group.spawn_bg(no_wait=true, () => executor.run())
     db.ready()
     defer db.close()
@@ -58,7 +58,7 @@ async test "with_transaction commits and rolls back" {
     let container = @mysql.run()
     defer container.cleanup()
     // URI DSN: mysql://user:pass@host:port/db
-    let (db, executor) = @moondark_mysql.open_db(container.connection_string())
+    let (db, executor) = @database.open_db(container.connection_string())
     group.spawn_bg(no_wait=true, () => executor.run())
     db.ready()
     defer db.close()
@@ -87,44 +87,11 @@ async test "with_transaction commits and rolls back" {
 }
 
 ///|
-async test "session store over mysql" {
-  @async.with_task_group(group => {
-    let container = @mysql.run()
-    defer container.cleanup()
-    let (db, executor) = @moondark_mysql.open_db(container.dsn())
-    group.spawn_bg(no_wait=true, () => executor.run())
-    db.ready()
-    defer db.close()
-    let store = @db.DBSessionStore::DBSessionStore(db)
-    store.migrate()
-    store.delete("k1")
-    let session = @sessions.Session::of_model(@sessions.SessionModel::{
-      key: "k1",
-      data: { "user": Json::number(1) },
-      expires_at: 2_000_000_000,
-    })
-    assert_true(store.create(session))
-    assert_false(store.create(session))
-    guard store.get("k1") is Some(loaded) else { fail("session not found") }
-    let model = loaded.to_model()
-    assert_eq(model.key, "k1")
-    assert_eq(model.expires_at, 2_000_000_000)
-    assert_true(model.data["user"] == Json::number(1))
-    loaded.set("user", Json::number(2))
-    assert_true(store.update(loaded))
-    guard store.get("k1") is Some(updated) else { fail("session not found") }
-    assert_true(updated.to_model().data["user"] == Json::number(2))
-    store.delete("k1")
-    assert_true(store.get("k1") is None)
-  })
-}
-
-///|
 async test "concurrent queries share a bounded pool" {
   @async.with_task_group(group => {
     let container = @mysql.run()
     defer container.cleanup()
-    let (db, executor) = @moondark_mysql.open_db(
+    let (db, executor) = @database.open_db(
       container.connection_string(),
       max_open=3,
     )

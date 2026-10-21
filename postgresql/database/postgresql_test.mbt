@@ -7,7 +7,7 @@ async fn[T] run_db(f : async (@sql.DB) -> T, max_open~ : Int32 = 10) -> T {
   defer pg.cleanup()
   let dsn = pg.connection_string(ssl_mode="disable")
   @async.with_task_group(group => {
-    let (db, executor) = @moondark_postgresql.open_db(dsn, max_open~)
+    let (db, executor) = @database.open_db(dsn, max_open~)
     group.spawn_bg(no_wait=true, () => executor.run())
     db.ready()
     defer db.close()
@@ -17,16 +17,14 @@ async fn[T] run_db(f : async (@sql.DB) -> T, max_open~ : Int32 = 10) -> T {
 
 ///|
 test "malformed DSNs are rejected" {
-  try (ignore(@moondark_postgresql.open_db("sqlite3://x")) : Unit) catch {
-    @moondark_postgresql.InvalidDsn(_) => ()
+  try (ignore(@database.open_db("sqlite3://x")) : Unit) catch {
+    @database.InvalidDsn(_) => ()
     _ => fail("expected InvalidDsn")
   } noraise {
     _ => fail("expected InvalidDsn")
   }
-  try
-    (ignore(@moondark_postgresql.open_db("postgres://h/db?bogus=1")) : Unit)
-  catch {
-    @moondark_postgresql.InvalidDsn(_) => ()
+  try (ignore(@database.open_db("postgres://h/db?bogus=1")) : Unit) catch {
+    @database.InvalidDsn(_) => ()
     _ => fail("expected InvalidDsn")
   } noraise {
     _ => fail("expected InvalidDsn")
@@ -107,33 +105,6 @@ async test "errors propagate without killing the connection" {
     defer rows.close()
     guard rows.next() is Some(row) else { fail("expected one row") }
     assert_true(row.get("answer") is Some(Int64(42)))
-  })
-}
-
-///|
-async test "session store over postgresql" {
-  run_db(db => {
-    let store = @db.DBSessionStore::DBSessionStore(db)
-    store.migrate()
-    store.delete("k1")
-    let session = @sessions.Session::of_model(@sessions.SessionModel::{
-      key: "k1",
-      data: { "user": Json::number(1) },
-      expires_at: 2_000_000_000,
-    })
-    assert_true(store.create(session))
-    assert_false(store.create(session))
-    guard store.get("k1") is Some(loaded) else { fail("session not found") }
-    let model = loaded.to_model()
-    assert_eq(model.key, "k1")
-    assert_eq(model.expires_at, 2_000_000_000)
-    assert_true(model.data["user"] == Json::number(1))
-    loaded.set("user", Json::number(2))
-    assert_true(store.update(loaded))
-    guard store.get("k1") is Some(updated) else { fail("session not found") }
-    assert_true(updated.to_model().data["user"] == Json::number(2))
-    store.delete("k1")
-    assert_true(store.get("k1") is None)
   })
 }
 

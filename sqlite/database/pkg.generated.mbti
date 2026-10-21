@@ -1,5 +1,5 @@
 // Generated using `moon info`, DON'T EDIT IT
-package "xziheng/moondark_sqlite"
+package "xziheng/moondark_sqlite/database"
 
 import {
   "moonbitlang/x/time",

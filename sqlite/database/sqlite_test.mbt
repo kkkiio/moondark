@@ -1,9 +1,7 @@
 ///|
 async test "execute, query and value round trip" {
   @async.with_task_group(group => {
-    let (db, executor) = @moondark_sqlite.open_db(
-      "_build/moondark-sqlite-test.db",
-    )
+    let (db, executor) = @database.open_db("_build/moondark-sqlite-test.db")
     group.spawn_bg(no_wait=true, () => executor.run())
     db.ready()
     defer db.close()
@@ -45,7 +43,7 @@ async test "execute, query and value round trip" {
 ///|
 async test "execute_script runs statements and keeps trigger bodies whole" {
   @async.with_task_group(group => {
-    let (db, executor) = @moondark_sqlite.open_db(
+    let (db, executor) = @database.open_db(
       "_build/moondark-sqlite-script-test.db",
     )
     group.spawn_bg(no_wait=true, () => executor.run())
@@ -79,9 +77,7 @@ async test "execute_script runs statements and keeps trigger bodies whole" {
 ///|
 async test "with_transaction commits and rolls back" {
   @async.with_task_group(group => {
-    let (db, executor) = @moondark_sqlite.open_db(
-      "_build/moondark-sqlite-tx-test.db",
-    )
+    let (db, executor) = @database.open_db("_build/moondark-sqlite-tx-test.db")
     group.spawn_bg(no_wait=true, () => executor.run())
     db.ready()
     defer db.close()
@@ -106,39 +102,5 @@ async test "with_transaction commits and rolls back" {
     guard rows.next() is Some(row) else { fail("expected one row") }
     assert_true(row.get("value") is Some(Int64(1)))
     assert_true(rows.next() is None)
-  })
-}
-
-///|
-async test "session store over sqlite" {
-  @async.with_task_group(group => {
-    let (db, executor) = @moondark_sqlite.open_db(
-      "_build/moondark-sqlite-sessions-test.db",
-    )
-    group.spawn_bg(no_wait=true, () => executor.run())
-    db.ready()
-    defer db.close()
-    let store = @db.DBSessionStore::DBSessionStore(db)
-    store.migrate()
-    store.delete("k1")
-    let session = @sessions.Session::of_model(@sessions.SessionModel::{
-      key: "k1",
-      data: { "user": Json::number(1) },
-      expires_at: 2_000_000_000,
-    })
-    assert_true(store.create(session))
-    assert_false(store.create(session))
-    guard store.get("k1") is Some(loaded) else { fail("session not found") }
-    json_inspect(loaded.to_model(), content={
-      "key": "k1",
-      "data": { "user": 1 },
-      "expires_at": 2000000000,
-    })
-    loaded.set("user", Json::number(2))
-    assert_true(store.update(loaded))
-    guard store.get("k1") is Some(updated) else { fail("session not found") }
-    assert_true(updated.to_model().data["user"] == Json::number(2))
-    store.delete("k1")
-    assert_true(store.get("k1") is None)
   })
 }

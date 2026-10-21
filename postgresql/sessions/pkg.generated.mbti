@@ -1,0 +1,24 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "xziheng/moondark_postgresql/sessions"
+
+import {
+  "xziheng/moondark/database/sql",
+}
+
+// Values
+
+// Errors
+
+// Types and methods
+type PostgresSessionStore
+pub fn PostgresSessionStore::PostgresSessionStore(@sql.DB, table? : String) -> Self
+pub async fn PostgresSessionStore::create(Self, @xziheng/moondark/sessions.Session) -> Bool
+pub async fn PostgresSessionStore::delete(Self, String) -> Unit
+pub async fn PostgresSessionStore::get(Self, String) -> @xziheng/moondark/sessions.Session?
+pub async fn PostgresSessionStore::migrate(Self) -> Unit
+pub async fn PostgresSessionStore::update(Self, @xziheng/moondark/sessions.Session) -> Bool
+pub impl @xziheng/moondark/sessions.SessionStore for PostgresSessionStore
+
+// Type aliases
+
+// Traits

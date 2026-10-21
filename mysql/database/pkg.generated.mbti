@@ -1,5 +1,5 @@
 // Generated using `moon info`, DON'T EDIT IT
-package "xziheng/moondark_postgresql"
+package "xziheng/moondark_mysql/database"
 
 import {
   "moonbitlang/x/time",
@@ -11,9 +11,6 @@ import {
 pub fn open_db(String, max_idle? : Int32, max_open? : Int32, max_lifetime? : @time.Duration, max_idle_time? : @time.Duration) -> (@sql.DB, @sql.DBExecutor) raise
 
 // Errors
-pub(all) suberror InvalidDsn {
-  InvalidDsn(String)
-}
 
 // Types and methods
 type Conn
@@ -35,10 +32,6 @@ type Driver
 pub fn Driver::new() -> Self
 pub fn Driver::open(Self, String) -> &@driver.Connector raise
 pub impl @driver.Driver for Driver
-
-type Executor
-pub async fn Executor::run(Self) -> Unit
-pub impl @driver.ConnExecutor for Executor
 
 type Rows
 pub async fn Rows::close(Self) -> Unit

@@ -1,12 +1,12 @@
 # MoonDark AGENTS.md
 
-MoonDark 是基于 MoonBack 的 MoonBit 后端框架（设计参考 [Django](https://github.com/django/django)）；本文件说明仓库布局、领域术语、强制规则和开发命令。
+MoonDark 是基于 MoonBack 的 MoonBit 后端框架（设计参考 [Django](https://github.com/django/django)）。
 
 **Location:** 仓库根目录 `AGENTS.md`。
 
 ## Project Structure Guide
 
-仓库是一个 `moon.work` 工作区，包含一个核心模块 `core/` 和三个数据库驱动模块；每个目录即一个 MoonBit 包，由该目录下的 `moon.pkg` 声明依赖。
+仓库是一个 `moon.work` 工作区，包含核心模块 `core/` 和三个集成模块（`sqlite/`、`postgresql/`、`mysql/`）。
 
 ### Repo Structure & Important Files
 
@@ -24,12 +24,18 @@ MoonDark 是基于 MoonBack 的 MoonBit 后端框架（设计参考 [Django](htt
 │   │   └── driver/               # 驱动 trait：Driver、Connector、Conn、Stmt、Rows、Tx、Value
 │   ├── migration/                # Migration、Migrator、按 Dialect 加载迁移文件
 │   ├── sessions/                 # Session、SessionStore、会话中间件、MemorySessionStore
-│   │   └── db/                   # 基于 database/sql 的 DBSessionStore
+│   │   └── sessionstest/         # SessionStore 后端通用测试套件 check_session_store
 │   ├── signing/                  # 兼容 Django 的带时间戳签名（Signer、dumps/loads）
 │   └── cmd/main/                 # 可执行入口（模板占位）
-├── sqlite/                       # 模块 xziheng/moondark_sqlite：SQLite 驱动
-├── postgresql/                   # 模块 xziheng/moondark_postgresql：PostgreSQL 驱动
-├── mysql/                        # 模块 xziheng/moondark_mysql：MySQL 驱动
+├── sqlite/                       # 集成模块 xziheng/moondark_sqlite（根目录无包）
+│   ├── database/                 # database/sql 驱动、open_db；迁移在 SQLite 上的集成测试
+│   └── sessions/                 # SqliteSessionStore
+├── postgresql/                   # 集成模块 xziheng/moondark_postgresql（根目录无包）
+│   ├── database/                 # database/sql 驱动、open_db
+│   └── sessions/                 # PostgresSessionStore
+├── mysql/                        # 集成模块 xziheng/moondark_mysql（根目录无包）
+│   ├── database/                 # database/sql 驱动、open_db
+│   └── sessions/                 # MysqlSessionStore
 ├── docs/research/                # agent 撰写的调研文档（HTML）
 ├── .agents/skills/               # 项目级 agent skills（如 write-snapshot-test）
 └── .scratch/                     # 已 gitignore，agent 临时实验目录
@@ -44,14 +50,14 @@ MoonDark 是基于 MoonBack 的 MoonBit 后端框架（设计参考 [Django](htt
 
 - **DB** — `database/sql` 中的连接池句柄，由 `DB::create` 与 `DBExecutor` 成对返回。
 - **DBExecutor** — 驱动连接创建与销毁的池执行器，必须在 task group 中 `spawn_bg` 运行。
-- **Driver / Connector** — 驱动模块实现的 trait，负责打开底层数据库连接。
-- **BadConn** — 驱动报告的"连接已失效"错误，`DB` 据此换新连接重试。
-- **Placeholder** — SQL 参数占位符，统一写 `?`（JDBC 约定），由各驱动翻译为方言写法。
-- **Dialect** — `migration` 中的数据库方言枚举，决定迁移文件后缀。
+- **Integration module（集成模块）** — 封装一种第三方技术、实现 core 后端接口的模块，如 `moondark_postgresql`。
+  _Avoid_: 驱动模块、contrib
+- **Backend** — 某个 core 接口的一个实现，如数据库驱动、`SessionStore`、任务后端。
+- **Driver / Connector** — `database/sql/driver` 中的 trait，由集成模块的 `database/` 子包实现，负责打开底层数据库连接。
 - **Migration** — 一个具名的 SQL 或代码迁移步骤。
 - **Migrator** — 在某个 `Conn` 上记录并执行 `Migration` 的运行器。
 - **Session** — 一次浏览器会话的键值数据（`Json`），由会话中间件挂到请求上。
-- **SessionStore** — 持久化 `Session` 的 trait（内存或数据库实现）。
+- **SessionStore** — 持久化 `Session` 的 trait；内存实现在 `core/sessions`，数据库实现在各集成模块的 `sessions/` 子包。
 - **Credential** — 绑定到某个 user id 的一条认证凭据（密码或 OAuth）。
   _Avoid_: User（框架不管理 users 表）
 - **Identifier** — 凭据内的登录标识，如邮箱或 OAuth provider 的 subject。
@@ -77,7 +83,21 @@ MoonDark 是基于 MoonBack 的 MoonBit 后端框架（设计参考 [Django](htt
 
 ### Placeholder Convention
 
-编写或修改 SQL（驱动、`sessions/db`、`migration`、测试）时，参数占位符一律使用 `?`；方言翻译只在驱动内部完成。例外：直接测试 PostgreSQL 原生 `$N` 行为的用例。
+编写或修改 SQL 时，参数占位符使用目标后端的原生写法（SQLite/MySQL `?`，PostgreSQL `$N`），遵循 Go `database/sql` 与 Rust `sqlx`：
+
+- 驱动必须原样透传 SQL，不做占位符翻译或其他改写。
+- `core/` 中需要跨后端的 SQL（如 `migration`）按 `Dialect` 显式写出每个后端的语句。
+- 依赖特定后端 SQL 的组件（如会话存储）放在对应集成模块的子包中实现，而不是在 `core/` 里抽象方言。
+
+### Integration Module Layout
+
+新增依赖第三方库的能力（数据库、会话存储、任务后端等）时：
+
+- 放进对应集成模块中与所实现 core 包同名的子包，如 `postgresql/sessions` 实现 `core/sessions` 的接口；集成模块根目录不放包。
+- 一个能力一个子包，子包只导入该能力需要的依赖。
+- 公开类型带后端前缀（`PostgresSessionStore`），避免导入多个集成模块时混淆。
+- 导入集成子包时显式写别名 `<集成模块目录名>_<包名>`，如 `"xziheng/moondark_postgresql/sessions" @postgresql_sessions`；集成子包内导入同名 core 包时写 `@moondark_<包>`，如 `"xziheng/moondark/sessions" @moondark_sessions`（否则黑盒测试会报别名冲突）。
+- 后端测试调用 core 的通用测试套件（如 `@sessionstest.check_session_store`），不要在各集成模块重复写断言。
 
 ### Agent Author
 
@@ -107,15 +127,23 @@ just fmt
 
 ### Testing
 
-- `postgresql/` 与 `mysql/` 的测试通过 `xziheng/testcontainers` 启动临时容器，需要本地 Docker 可用。只改 `core/` 或 `sqlite/` 时可只跑对应目录：
+- `moon test` 是 workspace 级命令：在根目录、成员目录或 `-C <member>` 下都会跑整个工作区。`postgresql/` 与 `mysql/` 的测试通过 `xziheng/testcontainers` 启动临时容器，需要本地 Docker 可用。
+- 只跑 core（不需要 Docker）：用 `MOON_WORK=off` 关闭工作区模式，只选中 `-C` 所在模块：
   ```bash
-  moon -C core test
-  moon test sqlite
+  MOON_WORK=off moon -C core test
   ```
-- 只跑单个包：
+- 按包名批量跑用 `-p`：先按完整包名精确匹配，失败才用 fzf 风格模糊匹配（按子序列匹配而非子串，`xziheng/moondark/` 也会匹配 `xziheng/moondark_sqlite/database`）。需要精确范围时用 `^` 前缀匹配或 `'` 子串匹配：
+  ```bash
+  moon test -p "'moondark_sqlite"        # sqlite/database + sqlite/sessions
+  moon test -p '^xziheng/moondark/'      # core 的全部包
+  moon test -p sessions                  # 模糊：所有名字含该子序列的包
+  ```
+- 只跑单个包（路径必须是含 `moon.pkg` 的目录，集成模块根目录不是包）：
   ```bash
   moon test core/<package-dir>
+  moon test postgresql/sessions
   ```
+- 加 `--outline` 只列出将要运行的测试而不执行，可先确认选中范围。
 - 输出变化导致快照失败且确认新输出正确时，刷新快照：
   ```bash
   moon test --update

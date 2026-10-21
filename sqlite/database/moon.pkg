@@ -8,8 +8,6 @@ import {
 import {
   "moonbitlang/async",
   "moonbitlang/async/fs",
-  "xziheng/moondark/sessions",
-  "xziheng/moondark/sessions/db",
   "xziheng/moondark/migration",
 } for "test"
 
