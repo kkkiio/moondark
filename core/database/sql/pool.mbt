@@ -354,12 +354,14 @@ async fn create_physical(
   group : @async.TaskGroup[Unit],
   request : CreateRequest,
 ) -> Unit {
+  let mut conn : (&@driver.Conn)? = None
   let created : Result[ConnEntry, Error] = Ok(
     {
-      let (conn, executor) = pool.connector.connect()
+      let (c, executor) = pool.connector.connect()
+      conn = Some(c)
       group.spawn_bg(no_wait=true, allow_failure=true, () => executor.run())
-      conn.ready()
-      pool.new_entry(conn, @env.now().reinterpret_as_int64())
+      c.ready()
+      pool.new_entry(c, @env.now().reinterpret_as_int64())
     },
   ) catch {
     e => Err(e)
@@ -368,7 +370,16 @@ async fn create_physical(
     // Failures here mean the operation never reached the server, so
     // the request may be retried on a fresh connection: the error is
     // delivered as `BadConn` and `acquire_retry` handles the retry.
-    Err(e) => request.result.close(error=@driver.BadConn(e))
+    Err(e) => {
+      // connect() succeeded but ready() failed: close the half-open
+      // connection so its socket/executor cannot leak per retry.
+      if conn is Some(c) {
+        c.close() catch {
+          _ => ()
+        }
+      }
+      request.result.close(error=@driver.BadConn(e))
+    }
     Ok(entry) => {
       pool.active_count += 1
       let delivered = !pool.closed &&
