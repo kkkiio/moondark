@@ -7,8 +7,10 @@ async test "sqlite session store passes the conformance suite" {
     group.spawn_bg(no_wait=true, () => executor.run())
     db.ready()
     defer db.close()
+    let conn = db.conn()
+    defer conn.close()
+    conn.execute_script(@fs.read_file("sessions/schema.sql").text())
     let store = @sessions.SqliteSessionStore(db)
-    store.migrate()
     @sessionstest.check_session_store(store)
   })
 }

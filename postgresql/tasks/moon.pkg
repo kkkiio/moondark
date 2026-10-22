@@ -9,6 +9,7 @@ import {
 
 import {
   "moonbitlang/async",
+  "moonbitlang/async/fs",
   "xziheng/moondark_postgresql/database" @postgresql_database,
   "xziheng/testcontainers/postgres",
 } for "test"

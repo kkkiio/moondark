@@ -1,0 +1,17 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "xziheng/moondark_example_todo/migrations/v0002_moondark_sessions"
+
+import {
+  "xziheng/moondark/migration",
+}
+
+// Values
+pub async fn migration() -> @migration.Migration
+
+// Errors
+
+// Types and methods
+
+// Type aliases
+
+// Traits

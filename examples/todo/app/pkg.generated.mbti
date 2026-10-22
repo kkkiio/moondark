@@ -1,0 +1,27 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "xziheng/moondark_example_todo/app"
+
+import {
+  "xziheng/moondark/database/sql",
+}
+
+// Values
+pub async fn add_todo(@sql.DB, String) -> Unit
+
+pub async fn done_todo(@sql.DB, String) -> Unit
+
+pub async fn list_todos(@sql.DB) -> Unit
+
+pub async fn load(@sql.DB) -> Unit
+
+pub async fn migrate(@sql.DB) -> Unit
+
+pub async fn print_status(@sql.DB) -> Unit
+
+// Errors
+
+// Types and methods
+
+// Type aliases
+
+// Traits

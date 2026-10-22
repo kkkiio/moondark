@@ -7,24 +7,14 @@ struct MysqlSessionStore {
 }
 
 ///|
-/// `table` is the name of the session table, see `migrate` for its schema.
-/// It is interpolated into SQL statements verbatim, so it must be a trusted
-/// identifier.
+/// `table` is the name of the session table, see `schema.sql` for its
+/// schema. It is interpolated into SQL statements verbatim, so it must
+/// be a trusted identifier.
 pub fn MysqlSessionStore::MysqlSessionStore(
   db : @sql.DB,
   table~ : String = "sessions",
 ) -> MysqlSessionStore {
   MysqlSessionStore::{ db, table, }
-}
-
-///|
-/// Create the session table if it does not exist.
-pub async fn MysqlSessionStore::migrate(self : Self) -> Unit {
-  ignore(
-    self.db.execute(
-      "CREATE TABLE IF NOT EXISTS \{self.table} (session_key VARCHAR(64) PRIMARY KEY, session_data TEXT NOT NULL, expires_at BIGINT NOT NULL)",
-    ),
-  )
 }
 
 ///|

@@ -1,7 +1,15 @@
 ///|
-/// Start a throwaway postgres container, open a `DB` against it and run
-/// `f` with the pool executor running. Both the pool and the container
-/// are cleaned up when `f` returns.
+/// Apply the package's `tasks/schema.sql` on a pooled connection.
+async fn apply_schema(db : @sql.DB) -> Unit {
+  let conn = db.conn()
+  defer conn.close()
+  conn.execute_script(@fs.read_file("tasks/schema.sql").text())
+}
+
+///|
+/// Start a throwaway postgres container, open a `DB` against it, apply
+/// the package's schema and run `f` with the pool executor running.
+/// Both the pool and the container are cleaned up when `f` returns.
 async fn run_db(f : async (@sql.DB) -> Unit, max_open~ : Int32 = 10) -> Unit {
   let pg = @postgres.run()
   defer pg.cleanup()
@@ -11,6 +19,7 @@ async fn run_db(f : async (@sql.DB) -> Unit, max_open~ : Int32 = 10) -> Unit {
     group.spawn_bg(no_wait=true, () => executor.run())
     db.ready()
     defer db.close()
+    apply_schema(db)
     f(db)
   })
 }
@@ -19,9 +28,8 @@ async fn run_db(f : async (@sql.DB) -> Unit, max_open~ : Int32 = 10) -> Unit {
 async test "enqueue stores a ready result and get_result reads it back" {
   run_db(db => {
     let backend = @tasks.PostgresTaskBackend::new(db, now=() => 1000)
-    backend.migrate()
-    // migrate is idempotent
-    backend.migrate()
+    // applying the schema is idempotent
+    apply_schema(db)
     let email : @moondark_tasks.TransactionalTaskDef[Json] = @moondark_tasks.TransactionalTaskDef::new(
       name="send_email",
       max_attempts=3,
@@ -53,7 +61,6 @@ async test "enqueue stores a ready result and get_result reads it back" {
 async test "enqueue commits and rolls back with the transaction" {
   run_db(db => {
     let backend = @tasks.PostgresTaskBackend::new(db)
-    backend.migrate()
     let def : @moondark_tasks.TransactionalTaskDef[Json] = @moondark_tasks.TransactionalTaskDef::new(
       name="t",
     )
@@ -86,7 +93,6 @@ async test "enqueue commits and rolls back with the transaction" {
 async test "worker runs a claimed task and persists the return value" {
   run_db(db => {
     let backend = @tasks.PostgresTaskBackend::new(db, now=() => 1000)
-    backend.migrate()
     let def : @moondark_tasks.TransactionalTaskDef[Json] = @moondark_tasks.TransactionalTaskDef::new(
       name="echo",
     )
@@ -120,7 +126,6 @@ async test "worker runs a claimed task and persists the return value" {
 async test "worker reschedules failures and exhausts the attempt budget" {
   run_db(db => {
     let backend = @tasks.PostgresTaskBackend::new(db, now=() => 100)
-    backend.migrate()
     let def : @moondark_tasks.TransactionalTaskDef[Json] = @moondark_tasks.TransactionalTaskDef::new(
       name="flaky",
       max_attempts=2,
@@ -172,7 +177,6 @@ async test "worker reschedules failures and exhausts the attempt budget" {
 async test "worker reclaims stale running rows only when enabled" {
   run_db(db => {
     let backend = @tasks.PostgresTaskBackend::new(db, now=() => 0)
-    backend.migrate()
     let def : @moondark_tasks.TransactionalTaskDef[Json] = @moondark_tasks.TransactionalTaskDef::new(
       name="t",
       max_attempts=3,
@@ -235,7 +239,6 @@ async test "claim picks due rows in enqueue order" {
       clock += 1
       clock
     })
-    backend.migrate()
     let def : @moondark_tasks.TransactionalTaskDef[Json] = @moondark_tasks.TransactionalTaskDef::new(
       name="t",
     )
@@ -275,7 +278,6 @@ async test "claim picks due rows in enqueue order" {
 async test "concurrent claims never pick the same row" {
   run_db(max_open=4, db => {
     let backend = @tasks.PostgresTaskBackend::new(db)
-    backend.migrate()
     let def : @moondark_tasks.TransactionalTaskDef[Json] = @moondark_tasks.TransactionalTaskDef::new(
       name="t",
     )

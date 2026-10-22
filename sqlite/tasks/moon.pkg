@@ -9,6 +9,7 @@ import {
 
 import {
   "moonbitlang/async",
+  "moonbitlang/async/fs",
   "xziheng/moondark_sqlite/database" @sqlite_database,
 } for "test"
 

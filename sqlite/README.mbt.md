@@ -35,10 +35,20 @@ import {
 
 ## sessions
 
-`SqliteSessionStore` 把会话存进 `sessions` 表（`table~` 可改名）；`migrate` 建表。
+`SqliteSessionStore` 把会话存进 `sessions` 表（`table~` 可改名）。
+表结构不在代码里创建：`sessions/schema.sql` 是现成的建表文件，
+用 `sqlite3 app.db < sessions/schema.sql`、`Conn::execute_script`
+或自己的迁移工具执行；`table~` 改名时同步修改表名。
+
+```sql
+CREATE TABLE IF NOT EXISTS sessions (
+    session_key VARCHAR(64) PRIMARY KEY,
+    session_data TEXT NOT NULL,
+    expires_at BIGINT NOT NULL
+);
+```
 
 ```mbt nocheck
 let store = @sqlite_sessions.SqliteSessionStore(db)
-store.migrate()
 app.add_middleware(@sessions.middleware(store))
 ```

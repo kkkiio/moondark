@@ -15,36 +15,18 @@ struct SqliteTaskBackend {
 }
 
 ///|
-/// `table` is the name of the task-results table, see `migrate` for
-/// its schema. It is interpolated into SQL statements verbatim, so it
-/// must be a trusted identifier. `now` supplies the unix-ms timestamp
-/// stamped into `enqueued_at`; inject it in tests for a deterministic
-/// clock.
+/// `table` is the name of the task-results table, see `schema.sql` for
+/// its schema (including the claim index and the recommended
+/// `busy_timeout` pragma). It is interpolated into SQL statements
+/// verbatim, so it must be a trusted identifier. `now` supplies the
+/// unix-ms timestamp stamped into `enqueued_at`; inject it in tests
+/// for a deterministic clock.
 pub fn SqliteTaskBackend::new(
   db : @sql.DB,
   table~ : String = "task_results",
   now~ : () -> Int64 = () => @env.now().reinterpret_as_int64(),
 ) -> SqliteTaskBackend {
   SqliteTaskBackend::{ db, table, now, }
-}
-
-///|
-/// Create the task-results table and its claim index if they do not
-/// exist. Also sets `PRAGMA busy_timeout` on the pooled connection
-/// running this statement so concurrent writers retry instead of
-/// failing with `SQLITE_BUSY`.
-pub async fn SqliteTaskBackend::migrate(self : Self) -> Unit {
-  ignore(self.db.execute("PRAGMA busy_timeout = 5000"))
-  ignore(
-    self.db.execute(
-      "CREATE TABLE IF NOT EXISTS \{self.table} (id TEXT PRIMARY KEY, task_name TEXT NOT NULL, status TEXT NOT NULL, args TEXT NOT NULL, run_after BIGINT, enqueued_at BIGINT NOT NULL, started_at BIGINT, finished_at BIGINT, attempts INTEGER NOT NULL, max_attempts INTEGER NOT NULL, return_value TEXT, errors TEXT NOT NULL, worker_ids TEXT NOT NULL)",
-    ),
-  )
-  ignore(
-    self.db.execute(
-      "CREATE INDEX IF NOT EXISTS \{self.table}_claim ON \{self.table} (status, enqueued_at)",
-    ),
-  )
 }
 
 ///|

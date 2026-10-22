@@ -212,47 +212,47 @@ async test "bootstrap stamps the full set on a fresh database" {
 }
 
 ///|
-async test "load_dir picks dialect overrides" {
+async test "Migration::load picks the dialect override in a version dir" {
   let dir = "_build/mig-dir-test"
-  @fs.mkdir(dir, permission=0o755, recursive=true, allow_exist=true)
+  @fs.mkdir(
+    "\{dir}/v0001_a",
+    permission=0o755,
+    recursive=true,
+    allow_exist=true,
+  )
   @fs.write_file(
-    "\{dir}/0001_a.sql",
+    "\{dir}/v0001_a/up.sql",
     b"CREATE TABLE a(x INTEGER);",
     create_mode=@fs.CreateMode::CreateOrTruncate,
   )
   @fs.write_file(
-    "\{dir}/0001_a.postgres.sql",
+    "\{dir}/v0001_a/up.postgres.sql",
     b"CREATE TABLE a(x BIGINT);",
     create_mode=@fs.CreateMode::CreateOrTruncate,
   )
-  @fs.write_file(
-    "\{dir}/0002_b.sql",
-    b"CREATE TABLE b(x INTEGER);",
-    create_mode=@fs.CreateMode::CreateOrTruncate,
-  )
-  @fs.write_file(
-    "\{dir}/ignored.txt",
-    b"not sql",
-    create_mode=@fs.CreateMode::CreateOrTruncate,
-  )
-  let sqlite_migs = @migration.Migration::load_dir(
-    dir~,
+  let sqlite_mig = @migration.Migration::load(
+    dir="\{dir}/v0001_a",
     dialect=@migration.Dialect::Sqlite,
   )
-  assert_eq(sqlite_migs.length(), 2)
-  guard sqlite_migs[0] is @migration.Migration::Sql(sql~, ..) else {
+  guard sqlite_mig is @migration.Migration::Sql(name~, sql~, ..) else {
     fail("expected Sql migration")
   }
+  assert_eq(name, "v0001_a")
   assert_true(sql.contains("x INTEGER"))
-  let pg_migs = @migration.Migration::load_dir(
-    dir~,
+  let pg_mig = @migration.Migration::load(
+    dir="\{dir}/v0001_a",
     dialect=@migration.Dialect::Postgres,
   )
-  assert_eq(pg_migs.length(), 2)
-  guard pg_migs[0] is @migration.Migration::Sql(sql~, ..) else {
+  guard pg_mig is @migration.Migration::Sql(sql~, ..) else {
     fail("expected Sql migration")
   }
   assert_true(sql.contains("x BIGINT"))
+}
+
+///|
+async test "load_schema prefers the dialect override" {
+  let dir = "_build/mig-dir-test"
+  @fs.mkdir(dir, permission=0o755, recursive=true, allow_exist=true)
   @fs.write_file(
     "\{dir}/schema.sql",
     b"CREATE TABLE s(x INTEGER);",
@@ -273,4 +273,45 @@ async test "load_dir picks dialect overrides" {
     fail("expected schema")
   }
   assert_true(sqlite_schema.contains("x INTEGER"))
+}
+
+///|
+async test "up rejects a pending migration inserted before the latest applied" {
+  @async.with_task_group(group => {
+    let (db, executor) = open("moondark-mig-order.db")
+    group.spawn_bg(no_wait=true, () => executor.run())
+    db.ready()
+    defer db.close()
+    ignore(db.execute("DROP TABLE IF EXISTS moondark_migrations"))
+    ignore(db.execute("DROP TABLE IF EXISTS moondark_migration_records"))
+    ignore(db.execute("DROP TABLE IF EXISTS items"))
+    let migrator = @migration.Migrator::new(
+      conn=db.conn(),
+      dialect=@migration.Dialect::Sqlite,
+    )
+    ignore(migrator.up(two_migrations()[:]))
+    // A late-added 0000 sorts before the already-applied 0002 —
+    // history is append-only at the tail.
+    let spliced = [
+      @migration.Migration::sql(
+        name="0000_spliced",
+        sql="CREATE TABLE spliced(x INTEGER);",
+      ),
+      ..two_migrations(),
+    ]
+    try {
+      ignore(migrator.up(spliced[:]))
+      fail("expected OutOfOrder")
+    } catch {
+      e =>
+        if e is @migration.OutOfOrder(name~, latest~) {
+          assert_eq(name, "0000_spliced")
+          assert_eq(latest, "0002_price")
+        } else {
+          raise e
+        }
+    }
+    // And nothing was applied.
+    assert_eq(count_rows(db, "SELECT name FROM moondark_migrations"), 2)
+  })
 }

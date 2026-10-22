@@ -5,3 +5,46 @@ import {
   "moonbitlang/core/env",
   "moonbitlang/core/encoding/utf8",
 }
+
+// Embed the bookkeeping DDL templates: bookkeeping.<dialect>.sql is
+// wrapped into a `let bookkeeping_<dialect>` string constant in a
+// committed `*_gen.mbt` via the built-in `:embed` prebuild command.
+// dev_build runs only for this module's own builds; downstream users
+// compile the committed generated files.
+rule(
+  name: "embed_sqlite",
+  command: ":embed --text -i $input -o $output --name bookkeeping_sqlite",
+)
+
+rule(
+  name: "embed_postgres",
+  command: ":embed --text -i $input -o $output --name bookkeeping_postgres",
+)
+
+rule(
+  name: "embed_mysql",
+  command: ":embed --text -i $input -o $output --name bookkeeping_mysql",
+)
+
+dev_build(
+  rule: "embed_sqlite",
+  input: "bookkeeping.sqlite.sql",
+  output: "bookkeeping_sqlite_gen.mbt",
+)
+
+dev_build(
+  rule: "embed_postgres",
+  input: "bookkeeping.postgres.sql",
+  output: "bookkeeping_postgres_gen.mbt",
+)
+
+dev_build(
+  rule: "embed_mysql",
+  input: "bookkeeping.mysql.sql",
+  output: "bookkeeping_mysql_gen.mbt",
+)
+
+import {
+  "moonbitlang/async",
+  "xziheng/moondark/database/sql/sqltest",
+} for "test"

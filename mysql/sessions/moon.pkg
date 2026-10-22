@@ -7,6 +7,7 @@ import {
 
 import {
   "moonbitlang/async",
+  "moonbitlang/async/fs",
   "xziheng/moondark/sessions/sessionstest",
   "xziheng/moondark_mysql/database" @mysql_database,
   "xziheng/testcontainers/mysql",

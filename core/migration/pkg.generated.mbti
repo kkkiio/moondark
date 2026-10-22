@@ -12,6 +12,7 @@ pub async fn load_schema(dir~ : String, dialect~ : Dialect) -> String?
 pub suberror MigrationError {
   DirtyState(Array[String])
   ChecksumMismatch(name~ : String, stored~ : String, current~ : String)
+  OutOfOrder(name~ : String, latest~ : String)
   ApplyFailed(name~ : String, Error)
   NotFresh
   InvalidName(String)
@@ -29,7 +30,7 @@ pub(all) enum Migration {
   Sql(name~ : String, sql~ : String, use_tx~ : Bool)
   Run(name~ : String, use_tx~ : Bool, run~ : async (@sql.Conn) -> Unit)
 }
-pub async fn Migration::load_dir(dir~ : String, dialect~ : Dialect, use_tx? : Bool) -> Array[Self]
+pub async fn Migration::load(dir~ : String, dialect~ : Dialect, use_tx? : Bool) -> Self
 pub fn Migration::name(Self) -> String
 pub fn Migration::run(name~ : String, run~ : async (@sql.Conn) -> Unit, use_tx? : Bool) -> Self
 pub fn Migration::sql(name~ : String, sql~ : String, use_tx? : Bool) -> Self

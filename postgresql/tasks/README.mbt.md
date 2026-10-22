@@ -7,16 +7,39 @@ worker 可以同进程也可以不同进程，共享的只有这张表。
 
 ## 建表
 
-`migrate()` 创建结果表与认领索引（部分索引，只覆盖
-`ready`/`running` 行）：
+表结构不在代码里创建：`tasks/schema.sql` 给出结果表与认领索引
+（部分索引，只覆盖 `ready`/`running` 行）的建表语句，用 `psql`
+或自己的迁移工具执行。
 
-```mbt nocheck
-let backend = @tasks.PostgresTaskBackend::new(db)
-backend.migrate()
+```sql
+CREATE TABLE IF NOT EXISTS task_results (
+    id TEXT PRIMARY KEY,
+    task_name TEXT NOT NULL,
+    status TEXT NOT NULL,
+    args JSONB NOT NULL,
+    run_after BIGINT NULL,
+    enqueued_at BIGINT NOT NULL,
+    started_at BIGINT NULL,
+    finished_at BIGINT NULL,
+    attempts INTEGER NOT NULL,
+    max_attempts INTEGER NOT NULL,
+    return_value JSONB NULL,
+    errors JSONB NOT NULL,
+    worker_ids JSONB NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS task_results_claim_idx
+    ON task_results (enqueued_at)
+    WHERE status IN ('ready', 'running');
 ```
 
-`table` 参数会原样拼进 SQL，必须是可信标识符；`now` 默认取墙钟
-毫秒，测试里可注入。
+```mbt nocheck
+///|
+let backend = @tasks.PostgresTaskBackend::new(db)
+```
+
+`table` 参数会原样拼进 SQL，必须是可信标识符；改名时同步修改
+schema.sql 里的表名与索引名。`now` 默认取墙钟毫秒，测试里可注入。
 
 ## 投递
 

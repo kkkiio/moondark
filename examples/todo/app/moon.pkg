@@ -1,0 +1,13 @@
+import {
+  "xziheng/moondark/database/sql",
+  "xziheng/moondark/database/sql/driver",
+  "xziheng/moondark/migration",
+  "xziheng/moondark_example_todo/migrations",
+}
+
+import {
+  "moonbitlang/async",
+  "moonbitlang/async/fs",
+} for "test"
+
+supported_targets = "native"

@@ -23,7 +23,7 @@ MoonDark 是基于 MoonBack 的 MoonBit 后端框架（设计参考 [Django](htt
 │   ├── database/sql/             # Go database/sql 风格的连接池与查询 API（DB、Conn、Rows、Tx、Stmt）
 │   │   ├── driver/               # 驱动 trait：Driver、Connector、Conn、Stmt、Rows、Tx、Value
 │   │   └── sqltest/              # 测试用内存驱动（FakeConnector）
-│   ├── migration/                # Migration、Migrator、按 Dialect 加载迁移文件
+│   ├── migration/                # Migration、Migrator、版本目录/schema 文件加载
 │   ├── sessions/                 # Session、SessionStore、会话中间件、MemorySessionStore
 │   │   └── sessionstest/         # SessionStore conformance test suite
 │   ├── signing/                  # 带时间戳签名
@@ -40,6 +40,7 @@ MoonDark 是基于 MoonBack 的 MoonBit 后端框架（设计参考 [Django](htt
 ├── mysql/                        # 集成模块 xziheng/moondark_mysql
 │   ├── database/                 # database/sql 驱动、open_db
 │   └── sessions/                 # MysqlSessionStore
+├── examples/todo/                # 示例应用 xziheng/moondark_example_todo：演示 migration 的典型接线
 ├── docs/research/                # agent 撰写的调研文档（HTML）
 ├── .agents/skills/               # 项目级 agent skills（如 write-snapshot-test）
 └── .scratch/                     # 已 gitignore，agent 临时实验目录
@@ -48,6 +49,7 @@ MoonDark 是基于 MoonBack 的 MoonBit 后端框架（设计参考 [Django](htt
 ### Package Layout
 
 - 每个包包含实现文件、黑盒测试 `*_test.mbt`、白盒测试 `*_wbtest.mbt`，以及生成的接口文件 `pkg.generated.mbti`。
+- 需要数据库表的集成子包（`sessions`、`tasks`）不在代码里建表：包内放 `schema.sql` 示例文件（scs 风格），测试直接读取并执行它，README 同步介绍。
 - `README.mbt.md` 是可执行文档：```` ```mbt check ```` 代码块会被 `moon test` 编译运行，```` ```mbt nocheck ```` 不会。同目录 `README.md` 是指向它的符号链接，只编辑 `README.mbt.md`。
 
 ## Domain Language

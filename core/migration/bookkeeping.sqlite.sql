@@ -1,0 +1,21 @@
+-- Bookkeeping tables for xziheng/moondark/migration, SQLite flavor.
+-- This is a template: {migrations_table} / {records_table} are
+-- substituted with the Migrator's configured names at runtime
+-- (defaults: moondark_migrations / moondark_migration_records).
+-- Created lazily by Migrator::ensure_tables on every operation.
+
+CREATE TABLE IF NOT EXISTS {migrations_table} (
+    name VARCHAR(200) NOT NULL PRIMARY KEY,
+    checksum VARCHAR(64) NOT NULL,
+    applied_at BIGINT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS {records_table} (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name VARCHAR(200) NOT NULL,
+    status VARCHAR(16) NOT NULL,
+    error TEXT NOT NULL DEFAULT '',
+    started_at BIGINT NOT NULL,
+    finished_at BIGINT NOT NULL DEFAULT 0,
+    duration_ms BIGINT NOT NULL DEFAULT 0
+);

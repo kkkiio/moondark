@@ -7,6 +7,11 @@
 
 ## 建表与投递
 
+表结构不在代码里创建：`tasks/schema.sql` 给出建表与认领索引语句，
+文件头还带一条 `PRAGMA busy_timeout = 5000`（见文末说明）。用
+`Conn::execute_script`、`sqlite3 app.db < tasks/schema.sql` 或自己的
+迁移工具执行；`table~` 改名时同步修改表名与索引名。
+
 ```mbt nocheck
 @async.with_task_group(group => {
   let (db, executor) = @sqlite_database.open_db("app.db")
@@ -14,7 +19,6 @@
   db.ready()
   defer db.close()
   let backend = @sqlite_tasks.SqliteTaskBackend::new(db)
-  backend.migrate()
 
   let email : @tasks.TransactionalTaskDef[Json] = @tasks.TransactionalTaskDef::new(
     name="send_email",
@@ -51,6 +55,6 @@ group.spawn_bg(no_wait=true, () => worker.run())
 - 失败后在行的 `max_attempts` 预算内按 `backoff` 重排为 `Ready`，
   预算耗尽记为 `Failed`；每次认领把 worker id 追加进 `worker_ids`。
 
-`migrate` 建表的同时设置 `PRAGMA busy_timeout`（5000ms），让并发
-写者重试而不是直接报 `SQLITE_BUSY`。注意 busy_timeout 是
-per-connection 的，只对跑过 `migrate` 的那条池连接生效。
+`schema.sql` 开头的 `PRAGMA busy_timeout = 5000` 让并发写者重试
+而不是直接报 `SQLITE_BUSY`。注意 busy_timeout 是 per-connection
+的，只对跑过脚本的那条连接生效；之后新开的池连接需要自行设置。

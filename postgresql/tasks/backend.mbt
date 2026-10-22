@@ -16,33 +16,17 @@ pub struct PostgresTaskBackend {
 }
 
 ///|
-/// `table` is the name of the task-result table, see `migrate` for its
-/// schema. It is interpolated into SQL statements verbatim, so it must
-/// be a trusted identifier. `now` defaults to wall-clock epoch ms;
-/// inject it in tests for deterministic timestamps.
+/// `table` is the name of the task-result table, see `schema.sql` for
+/// its schema (including the claim index). It is interpolated into SQL
+/// statements verbatim, so it must be a trusted identifier. `now`
+/// defaults to wall-clock epoch ms; inject it in tests for
+/// deterministic timestamps.
 pub fn PostgresTaskBackend::new(
   db : @sql.DB,
   table~ : String = "task_results",
   now~ : () -> Int64 = () => @env.now().reinterpret_as_int64(),
 ) -> PostgresTaskBackend {
   PostgresTaskBackend::{ db, table, now, }
-}
-
-///|
-/// Create the task-result table and its claim index if they do not
-/// exist. The partial index covers exactly the rows `claim` scans:
-/// runnable `ready` rows plus reclaimable `running` ones.
-pub async fn PostgresTaskBackend::migrate(self : Self) -> Unit {
-  ignore(
-    self.db.execute(
-      "CREATE TABLE IF NOT EXISTS \{self.table} (id TEXT PRIMARY KEY, task_name TEXT NOT NULL, status TEXT NOT NULL, args JSONB NOT NULL, run_after BIGINT NULL, enqueued_at BIGINT NOT NULL, started_at BIGINT NULL, finished_at BIGINT NULL, attempts INTEGER NOT NULL, max_attempts INTEGER NOT NULL, return_value JSONB NULL, errors JSONB NOT NULL, worker_ids JSONB NOT NULL)",
-    ),
-  )
-  ignore(
-    self.db.execute(
-      "CREATE INDEX IF NOT EXISTS \{self.table}_claim_idx ON \{self.table} (enqueued_at) WHERE status IN ('ready','running')",
-    ),
-  )
 }
 
 ///|

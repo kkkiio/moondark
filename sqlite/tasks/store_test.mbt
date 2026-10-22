@@ -1,6 +1,7 @@
 ///|
 /// Open a `SqliteTaskBackend` against a per-test database file and run
-/// `f` with the pool executor running; `migrate` has already run.
+/// `f` with the pool executor running; the package's `tasks/schema.sql`
+/// (which also sets `busy_timeout` on that connection) has already run.
 async fn with_backend(
   path : String,
   now~ : () -> Int64 = () => @env.now().reinterpret_as_int64(),
@@ -11,8 +12,10 @@ async fn with_backend(
     group.spawn_bg(no_wait=true, () => executor.run())
     db.ready()
     defer db.close()
+    let conn = db.conn()
+    defer conn.close()
+    conn.execute_script(@fs.read_file("tasks/schema.sql").text())
     let backend = @tasks.SqliteTaskBackend::new(db, now~)
-    backend.migrate()
     ignore(db.execute("DELETE FROM task_results"))
     f(backend, db)
   })

@@ -1,8 +1,9 @@
 ///|
 /// Conformance suite for `@sessions.SessionStore` backends. Every
-/// backend's tests call it with a store whose schema is already in place
-/// (e.g. after `migrate`). It only touches the `sessionstest-k1` key and
-/// deletes it before and after, so the table may hold other rows.
+/// backend's tests call it with a store whose schema is already in
+/// place (e.g. after applying the package's `schema.sql`). It only
+/// touches the `sessionstest-k1` key and deletes it before and after,
+/// so the table may hold other rows.
 pub async fn check_session_store(store : &@sessions.SessionStore) -> Unit {
   let key = "sessionstest-k1"
   store.delete(key)

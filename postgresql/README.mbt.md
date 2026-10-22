@@ -43,10 +43,19 @@ DSN 为 `postgres://user[:password]@host[:port]/database[?params]`（或
 
 ## sessions
 
-`PostgresSessionStore` 把会话存进 `sessions` 表（`table~` 可改名）；`migrate` 建表。
+`PostgresSessionStore` 把会话存进 `sessions` 表（`table~` 可改名）。
+表结构不在代码里创建：`sessions/schema.sql` 是现成的建表文件，
+用 `psql` 或自己的迁移工具执行；`table~` 改名时同步修改表名。
+
+```sql
+CREATE TABLE IF NOT EXISTS sessions (
+    session_key VARCHAR(64) PRIMARY KEY,
+    session_data TEXT NOT NULL,
+    expires_at BIGINT NOT NULL
+);
+```
 
 ```mbt nocheck
 let store = @postgresql_sessions.PostgresSessionStore(db)
-store.migrate()
 app.add_middleware(@sessions.middleware(store))
 ```

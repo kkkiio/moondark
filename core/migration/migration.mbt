@@ -107,6 +107,9 @@ pub suberror MigrationError {
   DirtyState(Array[String])
   /// An applied migration's script changed on disk since it ran.
   ChecksumMismatch(name~ : String, stored~ : String, current~ : String)
+  /// A pending migration sorts at or before the newest applied one —
+  /// the migration list is append-only at the tail.
+  OutOfOrder(name~ : String, latest~ : String)
   /// Applying `name` failed; details are in the records table.
   ApplyFailed(name~ : String, Error)
   /// `bootstrap` only runs on an empty applied set.
@@ -145,16 +148,21 @@ pub fn Migrator::new(
 }
 
 ///|
-/// Create the bookkeeping tables if they do not exist yet.
+/// Create the bookkeeping tables if they do not exist yet. The DDL
+/// lives in `bookkeeping.<dialect>.sql` (embedded at build time via
+/// `dev_build`); `{migrations_table}`/`{records_table}` placeholders
+/// are substituted with the configured names.
 pub async fn Migrator::ensure_tables(self : Migrator) -> Unit {
-  let id_column = match self.dialect {
-    Sqlite => "INTEGER PRIMARY KEY AUTOINCREMENT"
-    Postgres => "BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY"
-    Mysql => "BIGINT PRIMARY KEY AUTO_INCREMENT"
+  let ddl = match self.dialect {
+    Sqlite => bookkeeping_sqlite
+    Postgres => bookkeeping_postgres
+    Mysql => bookkeeping_mysql
   }
-  let ddl = "CREATE TABLE IF NOT EXISTS \{self.migrations_table} (name VARCHAR(200) NOT NULL PRIMARY KEY, checksum VARCHAR(64) NOT NULL, applied_at BIGINT NOT NULL);" +
-    "CREATE TABLE IF NOT EXISTS \{self.records_table} (id \{id_column}, name VARCHAR(200) NOT NULL, status VARCHAR(16) NOT NULL, error TEXT NOT NULL DEFAULT '', started_at BIGINT NOT NULL, finished_at BIGINT NOT NULL DEFAULT 0, duration_ms BIGINT NOT NULL DEFAULT 0);"
-  self.conn.execute_script(ddl)
+  self.conn.execute_script(
+    ddl
+    .replace_all(old="{migrations_table}", new=self.migrations_table)
+    .replace_all(old="{records_table}", new=self.records_table),
+  )
 }
 
 ///|
@@ -164,6 +172,8 @@ pub async fn Migrator::ensure_tables(self : Migrator) -> Unit {
 /// and the database state is unknown (`DirtyState`). Migrations are
 /// skipped when already applied; an applied migration whose script
 /// changed on disk fails `ChecksumMismatch` before anything runs.
+/// History is append-only: a pending migration that does not sort
+/// after the newest applied name fails `OutOfOrder`.
 pub async fn Migrator::up(
   self : Migrator,
   migrations : ArrayView[Migration],
@@ -171,8 +181,12 @@ pub async fn Migrator::up(
   self.ensure_tables()
   self.check_dirty()
   self.check_drift(migrations)
+  let pending = self.pending(migrations)
+  if pending is [first, ..] {
+    self.check_tail_order(first.name())
+  }
   let applied : Array[String] = []
-  for mig in self.pending(migrations) {
+  for mig in pending {
     self.apply(mig)
     applied.push(mig.name())
   }
@@ -240,7 +254,7 @@ pub async fn Migrator::status(
       })
     }
   }
-  out.sort_by(fn(a, b) { a.name.compare(b.name) })
+  out.sort_by(fn(a, b) { a.name.lexical_compare(b.name) })
   out
 }
 
@@ -370,7 +384,7 @@ pub(all) struct MigrationStatus {
 /// Sort by name, validating the charset and rejecting duplicates.
 fn validate(migrations : ArrayView[Migration]) -> Array[Migration] raise {
   let sorted = migrations.to_owned()
-  sorted.sort_by(fn(a, b) { a.name().compare(b.name()) })
+  sorted.sort_by(fn(a, b) { a.name().lexical_compare(b.name()) })
   let mut prev = ""
   for mig in sorted {
     if !is_migration_name(mig.name()) {
@@ -382,6 +396,26 @@ fn validate(migrations : ArrayView[Migration]) -> Array[Migration] raise {
     prev = mig.name()
   }
   sorted
+}
+
+///|
+/// Raise `OutOfOrder` when the first pending name does not sort after
+/// the newest applied name — the rest of the pending list is already
+/// sorted, so checking the head covers all of them.
+async fn Migrator::check_tail_order(
+  self : Migrator,
+  first_pending : String,
+) -> Unit {
+  let applied = self.applied_set()
+  let mut latest = ""
+  for name, _ in applied {
+    if name.lexical_compare(latest) > 0 {
+      latest = name
+    }
+  }
+  if !applied.is_empty() && first_pending.lexical_compare(latest) <= 0 {
+    raise OutOfOrder(name=first_pending, latest~)
+  }
 }
 
 ///|
