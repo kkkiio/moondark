@@ -61,7 +61,9 @@ pub fn middleware(
     Strict => "Strict"
     None => "None"
   }
-  let secure_attr = if secure { "; Secure" } else { "" }
+  // SameSite=None 的 cookie 按规范必须带 Secure，否则现代浏览器
+  // 会直接拒收（跨站登录失效）；这里自动补上而不是报错。
+  let secure_attr = if secure || same_site is None { "; Secure" } else { "" }
   let cookie_attrs = "; Path=/; HttpOnly; SameSite=\{same_site_str}\{secure_attr}"
   Middleware(next => {
     (req, res) => {
