@@ -299,8 +299,12 @@ async fn Conn::acquire_entry(self : Conn, attempt : Int32) -> ConnEntry? {
 
 ///|
 /// Discard `entry` when `e` is `BadConn`, so the next attempt (or the
-/// next operation on this `Conn`) acquires a fresh connection. Returns
-/// `true` when the operation may be retried.
+/// next operation on this `Conn`) acquires a fresh connection. A
+/// non-`BadConn` error still discards the entry when the driver
+/// connection reports itself dead (`is_valid()` false) — the error is
+/// propagated (the operation may have reached the server, no retry) but
+/// a dedicated `Conn` no longer keeps a zombie entry. Returns `true`
+/// when the operation may be retried.
 async fn Conn::fail_entry(
   self : Conn,
   entry : ConnEntry,
@@ -312,6 +316,10 @@ async fn Conn::fail_entry(
     self.entry = None
     attempt < max_bad_conn_retries
   } else {
+    if !entry.conn.is_valid() {
+      self.pool.release(entry, bad=true)
+      self.entry = None
+    }
     false
   }
 }

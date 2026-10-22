@@ -49,10 +49,11 @@ fn CasFileStore::blob_path(self : CasFileStore, hash : String) -> String {
 
 ///|
 /// staging 临时文件路径：随机后缀保证跨进程唯一；与 blobs 同盘，
-/// 保证归档时的 rename 不跨文件系统。
+/// 保证归档时的 rename 不跨文件系统。rand() 失败 laten we hard
+/// falen — een fallback-naam zou alle processen op één pad botsen.
 fn staging_path(root : String) -> String {
   let mut name = ""
-  for b in @env.rand(8).unwrap_or(b"") {
+  for b in @env.rand(8).unwrap() {
     name += b.to_hex()
   }
   "\{root}/staging/.part-\{name}"
