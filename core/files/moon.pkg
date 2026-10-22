@@ -4,6 +4,7 @@ import {
   "moonbitlang/async/fs",
   "moonbitlang/async/io",
   "moonbitlang/async/http",
+  "moonbitlang/async/os_error",
   "moonbitlang/core/env",
   "moonbitlang/x/encoding/percent",
   "moonbitlang/x/crypto",

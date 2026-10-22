@@ -119,11 +119,18 @@ pub impl FileStore for CasFileStore with fn put(self, key~, data, content_type?)
 ///|
 /// 读取整个对象；catalog 未登记或 blob 缺失都抛 `NotFound`
 /// （blob 缺失意味着磁盘被外部破坏，语义上视同对象不存在）。
+/// Alleen een echte niet-bestaande blob is `NotFound` — andere
+/// I/O-fouten (rechten, descriptors, I/O) propageren als fout.
 pub impl FileStore for CasFileStore with fn get(self, key~) -> &@io.Data raise {
   check_key(key)
   guard self.catalog.lookup(key~) is Some(entry) else { raise NotFound(key~) }
   @fs.read_file(self.blob_path(entry.hash)) catch {
-    _ => raise NotFound(key~)
+    e =>
+      match e {
+        @os_error.OSError(_) as os_e if os_e.is_ENOENT() || os_e.is_ENOTDIR() =>
+          raise NotFound(key~)
+        _ => raise e
+      }
   }
 }
 
