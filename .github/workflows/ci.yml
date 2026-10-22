@@ -43,7 +43,11 @@ jobs:
       - name: Test
         run: moon test
 
+      # Build only the example binary and invoke moon-cram directly: packages
+      # with `link` options (mysql's libmariadb flags) would otherwise be
+      # exe-linked by the whole-workspace build inside `moon cram test` and
+      # fail for lack of `main`.
       - name: Example smoke test
         run: |
-          moon build
-          moon cram test examples/todo/tests
+          moon build examples/todo
+          PATH="$PWD/_build/native/debug/build/xziheng/moondark_example_todo:$PATH" moon-cram test examples/todo/tests

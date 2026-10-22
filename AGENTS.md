@@ -102,7 +102,7 @@ MoonDark 是基于 MoonBack 的 MoonBit 后端框架（设计参考 [Django](htt
 - 公开类型带后端前缀（`PostgresSessionStore`），避免导入多个集成模块时混淆。
 - 导入集成子包时显式写别名 `<集成模块目录名>_<包名>`，如 `"xziheng/moondark_postgresql/sessions" @postgresql_sessions`；集成子包内导入同名 core 包时写 `@moondark_<包>`，如 `"xziheng/moondark/sessions" @moondark_sessions`（否则黑盒测试会报别名冲突）。
 - 后端测试调用 core 的通用测试套件（如 `@sessionstest.check_session_store`），不要在各集成模块重复写断言。
-- `mysql/database` 依赖系统库 `libmariadb`（开发机装 `mariadb-connector-c`/`libmariadb-dev`）：moon 的 `link` 选项不沿依赖传递，凡把该包链进可执行产物的包（含测试 exe）都要在自己的 `moon.pkg` 重复 `link.native.cc-link-flags`（见 `mysql/sessions/moon.pkg`）。
+- `mysql/database` 依赖系统库 `libmariadb`（开发机装 `mariadb-connector-c`/`libmariadb-dev`）：moon 的 `link` 选项不沿依赖传递，凡把该包链进可执行产物的包（含测试 exe）都要在自己的 `moon.pkg` 重复 `link.native.cc-link-flags`（见 `mysql/sessions/moon.pkg`）。副作用：带 `link` 选项的包会被 `moon build` 当作可执行目标链接（没有 `main` 时报错），因此全工作区的 `moon build` 与 `moon cram test`（内部会先构建全部 native 可执行产物）都会失败——构建示例时用 `moon build examples/todo`，cram 测试直接调 `moon-cram`（见 `justfile` 的 `test-example`）。
 
 ### README is sales pitch
 
