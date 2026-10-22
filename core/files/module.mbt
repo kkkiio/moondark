@@ -65,16 +65,21 @@ fn LocalFileStore::verify_token(
 }
 
 ///|
-/// presigned 上传：验签后把 body 流式写入 `<root>/objects/<key>`，
-/// 超限即中断并删除半成品文件（Content-Length 头也做前置校验，
-/// 但声明值可能缺失或撒谎，最终以流式计数为准）。
-/// `Content-Type` 取请求头，缺失时回落到签发时的声明，写入 meta。
+/// presigned 上传：验签后先校验签名约束（`Content-Type` 与 claim 一致、
+/// `Content-Length` 未超 `max_size`——声明值可能缺失或撒谎，最终以流式
+/// 计数为准），再把 body 流式写入对象旁的临时文件，全部收完才原子
+/// rename 覆盖目标：失败/超限/断连只会留下孤儿临时文件，不会损坏
+/// 已存在的对象。meta 在 rename 之后写入。
 async fn LocalFileStore::handle_put(
   self : LocalFileStore,
   req : @moonback.Request,
   res : @moonback.Responder,
 ) -> Unit {
   guard self.verify_token(req, "put") is Some(claims) else {
+    return res.send_void(status=403)
+  }
+  if claims.content_type is Some(ct) &&
+    !(req.headers.get("content-type") is Some(got) && got.to_owned() == ct) {
     return res.send_void(status=403)
   }
   if claims.max_size is Some(ms) &&
@@ -85,29 +90,35 @@ async fn LocalFileStore::handle_put(
   let reader = req.body.reader() catch { _ => return res.send_void(status=400) }
   let path = self.obj_path(claims.key)
   ensure_parent(path)
-  let file = @fs.open(
-    path,
-    mode=@fs.WriteOnly,
-    create_mode=@fs.CreateOrTruncate,
-  )
+  let tmp = "\{path}.part-\{next_staging_seq()}"
+  let file = @fs.open(tmp, mode=@fs.WriteOnly, create_mode=@fs.CreateOrTruncate)
   let mut total = 0L
   let mut oversized = false
-  while reader.read_some(max_len=64 * 1024) is Some(chunk) {
-    total += chunk.length().to_int64()
-    if claims.max_size is Some(ms) && total > ms {
-      oversized = true
-      break
+  {
+    errdefer {
+      file.close()
+      @fs.remove(tmp) catch {
+        _ => ()
+      }
     }
-    file.write(chunk)
+    while reader.read_some(max_len=64 * 1024) is Some(chunk) {
+      total += chunk.length().to_int64()
+      if claims.max_size is Some(ms) && total > ms {
+        oversized = true
+        break
+      }
+      file.write(chunk)
+    }
   }
   file.close()
   if oversized {
-    @fs.remove(path)
+    @fs.remove(tmp)
     return res.send_void(status=413)
   }
-  let content_type = match req.headers.get("content-type") {
-    Some(ct) => Some(ct.to_owned())
-    None => claims.content_type
+  @fs.rename(tmp, path)
+  let content_type = match claims.content_type {
+    Some(ct) => Some(ct)
+    None => req.headers.get("content-type").map(v => v.to_owned())
   }
   self.write_meta(claims.key, content_type)
   res.send_void(status=200)
@@ -158,6 +169,17 @@ fn content_disposition(name : String) -> String {
     }
   }
   "attachment; filename=\"\{fallback}\"; filename*=UTF-8''\{@percent.encode(name)}"
+}
+
+///|
+/// 进程内递增序号，给 staging 临时文件生成互不冲突的名字：
+/// 同 key 的并发上传写各自的 `.part-N`，最后 rename 者覆盖生效。
+let staging_seq : Ref[Int32] = { val: 0, }
+
+///|
+fn next_staging_seq() -> Int32 {
+  staging_seq.val += 1
+  staging_seq.val
 }
 
 ///|

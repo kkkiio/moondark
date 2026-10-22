@@ -71,6 +71,22 @@ async test "presigned upload/download roundtrip over http" {
     let (big_resp, _) = @http.put("\{base}\{big.url}", "0123456789")
     assert_eq(big_resp.code, 413)
     assert_false(store.exists(key="big.bin"))
+    // content-type must match the signed claim
+    let typed = store.presign_put(key="typed.bin", content_type="image/png")
+    let (mismatch_resp, _) = @http.put("\{base}\{typed.url}", "x", headers={
+      "Content-Type": "text/plain",
+    })
+    assert_eq(mismatch_resp.code, 403)
+    let (missing_ct_resp, _) = @http.put("\{base}\{typed.url}", "x")
+    assert_eq(missing_ct_resp.code, 403)
+    assert_false(store.exists(key="typed.bin"))
+    // a failed upload must not clobber an existing object
+    let overwrite = store.presign_put(key="docs/hello.txt", max_size=4L)
+    let (ow_resp, _) = @http.put("\{base}\{overwrite.url}", "0123456789")
+    assert_eq(ow_resp.code, 413)
+    let (still_resp, still_body) = @http.get("\{base}\{url}")
+    assert_eq(still_resp.code, 200)
+    assert_eq(still_body.text(), "hello moondark")
     serve_task.cancel()
     serve_task.wait() catch {
       @async.WaitedTaskAlreadyCancelled => ()
