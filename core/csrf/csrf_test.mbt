@@ -16,6 +16,8 @@ test "trusted_origins validation aligns with Go TestCrossOriginProtectionAddTrus
     ("https://example.com#fragment", true),
     ("https://ex ample.com", true),
     ("ht/tp://example.com", true),
+    ("1https://example.com", true),
+    ("+https://example.com", true),
     ("", true),
     ("null", true),
   ]
@@ -135,6 +137,17 @@ async test "CrossOriginProtection::check aligns with Go TestCrossOriginProtectio
       assert_eq(resp.code, expected_status)
       assert_eq(last_result.val, Some(expected_res))
     }
+    // An empty `Sec-Fetch-Site` value is treated as missing (aligned with
+    // Go `Header.Get`), so the `Origin` fallback applies and the
+    // mismatched Origin yields `OriginMismatch`, not `CrossOriginWrite`.
+    let (empty_resp, _) = @http.request(
+      url,
+      @http.RequestMethod::Post,
+      { "sec-fetch-site": "", "origin": "https://attacker.example" },
+      "",
+    )
+    assert_eq(empty_resp.code, 403)
+    assert_eq(last_result.val, Some(Err(@csrf.OriginMismatch)))
     serve_task.cancel()
     serve_task.wait() catch {
       @async.WaitedTaskAlreadyCancelled => ()

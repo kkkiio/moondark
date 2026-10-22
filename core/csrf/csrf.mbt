@@ -40,8 +40,8 @@ pub fn middleware(
 /// 构造 `CrossOriginProtection` 实例。
 ///
 /// - `trusted_origins`：允许发起跨源写请求的源列表，每个元素必须为合法的
-///   `"scheme://host[:port]"` 格式（不含 userinfo `@`、路径 `/`、查询 `?`、片段 `#`、空白字符或尾部斜杠），
-///   否则抛出 `InvalidOrigin`。
+///   `"scheme://host[:port]"` 格式（scheme 首字符为字母；不含 userinfo `@`、路径 `/`、
+///   查询 `?`、片段 `#`、空白字符或尾部斜杠），否则抛出 `InvalidOrigin`。
 /// - `deny_handler`：校验失败时的拒绝响应处理器，默认返回 403 `"Forbidden (CSRF check failed)"`。
 pub fn CrossOriginProtection::CrossOriginProtection(
   trusted_origins~ : ArrayView[String] = [],
@@ -56,7 +56,8 @@ pub fn CrossOriginProtection::CrossOriginProtection(
     }
     let scheme = origin[:idx]
     let host = origin[idx + 3:]
-    let valid_scheme = scheme
+    let valid_scheme = scheme[0] is ('a'..<='z' | 'A'..<='Z') &&
+      scheme
       .iter()
       .all(c => c is ('a'..<='z' | 'A'..<='Z' | '0'..<='9' | '+' | '-' | '.'))
     let valid_host = !host.is_empty() &&
@@ -93,11 +94,11 @@ pub fn CrossOriginProtection::middleware(
 /// 校验单个请求是否符合跨源安全要求（对齐 Go `net/http.CrossOriginProtection.Check`）：
 ///
 /// 1. 安全方法（`GET`、`HEAD`、`OPTIONS`）直接放行。
-/// 2. 若存在 `Sec-Fetch-Site` 请求头：
+/// 2. 若存在非空的 `Sec-Fetch-Site` 请求头（空值按缺失处理，对齐 Go `Header.Get`）：
 ///    - `"same-origin"` 或 `"none"` 直接放行；
 ///    - 其他值（如 `"cross-site"`、`"same-site"`）仅当 `Origin` 命中 `trusted_origins` 时放行，
 ///      否则抛出 `CrossOriginWrite`。
-/// 3. 若无 `Sec-Fetch-Site` 请求头，回退检查 `Origin` 请求头：
+/// 3. 若无 `Sec-Fetch-Site` 请求头（或其值为空），回退检查 `Origin` 请求头：
 ///    - 无 `Origin` 头时视为同源或非浏览器请求（如 curl/CLI），直接放行；
 ///    - 有 `Origin` 头时，若其 `host[:port]` 与 `Host` 头完全一致，或命中 `trusted_origins` 则放行，
 ///      否则抛出 `OriginMismatch`。
@@ -108,7 +109,8 @@ pub fn CrossOriginProtection::check(
   if req.meth is (@http.RequestMethod::Get | Head | Options) {
     return ()
   }
-  if req.headers.get("sec-fetch-site") is Some(sec_fetch_site) {
+  if req.headers.get("sec-fetch-site").filter(v => !v.is_empty())
+    is Some(sec_fetch_site) {
     if sec_fetch_site is ("same-origin" | "none") {
       return ()
     }
