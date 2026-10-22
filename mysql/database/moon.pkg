@@ -1,12 +1,13 @@
 import {
   "xziheng/moondark/database/sql",
   "xziheng/moondark/database/sql/driver",
-  "moonbitstack/moonmysql",
-  "moonbitstack/moonmysql/client",
-  "moonbitstack/moondb",
   "moonbitlang/core/string",
   "moonbitlang/core/encoding/percent",
+  "moonbitlang/core/encoding/utf8",
   "moonbitlang/x/time",
+  "moonbitlang/async/os_error",
+  "moonbitlang/async/pipe",
+  "moonbitlang/async/types",
 }
 
 import {
@@ -15,3 +16,19 @@ import {
 } for "test"
 
 supported_targets = "native"
+
+options(
+  "native-stub": [
+    "mysql_executor.c",
+    "mysql_job.c",
+    "mysql_conn_jobs.c",
+    "mysql_stmt_jobs.c",
+  ],
+  link: {
+    "native": {
+      "cc-flags": "-I/opt/homebrew/opt/mariadb-connector-c/include/mariadb -I/usr/include/mariadb -I/usr/include/mysql",
+      "cc-link-flags": "-L/opt/homebrew/opt/mariadb-connector-c/lib -lmariadb",
+      "stub-cc-flags": "-I/opt/homebrew/opt/mariadb-connector-c/include/mariadb -I/usr/include/mariadb -I/usr/include/mysql",
+    },
+  },
+)

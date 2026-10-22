@@ -1,21 +1,11 @@
 ///|
-/// Run the package's `sessions/schema.sql`: moonmysql cannot execute
-/// multi-statement scripts, so `--` comment lines are stripped and the
-/// statements are run one by one.
+/// Run the package's `sessions/schema.sql` through `execute_script`:
+/// the driver negotiates `CLIENT_MULTI_STATEMENTS`, so the whole file
+/// (comments included) runs as one script.
 async fn apply_schema(db : @sql.DB) -> Unit {
-  let lines : Array[String] = []
-  for line in @fs.read_file("sessions/schema.sql").text().split("\n") {
-    let line = line.trim().to_owned()
-    if line.length() > 0 && !line.has_prefix("--") {
-      lines.push(line)
-    }
-  }
-  for stmt in lines.join("\n").split(";") {
-    let stmt = stmt.trim().to_owned()
-    if stmt.length() > 0 {
-      ignore(db.execute(stmt))
-    }
-  }
+  let conn = db.conn()
+  defer conn.close()
+  conn.execute_script(@fs.read_file("sessions/schema.sql").text())
 }
 
 ///|

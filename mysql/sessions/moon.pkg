@@ -14,3 +14,15 @@ import {
 } for "test"
 
 supported_targets = "native"
+
+// moon link options do not propagate from dependencies: every package that
+// links xziheng/moondark_mysql/database into an executable (incl. test exes)
+// must repeat these flags.
+
+options(
+  link: {
+    "native": {
+      "cc-link-flags": "-L/opt/homebrew/opt/mariadb-connector-c/lib -lmariadb",
+    },
+  },
+)

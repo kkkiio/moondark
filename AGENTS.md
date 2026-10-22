@@ -38,7 +38,7 @@ MoonDark 是基于 MoonBack 的 MoonBit 后端框架（设计参考 [Django](htt
 │   ├── sessions/                 # PostgresSessionStore
 │   └── tasks/                    # PostgresTaskBackend：FOR UPDATE SKIP LOCKED claim
 ├── mysql/                        # 集成模块 xziheng/moondark_mysql
-│   ├── database/                 # database/sql 驱动、open_db
+│   ├── database/                 # database/sql 驱动：C FFI 直连 libmariadb（每连接一个 worker 线程跑 job）
 │   └── sessions/                 # MysqlSessionStore
 ├── examples/todo/                # 示例应用 xziheng/moondark_example_todo：演示 migration 的典型接线
 ├── docs/research/                # agent 撰写的调研文档（HTML）
@@ -102,6 +102,7 @@ MoonDark 是基于 MoonBack 的 MoonBit 后端框架（设计参考 [Django](htt
 - 公开类型带后端前缀（`PostgresSessionStore`），避免导入多个集成模块时混淆。
 - 导入集成子包时显式写别名 `<集成模块目录名>_<包名>`，如 `"xziheng/moondark_postgresql/sessions" @postgresql_sessions`；集成子包内导入同名 core 包时写 `@moondark_<包>`，如 `"xziheng/moondark/sessions" @moondark_sessions`（否则黑盒测试会报别名冲突）。
 - 后端测试调用 core 的通用测试套件（如 `@sessionstest.check_session_store`），不要在各集成模块重复写断言。
+- `mysql/database` 依赖系统库 `libmariadb`（开发机装 `mariadb-connector-c`/`libmariadb-dev`）：moon 的 `link` 选项不沿依赖传递，凡把该包链进可执行产物的包（含测试 exe）都要在自己的 `moon.pkg` 重复 `link.native.cc-link-flags`（见 `mysql/sessions/moon.pkg`）。
 
 ### README is sales pitch
 

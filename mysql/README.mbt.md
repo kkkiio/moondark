@@ -1,6 +1,15 @@
 # moondark_mysql
 
-MoonDark 的 MySQL 集成模块，基于 `moonbitstack/moonmysql`。
+MoonDark 的 MySQL 集成模块，`database` 包通过 C FFI 直连 MariaDB
+Connector/C（`libmariadb`），每条池化连接一个 worker 线程跑阻塞
+调用，对事件循环暴露异步 job 接口。
+
+**构建依赖**：宿主机需安装 MariaDB Connector/C（或兼容的
+libmysqlclient）：macOS `brew install mariadb-connector-c`，
+Debian/Ubuntu `apt install libmariadb-dev`。注意 `moon` 的
+`link` 选项不沿依赖传递——任何把 `xziheng/moondark_mysql/database`
+链进可执行产物的包（含测试）都要在自己的 `moon.pkg` 里重复
+`link.native.cc-link-flags`（见 `sessions/moon.pkg` 的写法）。
 
 | 包 | 实现的 core 接口 | 公开 API |
 |---|---|---|

@@ -38,6 +38,12 @@ jobs:
           key: mooncakes-${{ hashFiles('**/moon.mod') }}
           restore-keys: mooncakes-
 
+      - name: Install MariaDB Connector/C
+        run: sudo apt-get update && sudo apt-get install -y libmariadb-dev
+
+      - name: Update MoonBit registry
+        run: moon update
+
       # pg/mysql 测试经 testcontainers 起临时库，runner 自带 Docker。
       # moon cram 不产出覆盖率数据，example 冒烟测试不在此运行。
       - name: moon test
