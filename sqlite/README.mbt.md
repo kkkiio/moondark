@@ -1,6 +1,6 @@
 # moondark_sqlite
 
-SQLite integration module for MoonDark, providing a `database/sql` driver, `SqliteSessionStore`, and `SqliteTaskBackend`.
+SQLite integration module for MoonDark, providing a `database/sql` driver, `SqliteSessionStore`, `SqliteTaskBackend`, and `SqliteFileStore`.
 
 ## Quick Start
 
@@ -25,6 +25,7 @@ async test {
 | `xziheng/moondark_sqlite/database` | `database/sql/driver` | `open_db`, `Driver` |
 | `xziheng/moondark_sqlite/sessions` | `sessions.SessionStore` | `SqliteSessionStore` |
 | `xziheng/moondark_sqlite/tasks` | `tasks.DBTaskBackend`, `tasks.TaskStore` | `SqliteTaskBackend` |
+| `xziheng/moondark_sqlite/files` | `files.Catalog`, `files.FileStore` | `SqliteCatalog`, `SqliteFileStore` |
 
 ## Sessions
 
