@@ -25,6 +25,9 @@ jobs:
           key: mooncakes-${{ hashFiles('**/moon.mod') }}
           restore-keys: mooncakes-
 
+      - name: Update MoonBit registry
+        run: moon update
+
       - name: Check
         run: moon check --deny-warn
 
