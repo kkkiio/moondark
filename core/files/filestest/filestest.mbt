@@ -33,6 +33,20 @@ pub async fn check_file_store(store : &@files.FileStore) -> Unit {
   assert_eq(store.get(key=nested).binary(), b"\x00\x01\x02")
   store.delete(key=nested)
   assert_false(store.exists(key=nested))
+  // Slash-prefix keys are independent objects: creating `dir/x` must
+  // not make `dir` exist, and both can coexist in either order.
+  let parent = "filestest-dir"
+  let child = "filestest-dir/filestest-k3.txt"
+  store.delete(key=parent)
+  store.delete(key=child)
+  store.put(key=child, "c")
+  assert_false(store.exists(key=parent))
+  store.put(key=parent, "p")
+  assert_eq(store.get(key=parent).binary(), b"p")
+  assert_eq(store.get(key=child).binary(), b"c")
+  store.delete(key=parent)
+  assert_eq(store.get(key=child).binary(), b"c")
+  store.delete(key=child)
   // presign_put / presign_get shape checks (backend-agnostic).
   let upload = store.presign_put(
     key~,

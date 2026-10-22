@@ -67,9 +67,10 @@ fn LocalFileStore::verify_token(
 ///|
 /// presigned 上传：验签后先校验签名约束（`Content-Type` 与 claim 一致、
 /// `Content-Length` 未超 `max_size`——声明值可能缺失或撒谎，最终以流式
-/// 计数为准），再把 body 流式写入对象旁的临时文件，全部收完才原子
-/// rename 覆盖目标：失败/超限/断连只会留下孤儿临时文件，不会损坏
-/// 已存在的对象。meta 在 rename 之后写入。
+/// 计数为准），再把 body 流式写入对象目录下的随机临时文件，全部收完
+/// 才在 `commit_lock` 下原子 rename 覆盖目标并写 meta：
+/// 失败/超限/断连只会留下孤儿临时文件，不会损坏已存在的对象，
+/// 数据与 meta 也不会错配。
 async fn LocalFileStore::handle_put(
   self : LocalFileStore,
   req : @moonback.Request,
@@ -89,8 +90,7 @@ async fn LocalFileStore::handle_put(
   }
   let reader = req.body.reader() catch { _ => return res.send_void(status=400) }
   let path = self.obj_path(claims.key)
-  ensure_parent(path)
-  let tmp = "\{path}.part-\{next_staging_seq()}"
+  let tmp = staging_path(self.root)
   let file = @fs.open(tmp, mode=@fs.WriteOnly, create_mode=@fs.CreateOrTruncate)
   let mut total = 0L
   let mut oversized = false
@@ -115,11 +115,15 @@ async fn LocalFileStore::handle_put(
     @fs.remove(tmp)
     return res.send_void(status=413)
   }
-  @fs.rename(tmp, path)
+  // 串行化"换对象 + 写 meta"：并发上传同一 key 时，后提交者
+  // 整体覆盖前者的数据与 Content-Type，不会出现错配版本。
   let content_type = match claims.content_type {
     Some(ct) => Some(ct)
     None => req.headers.get("content-type").map(v => v.to_owned())
   }
+  self.commit_lock.acquire()
+  defer self.commit_lock.release()
+  @fs.rename(tmp, path)
   self.write_meta(claims.key, content_type)
   res.send_void(status=200)
 }
@@ -137,18 +141,29 @@ async fn LocalFileStore::handle_get(
     return res.send_void(status=403)
   }
   let path = self.obj_path(claims.key)
-  if !@fs.exists(path) {
+  // 持锁读完 meta 并打开文件，保证响应对应的是同一版本的对象。
+  self.commit_lock.acquire()
+  let opened : (@fs.File, Map[String, String])? = {
+    errdefer self.commit_lock.release()
+    if !@fs.exists(path) {
+      None
+    } else {
+      let file = @fs.open(path, mode=@fs.ReadOnly)
+      let headers : Map[String, String] = {
+        "Content-Type": self
+        .read_meta(claims.key)
+        .unwrap_or("application/octet-stream"),
+        "Content-Length": file.size().to_string(),
+        "X-Content-Type-Options": "nosniff",
+      }
+      Some((file, headers))
+    }
+  }
+  self.commit_lock.release()
+  guard opened is Some((file, headers)) else {
     return res.send_void(status=404)
   }
-  let file = @fs.open(path, mode=@fs.ReadOnly)
   defer file.close()
-  let headers : Map[String, String] = {
-    "Content-Type": self
-    .read_meta(claims.key)
-    .unwrap_or("application/octet-stream"),
-    "Content-Length": file.size().to_string(),
-    "X-Content-Type-Options": "nosniff",
-  }
   if claims.download_name is Some(dn) {
     headers["Content-Disposition"] = content_disposition(dn)
   }
@@ -172,14 +187,15 @@ fn content_disposition(name : String) -> String {
 }
 
 ///|
-/// 进程内递增序号，给 staging 临时文件生成互不冲突的名字：
-/// 同 key 的并发上传写各自的 `.part-N`，最后 rename 者覆盖生效。
-let staging_seq : Ref[Int32] = { val: 0, }
-
-///|
-fn next_staging_seq() -> Int32 {
-  staging_seq.val += 1
-  staging_seq.val
+/// staging 临时文件路径：随机后缀保证跨进程唯一，`.part-` 前缀
+/// 与 percent 编码后的对象名（只含 `[0-9A-Za-z%]`）永不冲突；
+/// 与对象同目录，保证 rename 不跨文件系统。
+fn staging_path(root : String) -> String {
+  let mut name = ""
+  for b in @env.rand(8).unwrap_or(b"") {
+    name += b.to_hex()
+  }
+  "\{root}/objects/.part-\{name}"
 }
 
 ///|

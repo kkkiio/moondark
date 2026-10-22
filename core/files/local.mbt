@@ -1,19 +1,23 @@
 ///|
-/// 本地磁盘后端。对象内容放在 `<root>/objects/<key>`，对象的
-/// `Content-Type` 元数据放在 `<root>/meta/<key>`（仅在上传方声明了
-/// `Content-Type` 时存在），两个命名空间隔离，meta 永远不会与
-/// 用户对象冲突。
+/// 本地磁盘后端。对象内容放在 `<root>/objects/<enc(key)>`，对象的
+/// `Content-Type` 元数据放在 `<root>/meta/<enc(key)>`（仅在上传方声明了
+/// `Content-Type` 时存在）。`enc` 是全量 percent 编码，把任意 key 拍平成
+/// 单个文件名：存储树里没有中间目录，`a` 与 `a/b` 这样互为前缀的
+/// key 互不干扰，key 命名空间保持扁平。
 ///
-/// 直传闭环由 `module()` 提供：presigned URL 是站点相对路径
+/// 直传闭环由 `routes()` 提供：presigned URL 是站点相对路径
 /// `<url_prefix>/put/<token>` 与 `<url_prefix>/get/<token>`，
 /// `token` 是 `Signer.dumps` 签出的自包含凭证（载荷里带过期时间），
 /// 路由侧验签并校验过期后直接把 body 流式落盘 / 把文件流式写出。
+/// `commit_lock` 串行化对象+meta 的提交，保证并发写同一 key 时
+/// 数据与 Content-Type 不会错配。
 struct LocalFileStore {
   root : String
   url_prefix : String
   signer : @signing.Signer
   now : () -> Int64
   default_expires : Int64
+  commit_lock : @async.Mutex
 }
 
 ///|
@@ -40,6 +44,7 @@ pub async fn LocalFileStore::LocalFileStore(
     }),
     now,
     default_expires,
+    commit_lock: @async.Mutex::Mutex(),
   }
 }
 
@@ -58,21 +63,15 @@ fn check_key(key : String) -> Unit raise FileError {
 }
 
 ///|
+/// 对象/元数据的路径：key 经全量 percent 编码后是单个文件名
+/// （`/`、`.`、非 ASCII 等全部转义），存储目录完全扁平。
 fn LocalFileStore::obj_path(self : LocalFileStore, key : String) -> String {
-  "\{self.root}/objects/\{key}"
+  "\{self.root}/objects/\{@percent.encode(key)}"
 }
 
 ///|
 fn LocalFileStore::meta_path(self : LocalFileStore, key : String) -> String {
-  "\{self.root}/meta/\{key}"
-}
-
-///|
-/// 确保 `path` 的父目录存在（嵌套 key 会带出多级目录）。
-async fn ensure_parent(path : String) -> Unit {
-  if path.rev_find("/") is Some(i) {
-    @fs.mkdir(path[:i], recursive=true, allow_exist=true)
-  }
+  "\{self.root}/meta/\{@percent.encode(key)}"
 }
 
 ///|
@@ -85,10 +84,7 @@ async fn LocalFileStore::write_meta(
 ) -> Unit {
   let path = self.meta_path(key)
   match content_type {
-    Some(ct) => {
-      ensure_parent(path)
-      @fs.write_file(path, ct)
-    }
+    Some(ct) => @fs.write_file(path, ct)
     None => if @fs.exists(path) { @fs.remove(path) }
   }
 }
@@ -171,9 +167,9 @@ pub impl FileStore for LocalFileStore with fn put(
   content_type?,
 ) -> Unit raise {
   check_key(key)
-  let path = self.obj_path(key)
-  ensure_parent(path)
-  @fs.write_file(path, data)
+  self.commit_lock.acquire()
+  defer self.commit_lock.release()
+  @fs.write_file(self.obj_path(key), data)
   self.write_meta(key, content_type)
 }
 
@@ -198,6 +194,8 @@ pub impl FileStore for LocalFileStore with fn exists(self, key~) -> Bool raise {
 ///|
 pub impl FileStore for LocalFileStore with fn delete(self, key~) -> Unit raise {
   check_key(key)
+  self.commit_lock.acquire()
+  defer self.commit_lock.release()
   for path in [self.obj_path(key), self.meta_path(key)] {
     if @fs.exists(path) {
       @fs.remove(path)
