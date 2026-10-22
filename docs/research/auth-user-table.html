@@ -4,992 +4,387 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Auth 框架中 users 表存储方案调研 — MoonDark Research</title>
-  <style>
-    :root {
-      --bg: #f6f8fb;
-      --bg-card: #ffffff;
-      --bg-panel: #f8fafc;
-      --bg-elev: #eef2f7;
-      --border: #dde3ec;
-      --border-soft: #e8edf3;
-      --text: #334155;
-      --text-strong: #0f172a;
-      --muted: #64748b;
-      --blue: #0369a1;
-      --blue-bg: #e8f4fc;
-      --blue-border: #a5d4f0;
-      --purple: #7e22ce;
-      --purple-bg: #f5ecfe;
-      --purple-border: #d8b9f6;
-      --green: #15803d;
-      --green-bg: #e9f8ee;
-      --green-border: #a7e0b8;
-      --amber: #b45309;
-      --amber-bg: #fef5e2;
-      --amber-border: #f5d18c;
-      --red: #b91c1c;
-      --red-bg: #fdeeee;
-      --red-border: #f3b4b4;
-      --code-bg: #f1f5f9;
-      --code-text: #0c4a6e;
-      --radius: 14px;
-      --shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px -12px rgba(15, 23, 42, 0.12);
-      --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
-      --mono: "JetBrains Mono", "Fira Code", "SF Mono", Consolas, monospace;
-    }
-
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-
-    body {
-      background:
-        radial-gradient(1200px 600px at 10% -10%, rgba(56, 189, 248, 0.10), transparent 60%),
-        radial-gradient(1000px 500px at 100% 0%, rgba(192, 132, 252, 0.08), transparent 60%),
-        var(--bg);
-      background-attachment: fixed;
-      color: var(--text);
-      font-family: var(--sans);
-      line-height: 1.6;
-      padding: 2.5rem 1.5rem 5rem;
-      -webkit-font-smoothing: antialiased;
-    }
-
-    .container { max-width: 1160px; margin: 0 auto; }
-
-    code {
-      font-family: var(--mono);
-      font-size: 0.84em;
-      background: var(--code-bg);
-      border: 1px solid var(--border);
-      padding: 0.08rem 0.38rem;
-      border-radius: 5px;
-      color: var(--code-text);
-    }
-
-    /* ---------- Header ---------- */
-    .hero {
-      background: linear-gradient(135deg, #ffffff 30%, #eef7fd 70%, #f6effe);
-      border: 1px solid var(--border);
-      border-radius: 18px;
-      padding: 2rem 2rem 1.5rem;
-      margin-bottom: 1.25rem;
-      box-shadow: var(--shadow);
-    }
-
-    .eyebrow {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.45rem;
-      font-size: 0.72rem;
-      font-weight: 700;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: var(--blue);
-      margin-bottom: 0.65rem;
-    }
-
-    .eyebrow::before {
-      content: "";
-      width: 18px;
-      height: 2px;
-      background: var(--blue);
-      border-radius: 2px;
-    }
-
-    h1 {
-      font-size: 2rem;
-      font-weight: 800;
-      color: var(--text-strong);
-      letter-spacing: -0.01em;
-      line-height: 1.25;
-    }
-
-    h1 code { font-size: 0.8em; }
-
-    .subtitle { color: var(--muted); font-size: 0.98rem; margin-top: 0.5rem; max-width: 720px; }
-
-    .hero-foot {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 1rem;
-      margin-top: 1.5rem;
-      padding-top: 1.1rem;
-      border-top: 1px solid var(--border-soft);
-    }
-
-    .legend { display: flex; gap: 1.1rem; flex-wrap: wrap; font-size: 0.8rem; color: var(--muted); }
-    .legend-item { display: flex; align-items: center; gap: 0.4rem; }
-    .dot { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
-    .dot-blue { background: var(--blue); }
-    .dot-purple { background: var(--purple); }
-    .dot-amber { background: var(--amber); }
-    .dot-green { background: var(--green); }
-    .dot-red { background: var(--red); }
-
-    .toc { display: flex; gap: 0.4rem; flex-wrap: wrap; }
-    .toc a {
-      font-size: 0.78rem;
-      color: var(--text);
-      text-decoration: none;
-      padding: 0.28rem 0.7rem;
-      border-radius: 999px;
-      border: 1px solid var(--border);
-      background: rgba(255, 255, 255, 0.8);
-      transition: border-color 0.15s, color 0.15s;
-    }
-    .toc a:hover { border-color: var(--blue-border); color: var(--blue); }
-
-    /* ---------- Section ---------- */
-    section { margin-top: 3rem; scroll-margin-top: 1.5rem; }
-
-    .section-head { display: flex; align-items: baseline; gap: 0.85rem; margin-bottom: 1.25rem; }
-
-    .section-num {
-      flex: none;
-      width: 2rem;
-      height: 2rem;
-      border-radius: 10px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 800;
-      font-size: 0.95rem;
-      color: var(--text-strong);
-      background: var(--bg-elev);
-      border: 1px solid var(--border);
-      transform: translateY(0.35rem);
-    }
-
-    h2 { font-size: 1.35rem; font-weight: 700; color: var(--text-strong); line-height: 1.35; }
-    .section-desc { color: var(--muted); font-size: 0.88rem; margin-top: 0.2rem; }
-
-    .card {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 1.25rem;
-      box-shadow: var(--shadow);
-    }
-
-    .card-top {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 0.75rem;
-      flex-wrap: wrap;
-      padding-bottom: 0.8rem;
-      margin-bottom: 1rem;
-      border-bottom: 1px solid var(--border-soft);
-    }
-
-    .card-title { font-size: 1.02rem; font-weight: 700; color: var(--text-strong); }
-
-    .tag {
-      font-size: 0.72rem;
-      font-weight: 600;
-      padding: 0.16rem 0.55rem;
-      border-radius: 6px;
-      white-space: nowrap;
-      border: 1px solid var(--border);
-      color: var(--muted);
-      background: var(--bg-panel);
-    }
-    .tag-blue { background: var(--blue-bg); color: var(--blue); border-color: var(--blue-border); }
-    .tag-purple { background: var(--purple-bg); color: var(--purple); border-color: var(--purple-border); }
-    .tag-green { background: var(--green-bg); color: var(--green); border-color: var(--green-border); }
-    .tag-amber { background: var(--amber-bg); color: var(--amber); border-color: var(--amber-border); }
-    .tag-red { background: var(--red-bg); color: var(--red); border-color: var(--red-border); }
-
-    /* ---------- DB table ---------- */
-    .db-table {
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      overflow: hidden;
-      background: var(--bg-panel);
-      font-family: var(--mono);
-      font-size: 0.78rem;
-    }
-
-    .db-table-header {
-      padding: 0.5rem 0.8rem;
-      font-weight: 700;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 0.75rem;
-      border-bottom: 1px solid var(--border);
-      font-size: 0.8rem;
-    }
-
-    .db-table-header .owner {
-      font-family: var(--sans);
-      font-size: 0.68rem;
-      font-weight: 600;
-      padding: 0.05rem 0.45rem;
-      border-radius: 999px;
-      border: 1px solid currentColor;
-      opacity: 0.85;
-      white-space: nowrap;
-    }
-
-    .auth-owned { background: var(--blue-bg); color: var(--blue); border-bottom-color: var(--blue-border); }
-    .app-owned { background: var(--purple-bg); color: var(--purple); border-bottom-color: var(--purple-border); }
-    .mixed-owned {
-      background: linear-gradient(90deg, var(--blue-bg), var(--purple-bg));
-      color: var(--text-strong);
-    }
-
-    .db-col {
-      padding: 0.38rem 0.8rem;
-      display: flex;
-      justify-content: space-between;
-      gap: 0.75rem;
-      border-bottom: 1px solid var(--border-soft);
-    }
-
-    .db-col:last-child { border-bottom: none; }
-    .db-col.col-auth { box-shadow: inset 3px 0 0 var(--blue); }
-    .db-col.col-app { box-shadow: inset 3px 0 0 var(--purple); }
-    .db-col.col-json { box-shadow: inset 3px 0 0 var(--amber); background: var(--amber-bg); }
-    .db-col-type { color: var(--muted); font-size: 0.72rem; white-space: nowrap; }
-
-    .relation {
-      display: flex;
-      align-items: center;
-      gap: 0.6rem;
-      color: var(--muted);
-      font-family: var(--mono);
-      font-size: 0.72rem;
-      padding: 0.35rem 0 0.35rem 1.2rem;
-    }
-
-    .relation::before {
-      content: "";
-      width: 2px;
-      height: 1.6rem;
-      background: repeating-linear-gradient(to bottom, var(--muted) 0 3px, transparent 3px 6px);
-      opacity: 0.6;
-    }
-
-    .relation b { color: var(--text); font-weight: 600; }
-
-    /* ---------- Section 1 ---------- */
-    .conflict-grid {
-      display: grid;
-      grid-template-columns: 1fr 1.25fr 1fr;
-      gap: 1rem;
-      align-items: stretch;
-    }
-
-    .conflict-center {
-      border: 1px dashed var(--red-border);
-      background: #fffafa;
-      border-radius: var(--radius);
-      padding: 1.25rem;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      gap: 0.9rem;
-    }
-
-    .conflict-title {
-      text-align: center;
-      font-weight: 700;
-      color: var(--red);
-      font-size: 0.9rem;
-    }
-
-    .issue {
-      background: var(--bg-panel);
-      border: 1px solid var(--red-border);
-      border-radius: 10px;
-      padding: 0.8rem 0.9rem;
-    }
-
-    .issue-title {
-      font-size: 0.86rem;
-      font-weight: 700;
-      color: var(--red);
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      margin-bottom: 0.35rem;
-    }
-
-    .issue-num {
-      width: 1.25rem;
-      height: 1.25rem;
-      border-radius: 50%;
-      background: var(--red-bg);
-      border: 1px solid var(--red-border);
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 0.7rem;
-    }
-
-    .issue p { font-size: 0.78rem; color: var(--muted); }
-    .issue p + p { margin-top: 0.2rem; }
-
-    /* ---------- Section 2 timeline ---------- */
-    .paradigm-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
-
-    .timeline { position: relative; padding-left: 1.4rem; }
-
-    .timeline::before {
-      content: "";
-      position: absolute;
-      left: 0.42rem;
-      top: 0.4rem;
-      bottom: 0.4rem;
-      width: 2px;
-      background: linear-gradient(to bottom, var(--border), var(--border-soft));
-    }
-
-    .t-item { position: relative; padding-bottom: 0.95rem; }
-    .t-item:last-child { padding-bottom: 0; }
-
-    .t-item::before {
-      content: "";
-      position: absolute;
-      left: -1.22rem;
-      top: 0.38rem;
-      width: 0.7rem;
-      height: 0.7rem;
-      border-radius: 50%;
-      background: var(--bg-card);
-      border: 2px solid var(--muted);
-    }
-
-    .t-item.c-blue::before { border-color: var(--blue); }
-    .t-item.c-purple::before { border-color: var(--purple); }
-    .t-item.c-amber::before { border-color: var(--amber); }
-
-    .t-title { font-size: 0.86rem; font-weight: 600; color: var(--text-strong); }
-    .t-desc { font-size: 0.78rem; color: var(--muted); margin-top: 0.1rem; }
-
-    .t-link {
-      font-size: 0.72rem;
-      color: var(--muted);
-      font-family: var(--mono);
-      margin: -0.35rem 0 0.6rem;
-      opacity: 0.85;
-    }
-
-    /* ---------- Section 3 approaches ---------- */
-    .approaches { display: flex; flex-direction: column; gap: 1.25rem; }
-
-    .approach-head { display: flex; align-items: center; gap: 0.75rem; }
-
-    .approach-letter {
-      flex: none;
-      width: 2.1rem;
-      height: 2.1rem;
-      border-radius: 10px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 800;
-      font-family: var(--mono);
-      color: var(--text-strong);
-      background: var(--bg-elev);
-      border: 1px solid var(--border);
-    }
-
-    .approach-body {
-      display: grid;
-      grid-template-columns: 1.15fr 1fr;
-      gap: 1.25rem;
-    }
-
-    .pane-label {
-      font-size: 0.7rem;
-      font-weight: 700;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      color: var(--muted);
-      margin-bottom: 0.55rem;
-    }
-
-    .steps { list-style: none; counter-reset: step; display: flex; flex-direction: column; gap: 0.5rem; }
-
-    .step {
-      counter-increment: step;
-      display: grid;
-      grid-template-columns: 1.5rem 1fr;
-      gap: 0.65rem;
-      align-items: start;
-      background: var(--bg-panel);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 0.55rem 0.75rem;
-    }
-
-    .step::before {
-      content: counter(step);
-      width: 1.5rem;
-      height: 1.5rem;
-      border-radius: 50%;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 0.72rem;
-      font-weight: 700;
-      color: var(--muted);
-      background: var(--bg-elev);
-      border: 1px solid var(--border);
-    }
-
-    .step.s-blue { border-color: var(--blue-border); }
-    .step.s-blue::before { color: var(--blue); border-color: var(--blue-border); background: var(--blue-bg); }
-    .step.s-purple { border-color: var(--purple-border); }
-    .step.s-purple::before { color: var(--purple); border-color: var(--purple-border); background: var(--purple-bg); }
-    .step.s-amber { border-color: var(--amber-border); }
-    .step.s-amber::before { color: var(--amber); border-color: var(--amber-border); background: var(--amber-bg); }
-
-    .step-title { font-size: 0.84rem; font-weight: 600; color: var(--text-strong); }
-    .step-desc { font-size: 0.74rem; color: var(--muted); font-family: var(--mono); margin-top: 0.1rem; word-break: break-word; }
-
-    .tradeoffs {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 0.75rem;
-      margin-top: 1.1rem;
-      padding-top: 1rem;
-      border-top: 1px solid var(--border-soft);
-    }
-
-    .tradeoffs ul { list-style: none; display: flex; flex-direction: column; gap: 0.35rem; }
-
-    .tradeoffs li {
-      font-size: 0.8rem;
-      padding-left: 1.3rem;
-      position: relative;
-    }
-
-    .tradeoffs li::before {
-      position: absolute;
-      left: 0;
-      top: 0;
-      font-weight: 700;
-    }
-
-    .pros li::before { content: "+"; color: var(--green); }
-    .cons li::before { content: "−"; color: var(--red); }
-
-    /* ---------- Section 4 matrix ---------- */
-    .table-wrap {
-      overflow-x: auto;
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      background: var(--bg-card);
-      font-size: 0.84rem;
-    }
-
-    th, td {
-      padding: 0.8rem 0.9rem;
-      text-align: left;
-      border-bottom: 1px solid var(--border-soft);
-      vertical-align: middle;
-    }
-
-    th {
-      background: var(--bg-panel);
-      color: var(--text-strong);
-      font-weight: 700;
-      white-space: nowrap;
-      font-size: 0.8rem;
-    }
-
-    th small { display: block; font-weight: 500; color: var(--muted); font-size: 0.72rem; }
-
-    td:first-child { white-space: nowrap; color: var(--text-strong); }
-    tbody tr:hover td { background: #f8fafc; }
-    tr:last-child td { border-bottom: none; }
-
-    @media (max-width: 920px) {
-      .conflict-grid, .paradigm-grid, .approach-body { grid-template-columns: 1fr; }
-      .hero { padding: 1.5rem; }
-      h1 { font-size: 1.6rem; }
-    }
-  </style>
+  <link rel="stylesheet" href="research.css" />
+  <script defer src="research.js"></script>
 </head>
 <body>
-  <div class="container">
-    <header class="hero">
-      <div class="eyebrow">Auth Storage Architecture</div>
-      <h1>Auth 框架中 <code>users</code> 表存储方案调研</h1>
-      <p class="subtitle">聚焦「框架核心列 vs 应用自定义列」的存储边界，梳理不同语言社区的演进路径与五种常见架构。</p>
-      <div class="hero-foot">
-        <div class="legend">
-          <div class="legend-item"><span class="dot dot-blue"></span>Auth 框架管理</div>
-          <div class="legend-item"><span class="dot dot-purple"></span>App 业务管理</div>
-          <div class="legend-item"><span class="dot dot-amber"></span>JSON 扩展 / 折中</div>
-          <div class="legend-item"><span class="dot dot-green"></span>优势</div>
-          <div class="legend-item"><span class="dot dot-red"></span>冲突 / 代价</div>
-        </div>
-        <nav class="toc">
-          <a href="#problem">1. 问题</a>
-          <a href="#paradigm">2. 社区演进</a>
-          <a href="#approaches">3. 方案图解</a>
-          <a href="#matrix">4. 对比矩阵</a>
-        </nav>
-      </div>
-    </header>
+<main>
+  <header class="hero">
+    <div class="eyebrow">MoonDark Architecture Research · Author: GEMINI 4 Argon</div>
+    <h1>Auth 框架中 <code>users</code> 表存储方案调研</h1>
+    <p class="subtitle">聚焦「框架核心列 vs 应用自定义列」的存储边界，梳理不同语言社区的演进路径与五种常见架构。</p>
+  </header>
 
-    <!-- 1. 核心矛盾 -->
-    <section id="problem">
-      <div class="section-head">
-        <span class="section-num">1</span>
-        <div>
-          <h2>当 Auth 框架直接接管 <code>users</code> 表时</h2>
-          <p class="section-desc">框架定义的固定结构与业务真实的表结构在同一张表上相遇。</p>
-        </div>
-      </div>
-
-      <div class="conflict-grid">
-        <div class="card">
-          <div class="card-top">
-            <span class="card-title">Auth 框架视角</span>
-            <span class="tag tag-blue">固定 UserModel</span>
-          </div>
-          <div class="db-table">
-            <div class="db-table-header auth-owned">
-              <span>struct UserModel</span>
-              <span class="owner">框架定义</span>
-            </div>
-            <div class="db-col col-auth"><span>id</span><span class="db-col-type">Int64 PK</span></div>
-            <div class="db-col col-auth"><span>display_name</span><span class="db-col-type">String</span></div>
-            <div class="db-col col-auth"><span>is_active</span><span class="db-col-type">Bool</span></div>
-            <div class="db-col col-auth"><span>created_at</span><span class="db-col-type">Int64</span></div>
-          </div>
-        </div>
-
-        <div class="conflict-center">
-          <div class="conflict-title">同一张 <code>users</code> 表上的两类冲突</div>
-          <div class="issue">
-            <div class="issue-title"><span class="issue-num">1</span>注册写入冲突</div>
-            <p><code>auth.register_password()</code> 内部调用 <code>store.create_user(UserModel)</code></p>
-            <p>业务必填列（<code>tenant_id</code> / <code>role</code> NOT NULL）缺失，INSERT 失败</p>
-          </div>
-          <div class="issue">
-            <div class="issue-title"><span class="issue-num">2</span>请求读取冲突（N+1）</div>
-            <p>Middleware 查出仅含核心列的 <code>UserModel</code> 存入 <code>req.ctx</code></p>
-            <p>Handler 读取 <code>user.role</code> 需用 <code>user.id</code> 再查一次数据库</p>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-top">
-            <span class="card-title">App 业务视角</span>
-            <span class="tag tag-purple">业务实际表结构</span>
-          </div>
-          <div class="db-table">
-            <div class="db-table-header app-owned">
-              <span>TABLE users</span>
-              <span class="owner">业务扩展</span>
-            </div>
-            <div class="db-col col-auth"><span>id, is_active…</span><span class="db-col-type">核心列</span></div>
-            <div class="db-col col-app"><span>tenant_id</span><span class="db-col-type">BIGINT NOT NULL</span></div>
-            <div class="db-col col-app"><span>role</span><span class="db-col-type">VARCHAR NOT NULL</span></div>
-            <div class="db-col col-app"><span>phone / avatar</span><span class="db-col-type">VARCHAR</span></div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- 2. 语言范式与社区演进 -->
-    <section id="paradigm">
-      <div class="section-head">
-        <span class="section-num">2</span>
-        <div>
-          <h2>语言特性与社区演进</h2>
-          <p class="section-desc">语言是否支持继承 / 运行时反射，决定了「扩展用户字段」的实现方式。</p>
-        </div>
-      </div>
-
-      <div class="paradigm-grid">
-        <div class="card">
-          <div class="card-top">
-            <span class="card-title">动态语言（Python / Ruby）</span>
-            <span class="tag tag-purple">继承 + 运行时反射</span>
-          </div>
-          <div class="timeline">
-            <div class="t-item c-blue">
-              <div class="t-title">Django <code>AbstractBaseUser</code></div>
-              <div class="t-desc">框架定义核心字段与方法</div>
-            </div>
-            <div class="t-link">类继承</div>
-            <div class="t-item c-purple">
-              <div class="t-title"><code>class MyUser(AbstractBaseUser)</code></div>
-              <div class="t-desc">业务直接追加 role / tenant_id 列</div>
-            </div>
-            <div class="t-link"><code>AUTH_USER_MODEL</code> 全局注入</div>
-            <div class="t-item">
-              <div class="t-title">ORM 合成单表 Schema</div>
-              <div class="t-desc">核心字段与业务字段位于同一张表</div>
-            </div>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-top">
-            <span class="card-title">JS / TS（NextAuth → Lucia）</span>
-            <span class="tag tag-amber">Adapter 代管 → 应用自管</span>
-          </div>
-          <div class="timeline">
-            <div class="t-item c-blue">
-              <div class="t-title">2020 · NextAuth (Auth.js) Adapter</div>
-              <div class="t-desc">Adapter 接口包含 createUser，自定义列需改写 Adapter</div>
-            </div>
-            <div class="t-link">拆分表结构</div>
-            <div class="t-item c-amber">
-              <div class="t-title">2022 · Lucia v1 / v2</div>
-              <div class="t-desc">拆为 user + key 两张表，库仍负责 createUser</div>
-            </div>
-            <div class="t-link">API 收缩</div>
-            <div class="t-item c-purple">
-              <div class="t-title">2024–2025 · Lucia v3 / Arctic</div>
-              <div class="t-desc">库不再写 User 表，用户表由应用层管理</div>
-            </div>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-top">
-            <span class="card-title">静态无继承语言（Go / Rust / MoonBit）</span>
-            <span class="tag tag-blue">编译期固定 struct</span>
-          </div>
-          <div class="timeline">
-            <div class="t-item">
-              <div class="t-title">无类继承 / 无动态字段混入</div>
-              <div class="t-desc">框架定义的 struct UserModel 无法被业务扩展</div>
-            </div>
-            <div class="t-link">职责拆分</div>
-            <div class="t-item c-blue">
-              <div class="t-title">凭据 / 协议层：只认 <code>user_id</code></div>
-              <div class="t-desc">WebAuthn / Goth / CredentialStore</div>
-            </div>
-            <div class="t-link">+</div>
-            <div class="t-item c-purple">
-              <div class="t-title">中间件层：Trait 契约 + <code>load_user</code></div>
-              <div class="t-desc">Rust axum-login（返回应用自定义 User 类型）</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- 3. 五种方案图解 -->
-    <section id="approaches">
-      <div class="section-head">
-        <span class="section-num">3</span>
-        <div>
-          <h2>五种 <code>users</code> 表存储方案</h2>
-          <p class="section-desc">左侧为表结构与归属，右侧为注册 / 请求时的数据流。</p>
-        </div>
-      </div>
-
-      <div class="approaches">
-        <!-- A -->
-        <article class="card">
-          <div class="card-top">
-            <div class="approach-head">
-              <span class="approach-letter">A</span>
-              <span class="card-title">同表部分投影：Auth 只读写核心列</span>
-            </div>
-            <span class="tag">Lucia v2 / Devise</span>
-          </div>
-          <div class="approach-body">
-            <div>
-              <div class="pane-label">表结构</div>
-              <div class="db-table">
-                <div class="db-table-header mixed-owned">
-                  <span>TABLE users（单表共享）</span>
-                  <span class="owner">App 建表</span>
-                </div>
-                <div class="db-col col-auth"><span>id, display_name, is_active, created_at</span><span class="db-col-type">Auth 读写</span></div>
-                <div class="db-col col-app"><span>role, avatar, bio（需允许 NULL 或有 DEFAULT）</span><span class="db-col-type">App 读写</span></div>
-              </div>
-            </div>
-            <div>
-              <div class="pane-label">请求数据流</div>
-              <ol class="steps">
-                <li class="step s-blue"><div><div class="step-title">Middleware 查询核心列</div><div class="step-desc">SELECT id, display_name, … → UserModel</div></div></li>
-                <li class="step s-amber"><div><div class="step-title">Handler 补查业务列</div><div class="step-desc">SELECT role, avatar … WHERE id = ?</div></div></li>
-              </ol>
-            </div>
-          </div>
-          <div class="tradeoffs">
-            <ul class="pros"><li>单表，无需 JOIN</li></ul>
-            <ul class="cons"><li>含 NOT NULL 业务列时无法直接 register</li><li>每次请求需查询 2 次</li></ul>
-          </div>
-        </article>
-
-        <!-- B -->
-        <article class="card">
-          <div class="card-top">
-            <div class="approach-head">
-              <span class="approach-letter">B</span>
-              <span class="card-title">认证表与 Profile 表物理分离</span>
-            </div>
-            <span class="tag">Supabase / Keycloak</span>
-          </div>
-          <div class="approach-body">
-            <div>
-              <div class="pane-label">表结构</div>
-              <div class="db-table">
-                <div class="db-table-header auth-owned">
-                  <span>auth_users</span>
-                  <span class="owner">Auth 独占</span>
-                </div>
-                <div class="db-col col-auth"><span>id</span><span class="db-col-type">PK</span></div>
-                <div class="db-col col-auth"><span>is_active</span><span class="db-col-type">BOOL</span></div>
-                <div class="db-col col-auth"><span>created_at</span><span class="db-col-type">BIGINT</span></div>
-              </div>
-              <div class="relation"><b>1 : 1</b> FK user_id</div>
-              <div class="db-table">
-                <div class="db-table-header app-owned">
-                  <span>user_profiles</span>
-                  <span class="owner">App 独占</span>
-                </div>
-                <div class="db-col col-app"><span>user_id</span><span class="db-col-type">PK, FK</span></div>
-                <div class="db-col col-app"><span>username</span><span class="db-col-type">VARCHAR</span></div>
-                <div class="db-col col-app"><span>tenant_id</span><span class="db-col-type">BIGINT</span></div>
-              </div>
-            </div>
-            <div>
-              <div class="pane-label">数据流</div>
-              <ol class="steps">
-                <li class="step s-blue"><div><div class="step-title">Auth.migrate() 管理 auth_users</div><div class="step-desc">框架自行建表与迁移</div></div></li>
-                <li class="step s-purple"><div><div class="step-title">注册时写入两张表</div><div class="step-desc">INSERT auth_users → INSERT user_profiles</div></div></li>
-                <li class="step s-amber"><div><div class="step-title">读取完整用户</div><div class="step-desc">JOIN 或分两次查询</div></div></li>
-              </ol>
-            </div>
-          </div>
-          <div class="tradeoffs">
-            <ul class="pros"><li>框架表与业务表物理隔离</li></ul>
-            <ul class="cons"><li>注册需写两张表</li><li>读取需 JOIN</li></ul>
-          </div>
-        </article>
-
-        <!-- C -->
-        <article class="card">
-          <div class="card-top">
-            <div class="approach-head">
-              <span class="approach-letter">C</span>
-              <span class="card-title">Trait 契约 + 应用提供 <code>load_user</code></span>
-            </div>
-            <span class="tag">Rust axum-login</span>
-          </div>
-          <div class="approach-body">
-            <div>
-              <div class="pane-label">表结构</div>
-              <div class="db-table">
-                <div class="db-table-header app-owned">
-                  <span>struct AppUser : AuthUser（TABLE users）</span>
-                  <span class="owner">App 独占</span>
-                </div>
-                <div class="db-col col-auth"><span>fn id(self) -&gt; Int64 / fn is_active(self) -&gt; Bool</span><span class="db-col-type">Trait 契约</span></div>
-                <div class="db-col col-app"><span>id, username, tenant_id, role, is_active…</span><span class="db-col-type">任意业务列</span></div>
-              </div>
-            </div>
-            <div>
-              <div class="pane-label">请求数据流</div>
-              <ol class="steps">
-                <li class="step s-blue"><div><div class="step-title">Session 读取用户 ID</div><div class="step-desc">_auth_user_id = 42</div></div></li>
-                <li class="step s-purple"><div><div class="step-title">调用 App 的 load_user(42)</div><div class="step-desc">应用 SQL 一次查出 AppUser</div></div></li>
-                <li class="step s-purple"><div><div class="step-title">存入 req.ctx</div><div class="step-desc">Handler 直接取得 AppUser</div></div></li>
-              </ol>
-            </div>
-          </div>
-          <div class="tradeoffs">
-            <ul class="pros"><li>每次请求 1 次 SQL</li><li>Handler 拿到强类型 AppUser</li></ul>
-            <ul class="cons"><li>凭据存储需另行提供</li></ul>
-          </div>
-        </article>
-
-        <!-- D -->
-        <article class="card">
-          <div class="card-top">
-            <div class="approach-head">
-              <span class="approach-letter">D</span>
-              <span class="card-title">Auth 只管 <code>credentials</code> 表，<code>users</code> 表归应用</span>
-            </div>
-            <span class="tag">Lucia v3 / WebAuthn</span>
-          </div>
-          <div class="approach-body">
-            <div>
-              <div class="pane-label">表结构</div>
-              <div class="db-table">
-                <div class="db-table-header app-owned">
-                  <span>TABLE users（应用定义与读写）</span>
-                  <span class="owner">App 独占</span>
-                </div>
-                <div class="db-col col-app"><span>id</span><span class="db-col-type">BIGINT PK</span></div>
-                <div class="db-col col-app"><span>username, tenant_id, role…</span><span class="db-col-type">任意 NOT NULL 列</span></div>
-                <div class="db-col col-app"><span>is_active</span><span class="db-col-type">BOOL</span></div>
-              </div>
-              <div class="relation"><b>1 : N</b> 逻辑关联 user_id</div>
-              <div class="db-table">
-                <div class="db-table-header auth-owned">
-                  <span>TABLE user_credentials</span>
-                  <span class="owner">Auth 独占</span>
-                </div>
-                <div class="db-col col-auth"><span>(kind, provider, identifier)</span><span class="db-col-type">UNIQUE KEY</span></div>
-                <div class="db-col col-auth"><span>user_id</span><span class="db-col-type">BIGINT INDEX</span></div>
-                <div class="db-col col-auth"><span>secret, verified, last_used_at</span><span class="db-col-type">凭据哈希 / Token</span></div>
-              </div>
-            </div>
-            <div>
-              <div class="pane-label">注册与登录数据流</div>
-              <ol class="steps">
-                <li class="step s-purple"><div><div class="step-title">注册：App 插入 users 表</div><div class="step-desc">INSERT INTO users (…) → user_id</div></div></li>
-                <li class="step s-blue"><div><div class="step-title">绑定凭据：Auth 写 credentials 表</div><div class="step-desc">auth.set_password(user_id, …)</div></div></li>
-                <li class="step s-blue"><div><div class="step-title">登录验证：Auth 查 credentials 表</div><div class="step-desc">authenticate_password() → Some(user_id)</div></div></li>
-                <li class="step s-purple"><div><div class="step-title">会话加载（与 C 组合时）</div><div class="step-desc">load_user(user_id) → AppUser 注入 req.ctx</div></div></li>
-              </ol>
-            </div>
-          </div>
-          <div class="tradeoffs">
-            <ul class="pros">
-              <li>框架无需 create_user / update_user</li>
-              <li>user_credentials 结构固定，可由框架提供 SQL Store</li>
-              <li>注册支持任意必填业务列</li>
-            </ul>
-            <ul class="cons">
-              <li>注册流程由 App 与 Auth 两步完成</li>
-              <li>单独使用时 Handler 仅拿到 user_id，需与 C 组合加载用户</li>
-            </ul>
-          </div>
-        </article>
-
-        <!-- E -->
-        <article class="card">
-          <div class="card-top">
-            <div class="approach-head">
-              <span class="approach-letter">E</span>
-              <span class="card-title">固定核心列 + JSON Metadata 列</span>
-            </div>
-            <span class="tag">Auth0 / PocketBase</span>
-          </div>
-          <div class="approach-body">
-            <div>
-              <div class="pane-label">表结构</div>
-              <div class="db-table">
-                <div class="db-table-header auth-owned">
-                  <span>TABLE users</span>
-                  <span class="owner">Auth 接管</span>
-                </div>
-                <div class="db-col col-auth"><span>id, display_name, is_active, created_at</span><span class="db-col-type">固定核心列</span></div>
-                <div class="db-col col-json"><span>metadata: {"role": "admin", "tenant_id": 10}</span><span class="db-col-type">JSONB / TEXT</span></div>
-              </div>
-            </div>
-            <div>
-              <div class="pane-label">请求数据流</div>
-              <ol class="steps">
-                <li class="step s-blue"><div><div class="step-title">Middleware 加载 UserModel</div><div class="step-desc">metadata: Map[String, Json]</div></div></li>
-                <li class="step s-amber"><div><div class="step-title">业务代码读取扩展字段</div><div class="step-desc">手动解析 Json 并判空</div></div></li>
-              </ol>
-            </div>
-          </div>
-          <div class="tradeoffs">
-            <ul class="pros"><li>无需修改表结构，适合托管 SaaS</li><li>每次请求 1 次 SQL</li></ul>
-            <ul class="cons"><li>扩展字段无静态类型检查</li><li>无法对扩展字段建 SQL 外键约束</li></ul>
-          </div>
-        </article>
-      </div>
-    </section>
-
-    <!-- 4. 对比矩阵 -->
-    <section id="matrix">
-      <div class="section-head">
-        <span class="section-num">4</span>
-        <div>
-          <h2>横向对比矩阵</h2>
-          <p class="section-desc">D 与 C 可组合使用，单列一栏便于对照。</p>
-        </div>
-      </div>
-
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>维度</th>
-              <th>A<small>同表核心列</small></th>
-              <th>B<small>主从分表</small></th>
-              <th>C<small>Trait 契约</small></th>
-              <th>D<small>只管凭据表</small></th>
-              <th>E<small>JSON 扩展列</small></th>
-              <th>D + C<small>组合</small></th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td><code>users</code> 表归属</td>
-              <td><span class="tag tag-amber">共享同一张表</span></td>
-              <td><span class="tag tag-amber">拆成两张表</span></td>
-              <td><span class="tag tag-purple">App 独占</span></td>
-              <td><span class="tag tag-purple">App 独占</span></td>
-              <td><span class="tag tag-blue">Auth 独占</span></td>
-              <td><span class="tag tag-purple">App 独占</span></td>
-            </tr>
-            <tr>
-              <td><code>credentials</code> 表归属</td>
-              <td><span class="tag tag-blue">Auth 管理</span></td>
-              <td><span class="tag tag-blue">Auth 管理</span></td>
-              <td><span class="tag tag-purple">App 自建</span></td>
-              <td><span class="tag tag-blue">Auth 管理</span></td>
-              <td><span class="tag tag-blue">Auth 管理</span></td>
-              <td><span class="tag tag-blue">Auth 管理</span></td>
-            </tr>
-            <tr>
-              <td>注册含 <code>NOT NULL</code> 业务列</td>
-              <td><span class="tag tag-red">不支持 / 需两步写入</span></td>
-              <td><span class="tag tag-amber">需写两张表</span></td>
-              <td><span class="tag tag-green">支持</span></td>
-              <td><span class="tag tag-green">支持</span></td>
-              <td><span class="tag tag-amber">写入 JSON</span></td>
-              <td><span class="tag tag-green">支持</span></td>
-            </tr>
-            <tr>
-              <td>单次请求 DB 查询次数</td>
-              <td><span class="tag tag-red">2 次</span></td>
-              <td><span class="tag tag-amber">2 次或 JOIN</span></td>
-              <td><span class="tag tag-green">1 次</span></td>
-              <td><span class="tag">取决于上层加载方式</span></td>
-              <td><span class="tag tag-green">1 次</span></td>
-              <td><span class="tag tag-green">1 次</span></td>
-            </tr>
-            <tr>
-              <td>Handler 拿到的类型</td>
-              <td><code>UserModel</code>（核心列）</td>
-              <td><code>UserModel</code>（核心列）</td>
-              <td>强类型 <code>AppUser</code></td>
-              <td><code>user_id : Int64</code></td>
-              <td><code>Json</code> 字典</td>
-              <td>强类型 <code>AppUser</code></td>
-            </tr>
-            <tr>
-              <td>代表实现</td>
-              <td>Lucia v2 / Devise</td>
-              <td>Supabase / Keycloak</td>
-              <td>axum-login</td>
-              <td>Lucia v3 / WebAuthn</td>
-              <td>Auth0 / PocketBase</td>
-              <td>—</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
+  <div class="tldr">
+    <ul>
+      <li>Auth 框架一旦接管 <code>users</code> 表，就会和业务列冲突：<strong>注册时 INSERT 缺必填列</strong>，<strong>请求时要再查一次业务列（N+1）</strong>。</li>
+      <li>动态语言靠继承加反射把两类列合进一张表；Go / Rust / MoonBit 这类静态、无继承的语言做不到，社区的走向是 Auth 只管凭据（Lucia v3、WebAuthn）。</li>
+      <li><strong>D + C 组合</strong>：框架管 <code>user_credentials</code>，应用管 <code>users</code> 并提供 <code>load_user</code>。MoonDark 的 <code>CredentialStore</code> + <code>SessionAuth(load_user~)</code> 就是这个方案。</li>
+    </ul>
   </div>
+
+  <section id="problem">
+    <h2>当 Auth 框架直接接管 <code>users</code> 表时</h2>
+    <p class="lead">框架定义的固定结构与业务真实的表结构在同一张表上相遇。</p>
+    <div class="grid split">
+      <figure class="diagram">
+        <div class="mermaid">
+erDiagram
+  users {
+    BIGINT id PK "核心列 · 框架定义"
+    VARCHAR display_name "核心列"
+    BOOL is_active "核心列"
+    BIGINT created_at "核心列"
+    BIGINT tenant_id "业务列 · NOT NULL"
+    VARCHAR role "业务列 · NOT NULL"
+    VARCHAR phone "业务列"
+    VARCHAR avatar "业务列"
+  }
+        </div>
+        <figcaption>框架的 <code>struct UserModel</code> 只覆盖前 4 列</figcaption>
+      </figure>
+      <figure class="diagram">
+        <div class="mermaid">
+sequenceDiagram
+  participant App as App Handler
+  participant Auth as Auth 框架
+  participant DB as users 表
+  Note over App,DB: 冲突 1 · 注册写入
+  App->>Auth: register_password()
+  Auth->>DB: create_user(UserModel)，只 INSERT 核心列
+  DB--xAuth: tenant_id / role 为 NOT NULL，失败
+  Note over App,DB: 冲突 2 · 请求读取（N+1）
+  Auth->>DB: Middleware SELECT 核心列
+  Auth->>App: req.ctx = UserModel
+  App->>DB: 读 user.role，按 id 再查一次
+        </div>
+        <figcaption>同一张表上的两类冲突</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section id="paradigm">
+    <h2>语言特性与社区演进</h2>
+    <p class="lead">语言是否支持继承 / 运行时反射，决定了「扩展用户字段」的实现方式。</p>
+    <figure class="diagram">
+      <div class="mermaid">
+flowchart LR
+  subgraph st ["Go / Rust / MoonBit：编译期固定 struct"]
+    direction LR
+    s1["无类继承 / 无动态字段<br>框架 struct 无法被业务扩展"] -- 职责拆分 --> s2["凭据层只认 user_id<br>WebAuthn / Goth / CredentialStore"] -- 组合 --> s3["中间件层 Trait + load_user<br>axum-login 返回应用 User"]
+  end
+  subgraph js ["JS / TS：Adapter 代管 → 应用自管"]
+    direction LR
+    j1["2020 · NextAuth Adapter<br>含 createUser，自定义列需改写 Adapter"] -- 拆分表结构 --> j2["2022 · Lucia v1 / v2<br>user + key 两表，库仍 createUser"] -- API 收缩 --> j3["2024–2025 · Lucia v3 / Arctic<br>库不再写 User 表"]
+  end
+  subgraph dyn ["Python / Ruby：继承 + 运行时反射"]
+    direction LR
+    d1["Django AbstractBaseUser<br>框架定义核心字段与方法"] -- 类继承 --> d2["class MyUser(AbstractBaseUser)<br>业务追加 role / tenant_id"] -- "AUTH_USER_MODEL 注入" --> d3["ORM 合成单表 Schema"]
+  end
+  classDef app stroke:#d97757,color:#c6613f
+  class d3,j3,s3 app
+      </div>
+      <figcaption>三条路径最终都把「业务字段」交还给应用</figcaption>
+    </figure>
+  </section>
+
+  <section id="approaches">
+    <h2>五种 <code>users</code> 表存储方案</h2>
+    <p class="lead">每个方案左边是表结构与归属，右边是注册 / 请求时的数据流。</p>
+
+    <article class="example full">
+      <h3>A · 同表部分投影：Auth 只读写核心列 <span class="tag">Lucia v2 / Devise</span></h3>
+      <div class="grid split">
+        <figure class="diagram">
+          <div class="mermaid">
+erDiagram
+  users {
+    BIGINT id PK "Auth 读写"
+    VARCHAR display_name "Auth 读写"
+    BOOL is_active "Auth 读写"
+    BIGINT created_at "Auth 读写"
+    VARCHAR role "App 读写 · 需可 NULL"
+    VARCHAR avatar "App 读写"
+    TEXT bio "App 读写"
+  }
+          </div>
+          <figcaption>单表共享，App 建表</figcaption>
+        </figure>
+        <figure class="diagram">
+          <div class="mermaid">
+sequenceDiagram
+  participant MW as Middleware
+  participant H as Handler
+  participant DB as users
+  MW->>DB: SELECT id, display_name, …
+  DB-->>MW: UserModel
+  MW->>H: req.ctx = UserModel
+  H->>DB: SELECT role, avatar WHERE id = ?
+  Note over H,DB: 每次请求 2 次查询
+          </div>
+          <figcaption>请求数据流</figcaption>
+        </figure>
+      </div>
+      <div class="grid">
+        <ul class="pros"><li>单表，无需 JOIN</li></ul>
+        <ul class="cons"><li>含 NOT NULL 业务列时无法直接 register</li><li>每次请求需查询 2 次</li></ul>
+      </div>
+    </article>
+
+    <article class="example full">
+      <h3>B · 认证表与 Profile 表物理分离 <span class="tag">Supabase / Keycloak</span></h3>
+      <div class="grid split">
+        <figure class="diagram">
+          <div class="mermaid">
+erDiagram
+  auth_users ||--|| user_profiles : "user_id"
+  auth_users {
+    BIGINT id PK "Auth 独占"
+    BOOL is_active
+    BIGINT created_at
+  }
+  user_profiles {
+    BIGINT user_id PK, FK "App 独占"
+    VARCHAR username
+    BIGINT tenant_id
+  }
+          </div>
+          <figcaption>1 : 1 主从分表</figcaption>
+        </figure>
+        <figure class="diagram">
+          <div class="mermaid">
+sequenceDiagram
+  participant App
+  participant Auth
+  participant DB
+  Auth->>DB: Auth.migrate() 管理 auth_users
+  App->>Auth: 注册
+  Auth->>DB: INSERT auth_users
+  App->>DB: INSERT user_profiles
+  App->>DB: 读取：JOIN 或分两次查询
+          </div>
+          <figcaption>注册写两张表，读取需 JOIN</figcaption>
+        </figure>
+      </div>
+      <div class="grid">
+        <ul class="pros"><li>框架表与业务表物理隔离</li></ul>
+        <ul class="cons"><li>注册需写两张表</li><li>读取需 JOIN</li></ul>
+      </div>
+    </article>
+
+    <article class="example full">
+      <h3>C · Trait 契约 + 应用提供 <code>load_user</code> <span class="tag">Rust axum-login</span></h3>
+      <div class="grid split">
+        <figure class="diagram">
+          <div class="mermaid">
+classDiagram
+  class AuthUser {
+    &lt;&lt;trait&gt;&gt;
+    +id() Int64
+    +is_active() Bool
+  }
+  class AppUser {
+    +id Int64
+    +username String
+    +tenant_id Int64
+    +role String
+    +is_active Bool
+  }
+  AppUser ..|> AuthUser : impl
+  note for AppUser "TABLE users，App 独占，任意业务列"
+          </div>
+          <figcaption>框架只定义契约，不定义表</figcaption>
+        </figure>
+        <figure class="diagram">
+          <div class="mermaid">
+sequenceDiagram
+  participant MW as Middleware
+  participant S as Session
+  participant App as App load_user
+  participant H as Handler
+  MW->>S: 读 _auth_user_id
+  S-->>MW: 42
+  MW->>App: load_user(42)
+  App-->>MW: AppUser（1 次 SQL）
+  MW->>H: req.ctx = AppUser
+          </div>
+          <figcaption>请求数据流</figcaption>
+        </figure>
+      </div>
+      <div class="grid">
+        <ul class="pros"><li>每次请求 1 次 SQL</li><li>Handler 拿到强类型 AppUser</li></ul>
+        <ul class="cons"><li>凭据存储需另行提供</li></ul>
+      </div>
+    </article>
+
+    <article class="example full">
+      <h3>D · Auth 只管 <code>credentials</code> 表，<code>users</code> 表归应用 <span class="tag">Lucia v3 / WebAuthn</span></h3>
+      <div class="grid split">
+        <figure class="diagram">
+          <div class="mermaid">
+erDiagram
+  users ||--o{ user_credentials : "user_id"
+  users {
+    BIGINT id PK "App 独占"
+    VARCHAR username "任意 NOT NULL 列"
+    BIGINT tenant_id
+    VARCHAR role
+    BOOL is_active
+  }
+  user_credentials {
+    VARCHAR kind UK "Auth 独占"
+    VARCHAR provider UK
+    VARCHAR identifier UK
+    BIGINT user_id "INDEX"
+    TEXT secret "凭据哈希 / Token"
+    BOOL verified
+    BIGINT last_used_at
+  }
+          </div>
+          <figcaption>1 : N 逻辑关联，(kind, provider, identifier) 唯一</figcaption>
+        </figure>
+        <figure class="diagram">
+          <div class="mermaid">
+sequenceDiagram
+  participant App
+  participant Auth
+  participant DB
+  App->>DB: 注册：INSERT INTO users → user_id
+  App->>Auth: set_password(user_id, …)
+  Auth->>DB: INSERT user_credentials
+  App->>Auth: authenticate_password()
+  Auth->>DB: 查 user_credentials
+  Auth-->>App: Some(user_id)
+  Note over App,DB: 与 C 组合时：load_user(user_id) → AppUser 注入 req.ctx
+          </div>
+          <figcaption>注册与登录数据流</figcaption>
+        </figure>
+      </div>
+      <div class="grid">
+        <ul class="pros">
+          <li>框架无需 create_user / update_user</li>
+          <li>user_credentials 结构固定，可由框架提供 SQL Store</li>
+          <li>注册支持任意必填业务列</li>
+        </ul>
+        <ul class="cons">
+          <li>注册流程由 App 与 Auth 两步完成</li>
+          <li>单独使用时 Handler 仅拿到 user_id，需与 C 组合加载用户</li>
+        </ul>
+      </div>
+    </article>
+
+    <article class="example full">
+      <h3>E · 固定核心列 + JSON Metadata 列 <span class="tag">Auth0 / PocketBase</span></h3>
+      <div class="grid split">
+        <figure class="diagram">
+          <div class="mermaid">
+erDiagram
+  users {
+    BIGINT id PK "Auth 接管"
+    VARCHAR display_name "固定核心列"
+    BOOL is_active "固定核心列"
+    BIGINT created_at "固定核心列"
+    JSONB metadata "role、tenant_id 等扩展字段"
+  }
+          </div>
+          <figcaption>扩展字段塞进 JSONB / TEXT</figcaption>
+        </figure>
+        <figure class="diagram">
+          <div class="mermaid">
+sequenceDiagram
+  participant MW as Middleware
+  participant H as Handler
+  participant DB as users
+  MW->>DB: SELECT *
+  DB-->>MW: UserModel（metadata: Map[String, Json]）
+  MW->>H: req.ctx = UserModel
+  Note over H: 手动解析 Json 并判空
+          </div>
+          <figcaption>请求数据流</figcaption>
+        </figure>
+      </div>
+      <div class="grid">
+        <ul class="pros"><li>无需修改表结构，适合托管 SaaS</li><li>每次请求 1 次 SQL</li></ul>
+        <ul class="cons"><li>扩展字段无静态类型检查</li><li>无法对扩展字段建 SQL 外键约束</li></ul>
+      </div>
+    </article>
+  </section>
+
+  <section id="matrix">
+    <h2>横向对比矩阵</h2>
+    <p class="lead">D 与 C 可组合使用，单列一栏便于对照。</p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>维度</th>
+            <th>A<small>同表核心列</small></th>
+            <th>B<small>主从分表</small></th>
+            <th>C<small>Trait 契约</small></th>
+            <th>D<small>只管凭据表</small></th>
+            <th>E<small>JSON 扩展列</small></th>
+            <th>D + C<small>组合</small></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>users</code> 表归属</td>
+            <td><span class="tag amber">共享同一张表</span></td>
+            <td><span class="tag amber">拆成两张表</span></td>
+            <td><span class="tag purple">App 独占</span></td>
+            <td><span class="tag purple">App 独占</span></td>
+            <td><span class="tag blue">Auth 独占</span></td>
+            <td><span class="tag purple">App 独占</span></td>
+          </tr>
+          <tr>
+            <td><code>credentials</code> 表归属</td>
+            <td><span class="tag blue">Auth 管理</span></td>
+            <td><span class="tag blue">Auth 管理</span></td>
+            <td><span class="tag purple">App 自建</span></td>
+            <td><span class="tag blue">Auth 管理</span></td>
+            <td><span class="tag blue">Auth 管理</span></td>
+            <td><span class="tag blue">Auth 管理</span></td>
+          </tr>
+          <tr>
+            <td>注册含 <code>NOT NULL</code> 业务列</td>
+            <td><span class="tag red">不支持 / 需两步写入</span></td>
+            <td><span class="tag amber">需写两张表</span></td>
+            <td><span class="tag green">支持</span></td>
+            <td><span class="tag green">支持</span></td>
+            <td><span class="tag amber">写入 JSON</span></td>
+            <td><span class="tag green">支持</span></td>
+          </tr>
+          <tr>
+            <td>单次请求 DB 查询次数</td>
+            <td><span class="tag red">2 次</span></td>
+            <td><span class="tag amber">2 次或 JOIN</span></td>
+            <td><span class="tag green">1 次</span></td>
+            <td><span class="tag">取决于上层加载方式</span></td>
+            <td><span class="tag green">1 次</span></td>
+            <td><span class="tag green">1 次</span></td>
+          </tr>
+          <tr>
+            <td>Handler 拿到的类型</td>
+            <td><code>UserModel</code>（核心列）</td>
+            <td><code>UserModel</code>（核心列）</td>
+            <td>强类型 <code>AppUser</code></td>
+            <td><code>user_id : Int64</code></td>
+            <td><code>Json</code> 字典</td>
+            <td>强类型 <code>AppUser</code></td>
+          </tr>
+          <tr>
+            <td>代表实现</td>
+            <td>Lucia v2 / Devise</td>
+            <td>Supabase / Keycloak</td>
+            <td>axum-login</td>
+            <td>Lucia v3 / WebAuthn</td>
+            <td>Auth0 / PocketBase</td>
+            <td>—</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</main>
 </body>
 </html>

@@ -109,9 +109,10 @@ MoonDark 是基于 MoonBack 的 MoonBit 后端框架（设计参考 [Django](htt
 - H1 下首段用 1 句话说明模块/包是什么、解决什么问题。
 - `README.mbt.md` 第一个 H2 标题固定为 `Quick Start`，给出最小可运行的 `mbt check` 示例（仅在需要外部服务或监听端口时用 `mbt nocheck`）。
 
-### Agent Author
+### Agent Research
 
-在 `docs/research/` 撰写调研文档时，署名为 agent 自身，而不是仓库所有者。
+在 `docs/research/` 撰写调研文档时，署名为 agent 模型名，而不是仓库所有者。
+调研文档不写当前项目决策，只记录调研发现。
 
 ## Operation Guide
 

@@ -1,0 +1,243 @@
+/*
+ * MoonDark research 公共样式（Anthropic research 风格：象牙底、衬线正文、clay 橙强调、浅色 Tomorrow 代码）。
+ * 用法：
+ *   <link rel="stylesheet" href="research.css" />
+ *   <script defer src="research.js"></script>   需要 Mermaid 图时引入，主题已配好
+ * 文档内不写 <style>，也不要在 Mermaid 里覆盖颜色（强调路径用 linkStyle/classDef 引用下方色板）。
+ *
+ * 组件清单：
+ *   header.hero > .eyebrow + h1 + .subtitle      页头
+ *   .tldr                                         开篇结论框（内含 ul 或 p）
+ *   section > h2 + p.lead                         章节，h2 自动编号
+ *   .callout.{info,ok,warn,bad}                   提示条
+ *   figure.diagram > .mermaid + figcaption        图（米色外框 + 象牙卡片）
+ *   .grid > .card > h3                            自适应卡片网格（.grid.wide 等宽两列，.grid.split 2:3 两列，适合 ER 图 + 时序图）
+ *   section > .full                               任意块放宽到图表宽度（如含并排图的 article）
+ *   .table-wrap > table                           对比矩阵
+ *   .tag.{green,amber,red,blue,purple}            彩色标签
+ *   dl.kv > dt + dd                               键值列表
+ *   ul.pros / ul.cons                             优缺点
+ *   article.example > h3 + dl.kv + pre            API 使用示例（直接展开，标题可带 .tag）
+ *   details > summary + ...                       折叠附录（只用于实现细节、长日志等次要内容）
+ *   .legend > span.tag                            图例
+ *   pre 内语法高亮：.kw .ty .fn .st .cm .nu
+ *
+ * 色板（Mermaid classDef 也用这些值）：
+ *   ink #141413  slate #3d3d3a  muted #5e5d59  line #d1cfc5
+ *   ivory #faf9f5  oat #f0eee6  band #e8e6dc
+ *   clay #d97757  olive #788c5d  sky #6a9bcc  fig #c46686  kraft #b5853a
+ */
+
+:root {
+  --ink: #141413;
+  --slate: #3d3d3a;
+  --muted: #5e5d59;
+  --faint: #87867f;
+  --line: #d1cfc5;
+  --line-soft: #e8e6dc;
+  --ivory: #faf9f5;
+  --paper: #f5f4ed;
+  --oat: #f0eee6;
+  --band: #e8e6dc;
+  --clay: #d97757;
+  --clay-ink: #c6613f;
+  --olive: #788c5d;
+  --sky: #6a9bcc;
+  --fig: #c46686;
+  --kraft: #b5853a;
+  --sans: "Anthropic Sans", "Styrene B", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --serif: "Anthropic Serif", "Tiempos Text", Charter, Georgia, "Songti SC", "Noto Serif CJK SC", serif;
+  --mono: "JetBrains Mono", "DM Mono", "SF Mono", Menlo, Consolas, monospace;
+  --text-w: 720px;
+  --wide-w: 1000px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--ivory);
+  color: var(--slate);
+  font: 17px/1.7 var(--serif);
+  padding: 4rem 1.5rem 6rem;
+  -webkit-font-smoothing: antialiased;
+  counter-reset: section;
+}
+
+main { max-width: var(--wide-w); margin: 0 auto; display: grid; gap: 3.5rem; }
+main > *, section > * { width: 100%; max-width: var(--text-w); margin-inline: auto; }
+main > section { max-width: var(--wide-w); }
+section > figure, section > .table-wrap, section > .grid, section > .full { max-width: var(--wide-w); }
+
+h1, h2, h3, th, summary, figcaption, .eyebrow, .tag, dl.kv, table { font-family: var(--sans); }
+h1, h2, h3 { color: var(--ink); line-height: 1.25; font-weight: 600; letter-spacing: -0.01em; }
+h1 { font-size: 2.6rem; letter-spacing: -0.02em; }
+h2 { font-size: 1.6rem; }
+h3 { font-size: 1.1rem; }
+a { color: var(--ink); text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
+a:hover { text-decoration-color: var(--clay); }
+strong { color: var(--ink); font-weight: 600; }
+ul, ol { padding-left: 1.3rem; }
+li + li { margin-top: 0.35rem; }
+li::marker { color: var(--faint); }
+
+code {
+  font: 0.8em var(--mono);
+  background: var(--oat);
+  border: 1px solid var(--line-soft);
+  padding: 0.12em 0.3em;
+  border-radius: 4px;
+  color: var(--slate);
+}
+
+/* 代码块：Tomorrow (light)，与 anthropic.com 代码块一致 */
+pre {
+  font: 0.8rem/1.65 var(--mono);
+  background: var(--paper);
+  color: #4d4d4c;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  padding: 1.1rem 1.4rem;
+  overflow-x: auto;
+}
+pre code { all: unset; }
+code, pre { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+pre .kw { color: #8959a8; }
+pre .ty { color: #3e999f; }
+pre .fn { color: #4271ae; }
+pre .st { color: #718c00; }
+pre .nu { color: #f5871f; }
+pre .cm { color: #8e908c; }
+
+/* ---------- 页头 ---------- */
+.hero { display: grid; gap: 1rem; padding-bottom: 0.5rem; }
+.eyebrow { font-size: 0.8rem; font-weight: 500; color: var(--muted); }
+.subtitle { font-size: 1.2rem; color: var(--muted); }
+
+/* ---------- 结论框 ---------- */
+.tldr {
+  background: var(--oat);
+  border-radius: 12px;
+  padding: 1.4rem 1.6rem;
+}
+.tldr::before {
+  content: "TL;DR";
+  display: block;
+  font: 600 0.75rem var(--sans);
+  letter-spacing: 0.08em;
+  color: var(--clay-ink);
+  margin-bottom: 0.5rem;
+}
+
+/* ---------- 章节 ---------- */
+section { display: grid; gap: 1.4rem; min-width: 0; }
+section > h2 { counter-increment: section; }
+section > h2::before {
+  content: counter(section, decimal-leading-zero);
+  display: block;
+  font: 500 0.85rem var(--mono);
+  color: var(--clay-ink);
+  margin-bottom: 0.4rem;
+}
+.lead { color: var(--muted); margin-top: -0.6rem; }
+
+/* ---------- 提示条 ---------- */
+.callout { border-left: 3px solid var(--sky); background: var(--paper); border-radius: 0 8px 8px 0; padding: 0.8rem 1.1rem; }
+.callout.ok   { border-left-color: var(--olive); }
+.callout.warn { border-left-color: var(--kraft); }
+.callout.bad  { border-left-color: var(--clay); }
+
+/* ---------- 图：米色外框 + 象牙圆角卡片 ---------- */
+figure.diagram {
+  background: var(--band);
+  border-radius: 16px;
+  padding: 1.25rem;
+}
+figure.diagram .mermaid {
+  background: var(--ivory);
+  border-radius: 12px;
+  padding: 1.5rem;
+  display: flex;
+  justify-content: center;
+  overflow-x: auto;
+}
+figure.diagram .mermaid:not([data-processed]) {
+  white-space: pre;
+  font: 0.78rem var(--mono);
+  color: var(--faint);
+  justify-content: flex-start;
+}
+figcaption { text-align: center; font-size: 0.85rem; color: var(--muted); margin-top: 0.9rem; }
+figcaption code { font-size: 0.9em; }
+
+/* ---------- 卡片 ---------- */
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1rem; }
+.grid.wide { grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); }
+.grid.split { grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); align-items: start; }
+.card {
+  background: var(--ivory);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 1.1rem 1.25rem;
+  display: grid;
+  gap: 0.6rem;
+  align-content: start;
+  min-width: 0;
+}
+
+/* ---------- 表格：只保留横线 ---------- */
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 0.9rem; line-height: 1.55; }
+th, td { text-align: left; padding: 0.75rem 0.9rem; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+th { color: var(--muted); font-weight: 500; font-size: 0.82rem; border-bottom: 1px solid var(--slate); white-space: nowrap; }
+th small { display: block; font-size: 0.75rem; color: var(--faint); font-weight: 400; }
+td:first-child { font-weight: 600; color: var(--ink); white-space: nowrap; }
+td .tag { white-space: normal; }
+
+/* ---------- 标签 ---------- */
+.tag {
+  --c: var(--faint);
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.5;
+  padding: 0 0.5rem;
+  border-radius: 6px;
+  color: var(--c);
+  background: color-mix(in srgb, var(--c) 12%, transparent);
+  white-space: nowrap;
+}
+.tag.green  { --c: #5f7247; }
+.tag.amber  { --c: #9a6c22; }
+.tag.red    { --c: var(--clay-ink); }
+.tag.blue   { --c: #4a7cae; }
+.tag.purple { --c: #a84e6e; }
+.legend { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+
+/* ---------- 键值 / 优缺点 ---------- */
+dl.kv { display: grid; grid-template-columns: max-content 1fr; gap: 0.4rem 1rem; font-size: 0.9rem; }
+dl.kv dt { color: var(--muted); }
+ul.pros, ul.cons { list-style: none; padding: 0; }
+ul.pros li::before { content: "+ "; color: var(--olive); font-weight: 700; }
+ul.cons li::before { content: "− "; color: var(--clay); font-weight: 700; }
+
+/* ---------- API 示例 ---------- */
+article.example { display: grid; gap: 0.9rem; padding-top: 1.6rem; border-top: 1px solid var(--line); }
+section > article.example + article.example { margin-top: 0.6rem; }
+article.example > h3 { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+article.example > h3 .tag { font-weight: 500; }
+
+/* ---------- 折叠 ---------- */
+details { border-top: 1px solid var(--line); }
+details + details { margin-top: -1.4rem; }
+details:last-of-type { border-bottom: 1px solid var(--line); }
+details > summary { cursor: pointer; padding: 0.9rem 0; font-weight: 500; color: var(--ink); list-style: none; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+details > summary::-webkit-details-marker { display: none; }
+details > summary::before { content: "+"; font: 400 1.1rem var(--mono); color: var(--clay); width: 1rem; }
+details[open] > summary::before { content: "−"; }
+details > :not(summary) { margin-bottom: 1rem; }
+
+@media (max-width: 640px) {
+  body { padding: 2rem 1rem 4rem; font-size: 16px; }
+  h1 { font-size: 2rem; }
+  .grid.wide, .grid.split { grid-template-columns: 1fr; }
+}

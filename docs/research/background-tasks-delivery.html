@@ -4,411 +4,168 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Background Tasks 投递语义与 API 设计调研 — MoonDark Research</title>
-  <style>
-    :root {
-      --bg: #f6f8fb;
-      --bg-card: #ffffff;
-      --bg-panel: #f8fafc;
-      --bg-elev: #eef2f7;
-      --border: #dde3ec;
-      --border-soft: #e8edf3;
-      --text: #334155;
-      --text-strong: #0f172a;
-      --muted: #64748b;
-      --blue: #0369a1;
-      --blue-bg: #e8f4fc;
-      --blue-border: #a5d4f0;
-      --purple: #7e22ce;
-      --purple-bg: #f5ecfe;
-      --purple-border: #d8b9f6;
-      --green: #15803d;
-      --green-bg: #e9f8ee;
-      --green-border: #a7e0b8;
-      --amber: #b45309;
-      --amber-bg: #fef5e2;
-      --amber-border: #f5d18c;
-      --red: #b91c1c;
-      --red-bg: #fdeeee;
-      --red-border: #f3b4b4;
-      --code-bg: #f1f5f9;
-      --code-text: #0c4a6e;
-      --radius: 14px;
-      --shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px -12px rgba(15, 23, 42, 0.12);
-      --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
-      --mono: "JetBrains Mono", "Fira Code", "SF Mono", Consolas, monospace;
-    }
-
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-
-    body {
-      background:
-        radial-gradient(1200px 600px at 10% -10%, rgba(56, 189, 248, 0.10), transparent 60%),
-        radial-gradient(1000px 500px at 100% 0%, rgba(192, 132, 252, 0.08), transparent 60%),
-        var(--bg);
-      background-attachment: fixed;
-      color: var(--text);
-      font-family: var(--sans);
-      line-height: 1.55;
-      padding: 2.5rem 1.5rem 5rem;
-      -webkit-font-smoothing: antialiased;
-    }
-
-    .container { max-width: 1180px; margin: 0 auto; }
-
-    code {
-      font-family: var(--mono);
-      font-size: 0.84em;
-      background: var(--code-bg);
-      border: 1px solid var(--border);
-      padding: 0.08rem 0.38rem;
-      border-radius: 5px;
-      color: var(--code-text);
-    }
-
-    pre {
-      font-family: var(--mono);
-      font-size: 0.78rem;
-      line-height: 1.5;
-      background: #0f172a;
-      color: #e2e8f0;
-      padding: 0.9rem 1rem;
-      border-radius: 10px;
-      overflow-x: auto;
-      border: 1px solid #1e293b;
-    }
-
-    pre .kw { color: #7dd3fc; }
-    pre .ty { color: #c084fc; }
-    pre .fn { color: #38bdf8; }
-    pre .cm { color: #64748b; }
-    pre .st { color: #86efac; }
-
-    /* ---------- Header ---------- */
-    .hero {
-      background: linear-gradient(135deg, #ffffff 30%, #eef7fd 70%, #f6effe);
-      border: 1px solid var(--border);
-      border-radius: 18px;
-      padding: 2rem 2rem 1.5rem;
-      margin-bottom: 1.25rem;
-      box-shadow: var(--shadow);
-    }
-
-    .eyebrow {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.45rem;
-      font-size: 0.72rem;
-      font-weight: 700;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: var(--blue);
-      margin-bottom: 0.65rem;
-    }
-
-    .eyebrow::before {
-      content: "";
-      width: 18px;
-      height: 2px;
-      background: var(--blue);
-      border-radius: 2px;
-    }
-
-    h1 {
-      font-size: 1.95rem;
-      font-weight: 800;
-      color: var(--text-strong);
-      letter-spacing: -0.01em;
-      line-height: 1.25;
-    }
-
-    .subtitle { color: var(--muted); font-size: 0.94rem; margin-top: 0.45rem; max-width: 780px; }
-
-    .hero-foot {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 1rem;
-      margin-top: 1.35rem;
-      padding-top: 1rem;
-      border-top: 1px solid var(--border-soft);
-    }
-
-    .legend { display: flex; gap: 1.1rem; flex-wrap: wrap; font-size: 0.8rem; color: var(--muted); }
-    .legend-item { display: flex; align-items: center; gap: 0.4rem; }
-    .dot { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
-    .dot-blue { background: var(--blue); }
-    .dot-purple { background: var(--purple); }
-    .dot-amber { background: var(--amber); }
-    .dot-green { background: var(--green); }
-    .dot-red { background: var(--red); }
-
-    .toc { display: flex; gap: 0.4rem; flex-wrap: wrap; }
-    .toc a {
-      font-size: 0.78rem;
-      color: var(--text);
-      text-decoration: none;
-      padding: 0.28rem 0.7rem;
-      border-radius: 999px;
-      border: 1px solid var(--border);
-      background: rgba(255, 255, 255, 0.8);
-    }
-    .toc a:hover { border-color: var(--blue-border); color: var(--blue); }
-
-    /* ---------- Section ---------- */
-    section { margin-top: 2.6rem; scroll-margin-top: 1.5rem; }
-
-    .section-head { display: flex; align-items: baseline; gap: 0.85rem; margin-bottom: 1.15rem; }
-
-    .section-num {
-      flex: none;
-      width: 2rem;
-      height: 2rem;
-      border-radius: 10px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 800;
-      font-size: 0.95rem;
-      color: var(--text-strong);
-      background: var(--bg-elev);
-      border: 1px solid var(--border);
-      transform: translateY(0.25rem);
-    }
-
-    h2 { font-size: 1.3rem; font-weight: 700; color: var(--text-strong); }
-    .section-desc { color: var(--muted); font-size: 0.86rem; margin-top: 0.15rem; }
-
-    .card {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 1.2rem;
-      box-shadow: var(--shadow);
-    }
-
-    .card-top {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 0.75rem;
-      flex-wrap: wrap;
-      padding-bottom: 0.75rem;
-      margin-bottom: 0.95rem;
-      border-bottom: 1px solid var(--border-soft);
-    }
-
-    .card-title { font-size: 1rem; font-weight: 700; color: var(--text-strong); }
-
-    .tag {
-      font-size: 0.72rem;
-      font-weight: 600;
-      padding: 0.16rem 0.55rem;
-      border-radius: 6px;
-      white-space: nowrap;
-      border: 1px solid var(--border);
-      color: var(--muted);
-      background: var(--bg-panel);
-    }
-    .tag-blue { background: var(--blue-bg); color: var(--blue); border-color: var(--blue-border); }
-    .tag-purple { background: var(--purple-bg); color: var(--purple); border-color: var(--purple-border); }
-    .tag-green { background: var(--green-bg); color: var(--green); border-color: var(--green-border); }
-    .tag-amber { background: var(--amber-bg); color: var(--amber); border-color: var(--amber-border); }
-    .tag-red { background: var(--red-bg); color: var(--red); border-color: var(--red-border); }
-
-    /* ---------- Grids ---------- */
-    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
-    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.85rem; }
-
-    .stage-box {
-      background: var(--bg-panel);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 0.9rem;
-      display: flex;
-      flex-direction: column;
-      gap: 0.45rem;
-    }
-
-    .stage-num {
-      font-family: var(--mono);
-      font-size: 0.72rem;
-      font-weight: 700;
-      color: var(--blue);
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-    }
-
-    .stage-title { font-size: 0.92rem; font-weight: 700; color: var(--text-strong); }
-    .stage-kv { font-size: 0.78rem; color: var(--muted); display: flex; flex-direction: column; gap: 0.25rem; margin-top: 0.2rem; }
-    .stage-kv div { display: flex; justify-content: space-between; gap: 0.5rem; border-top: 1px dashed var(--border); padding-top: 0.25rem; }
-
-    .pane-label {
-      font-size: 0.7rem;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: var(--muted);
-      margin-bottom: 0.45rem;
-    }
-
-    .kv-list {
-      list-style: none;
-      display: flex;
-      flex-direction: column;
-      gap: 0.4rem;
-      margin-bottom: 0.8rem;
-      font-size: 0.8rem;
-    }
-
-    .kv-list li {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 0.35rem 0.65rem;
-      background: var(--bg-panel);
-      border: 1px solid var(--border-soft);
-      border-radius: 8px;
-    }
-
-    .kv-key { color: var(--muted); font-weight: 600; font-size: 0.76rem; }
-
-    /* ---------- Table ---------- */
-    .table-wrap {
-      overflow-x: auto;
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      background: var(--bg-card);
-      font-size: 0.82rem;
-    }
-
-    th, td {
-      padding: 0.72rem 0.85rem;
-      text-align: left;
-      border-bottom: 1px solid var(--border-soft);
-      vertical-align: middle;
-    }
-
-    th {
-      background: var(--bg-panel);
-      color: var(--text-strong);
-      font-weight: 700;
-      white-space: nowrap;
-      font-size: 0.78rem;
-    }
-
-    th small { display: block; font-weight: 500; color: var(--muted); font-size: 0.7rem; }
-    td:first-child { white-space: nowrap; color: var(--text-strong); font-weight: 600; }
-    tbody tr:hover td { background: #f8fafc; }
-    tr:last-child td { border-bottom: none; }
-
-    @media (max-width: 960px) {
-      .grid-2, .grid-4 { grid-template-columns: 1fr; }
-    }
-  </style>
+  <link rel="stylesheet" href="research.css" />
+  <script defer src="research.js"></script>
 </head>
 <body>
-  <div class="container">
-    <header class="hero">
-      <div class="eyebrow">MoonDark Architecture Research · Author: Devin</div>
-      <h1>Background Tasks 投递语义与 API 设计调研</h1>
-      <p class="subtitle">
-        对比 Django 6.0、Celery、Go River、Rust Underway、Elixir Oban 与 Scala Akka Typed 的 Task 类型与 <code>enqueue</code> 签名设计。
-      </p>
-      <div class="hero-foot">
-        <div class="legend">
-          <span class="legend-item"><span class="dot dot-green"></span>At-Least-Once 闭环</span>
-          <span class="legend-item"><span class="dot dot-amber"></span>靠默认参数 + 文档约定</span>
-          <span class="legend-item"><span class="dot dot-purple"></span>编译期类型约束</span>
-          <span class="legend-item"><span class="dot dot-red"></span>存在丢任务 / 竞态窗口</span>
-        </div>
-        <nav class="toc">
-          <a href="#stages">1. 四个环节拆解</a>
-          <a href="#community">2. 社区代码示例</a>
-          <a href="#matrix">3. 横向对比表</a>
-        </nav>
+<main>
+  <header class="hero">
+    <div class="eyebrow">MoonDark Architecture Research · Author: GEMINI 4 Argon</div>
+    <h1>Background Tasks 投递语义与 API 设计调研</h1>
+    <p class="subtitle">对比 Django 6.0、Celery、Go River、Rust Underway、Elixir Oban 与 Scala Akka Typed 的 Task 类型与 <code>enqueue</code> 签名设计。</p>
+  </header>
+
+  <div class="tldr">
+    <ul>
+      <li>端到端 At-Least-Once 由 <strong>入队、认领、重试、幂等</strong> 4 个环节共同决定，只要有一环缺失，投递保证就不成立。</li>
+      <li>SQL 队列（River / Underway / Oban）默认 At-Least-Once，但「必须在事务里入队」只能靠<strong>文档约定</strong>，因为裸 <code>Insert</code> 始终可以直接调用。</li>
+      <li>只有 Akka Typed 用<strong>两套类型</strong>在编译期区分两种语义。</li>
+    </ul>
+  </div>
+
+  <section id="stages">
+    <h2>为什么裸 <code>enqueue</code> 做不到 At-Least-Once？</h2>
+    <p class="lead">投递保证由 4 个物理位置串联决定，缺失任一环都会落到对应的失败模式。</p>
+    <figure class="diagram">
+      <div class="mermaid">
+flowchart LR
+  subgraph S1 [" "]
+    direction TB
+    P["① 调用点<br>入队原子性"] -. 缺失 .-> P1["丢任务 / 幽灵任务"]
+  end
+  subgraph S2 [" "]
+    direction TB
+    C["② 认领<br>Worker 崩溃回收"] -. 缺失 .-> C1["取走即丢<br>At-Most-Once"]
+  end
+  subgraph S3 [" "]
+    direction TB
+    R["③ 异常<br>失败重试预算"] -. 缺失 .-> R1["一次报错直接 Failed"]
+  end
+  subgraph S4 [" "]
+    direction TB
+    H["④ 函数体<br>业务副作用幂等"] -. 缺失 .-> H1["重跑产生重复副作用"]
+  end
+  S1 --> S2 --> S3 --> S4
+  style S1 fill:none,stroke:none
+  style S2 fill:none,stroke:none
+  style S3 fill:none,stroke:none
+  style S4 fill:none,stroke:none
+  linkStyle 4,5,6 stroke:#d97757,stroke-width:2px
+  classDef bad fill:#faf9f5,stroke:#d97757,color:#c6613f,stroke-dasharray:4 3
+  class P1,C1,R1,H1 bad
       </div>
-    </header>
+      <figcaption>四个环节与各自缺失时的后果</figcaption>
+    </figure>
 
-    <!-- 1. 投递语义的四个环节 -->
-    <section id="stages">
-      <div class="section-head">
-        <span class="section-num">1</span>
-        <div>
-          <h2>为什么裸 <code>enqueue</code> 做不到真正的 At-Least-Once？</h2>
-          <p class="section-desc">端到端投递保证由 4 个物理位置共同决定，缺一不可。</p>
-        </div>
+    <figure class="diagram">
+      <div class="mermaid">
+sequenceDiagram
+  participant App as 调用方
+  participant DB as 业务库
+  participant Q as 队列
+  participant W as Worker
+  alt 先 Commit 后 enqueue
+    App->>DB: COMMIT 业务数据
+    Note over App: 进程崩溃
+    App--xQ: enqueue 未发生 → 丢任务
+  else 先 enqueue 后 Commit
+    App->>Q: enqueue（立即可见）
+    Q->>W: claim
+    W->>DB: 读业务数据 → 尚未提交
+    App->>DB: ROLLBACK → 幽灵任务
+  else enqueue_on(tx)
+    App->>DB: BEGIN
+    App->>DB: INSERT 业务行 + 任务行
+    App->>DB: COMMIT（原子可见）
+    DB->>W: claim
+  end
       </div>
-
-      <div class="grid-4">
-        <div class="stage-box">
-          <span class="stage-num">Stage 01 · 调用点 (Producer)</span>
-          <div class="stage-title">入队原子性</div>
-          <div class="stage-kv">
-            <div><span>先 Commit 后 <code>enqueue</code></span><span class="tag tag-red">崩溃即丢任务</span></div>
-            <div><span>先 <code>enqueue</code> 后 Commit</span><span class="tag tag-red">Worker 竞态 / 幽灵任务</span></div>
-            <div><span><code>enqueue_on(tx)</code></span><span class="tag tag-green">与业务同事务提交</span></div>
-          </div>
-        </div>
-
-        <div class="stage-box">
-          <span class="stage-num">Stage 02 · 认领 (Claim)</span>
-          <div class="stage-title">Worker 崩溃回收</div>
-          <div class="stage-kv">
-            <div><span>Early Ack</span><span class="tag tag-purple">取走即删 (AtMostOnce)</span></div>
-            <div><span>Lease / Reclaim</span><span class="tag tag-green">超时回收 (AtLeastOnce)</span></div>
-          </div>
-        </div>
-
-        <div class="stage-box">
-          <span class="stage-num">Stage 03 · 异常 (Retry)</span>
-          <div class="stage-title">失败重试预算</div>
-          <div class="stage-kv">
-            <div><span><code>max_attempts = 1</code></span><span class="tag tag-purple">报错直接 Failed</span></div>
-            <div><span><code>max_attempts &gt; 1</code></span><span class="tag tag-green">退避重回 Ready</span></div>
-          </div>
-        </div>
-
-        <div class="stage-box">
-          <span class="stage-num">Stage 04 · 函数体 (Handler)</span>
-          <div class="stage-title">业务副作用幂等</div>
-          <div class="stage-kv">
-            <div><span>DB 写入</span><span class="tag tag-blue">唯一键 / 状态机</span></div>
-            <div><span>外部 API</span><span class="tag tag-blue">传 <code>idempotency_key</code></span></div>
-          </div>
-        </div>
+      <figcaption>① 入队位置的三种写法：只有同事务入队没有窗口</figcaption>
+    </figure>
+    <figure class="diagram">
+      <div class="mermaid">
+stateDiagram-v2
+  [*] --> Ready: 事务提交
+  Ready --> Running: claim（FIFO，run_after 已到）
+  Running --> Successful: handler 返回
+  Running --> Ready: 抛错，预算未用尽（退避）
+  Running --> Failed: 抛错，预算用尽
+  Running --> Running: worker 崩溃，超时后被重新 claim
+  Successful --> [*]
+  Failed --> [*]
+  classDef ok stroke:#788c5d,color:#5f7247
+  classDef bad stroke:#d97757,color:#c6613f
+  class Successful ok
+  class Failed bad
       </div>
-    </section>
+      <figcaption>② 认领 + ③ 重试：Lease 回收与重试预算（以 MoonDark <code>TaskResultStatus</code> 为例）</figcaption>
+    </figure>
 
-    <!-- 2. 社区各语言 API 与代码示例 -->
-    <section id="community">
-      <div class="section-head">
-        <span class="section-num">2</span>
-        <div>
-          <h2>主流库代码对照：Task 是什么类型？怎么 <code>enqueue</code>？</h2>
-          <p class="section-desc">SQL 队列普遍用「默认参数 + 文档约定」；Actor 框架（Akka Typed）用「独立类型」在编译期强制区分。</p>
-        </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>环节</th><th>At-Most-Once 写法</th><th>At-Least-Once 写法</th></tr></thead>
+        <tbody>
+          <tr><td>① 调用点</td><td>先 Commit 后 enqueue <span class="tag red">崩溃即丢</span><br>先 enqueue 后 Commit <span class="tag red">竞态 / 幽灵任务</span></td><td><code>enqueue_on(tx)</code> <span class="tag green">与业务同事务提交</span></td></tr>
+          <tr><td>② 认领</td><td>Early Ack <span class="tag purple">取走即删</span></td><td>Lease / Reclaim <span class="tag green">超时回收</span></td></tr>
+          <tr><td>③ 异常</td><td><code>max_attempts = 1</code> <span class="tag purple">报错直接 Failed</span></td><td><code>max_attempts &gt; 1</code> <span class="tag green">退避重回 Ready</span></td></tr>
+          <tr><td>④ 函数体</td><td>—</td><td>DB 写入用唯一键 / 状态机；外部 API 传 <code>idempotency_key</code> <span class="tag blue">用户责任</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="matrix">
+    <h2>横向对比：默认语义 × 约束手段</h2>
+    <p class="lead">SQL 队列普遍是「默认参数 + 文档约定」；Akka Typed 用「独立类型」在编译期强制区分。</p>
+    <figure class="diagram">
+      <div class="mermaid">
+quadrantChart
+  title 各库在两种语义上的定位
+  x-axis "默认 At-Most-Once" --> "默认 At-Least-Once"
+  y-axis "靠文档约定" --> "靠类型强制"
+  quadrant-1 "默认安全且强制"
+  quadrant-2 "类型区分语义"
+  quadrant-3 "全靠用户配置"
+  quadrant-4 "默认安全但可绕过"
+  Celery: [0.2, 0.4]
+  Django: [0.5, 0.15]
+  River: [0.85, 0.3]
+  Underway: [0.75, 0.25]
+  Oban: [0.9, 0.35]
+  "Akka Typed": [0.25, 0.88]
+  MoonDark: [0.8, 0.72]
       </div>
+      <figcaption>MoonDark 的 <code>TransactionalTaskDef</code> 只暴露 <code>enqueue_on(tx)</code>，事务入队由类型保证；重试与回收仍靠参数</figcaption>
+    </figure>
 
-      <div class="grid-2">
-        <!-- Go River -->
-        <article class="card">
-          <div class="card-top">
-            <span class="card-title">Go · River</span>
-            <span class="tag tag-amber">默认参数 MaxAttempts=25 + 文档推荐 InsertTx</span>
-          </div>
-          <ul class="kv-list">
-            <li><span class="kv-key">Task 类型</span><code>struct SyncBillArgs</code> (实现 <code>JobArgs</code>)</li>
-            <li><span class="kv-key">入队方法</span><code>client.InsertTx(tx, args)</code> / <code>client.Insert(args)</code></li>
-            <li><span class="kv-key">编译期限制</span><span class="tag tag-red">无（任何 Job 都能裸调 Insert）</span></li>
-          </ul>
-          <pre><span class="kw">type</span> <span class="ty">SyncBillArgs</span> <span class="kw">struct</span> { BillID <span class="ty">int</span> }
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>框架 / 库</th><th>默认投递语义</th><th>靠什么约束用户</th><th>入队 API</th><th>能否混用两种语义</th></tr></thead>
+        <tbody>
+          <tr><td>Django 6.0 <code>tasks</code></td><td>取决于第三方 Backend</td><td>Feature Flags + 文档</td><td><code>task.enqueue()</code></td><td><span class="tag red">无内置 per-task 区分</span></td></tr>
+          <tr><td>Celery</td><td><span class="tag purple">At-Most-Once</span> Early Ack</td><td><code>@task(acks_late, max_retries)</code></td><td><code>task.delay()</code></td><td><span class="tag green">按 Task 装饰器配置</span></td></tr>
+          <tr><td>Go River</td><td><span class="tag green">At-Least-Once</span> 25 次重试</td><td>默认参数 + 文档推荐 <code>InsertTx</code></td><td><code>InsertTx(tx)</code> / <code>Insert()</code></td><td><span class="tag amber">仅靠 MaxAttempts=1 近似</span></td></tr>
+          <tr><td>Rust Underway</td><td><span class="tag green">At-Least-Once</span></td><td>默认 RetryPolicy + 文档示例</td><td><code>enqueue_using(tx)</code> / <code>enqueue()</code></td><td><span class="tag amber">仅靠 RetryPolicy::never()</span></td></tr>
+          <tr><td>Elixir Oban</td><td><span class="tag green">At-Least-Once</span> 20 次重试</td><td>默认参数 + <code>Ecto.Multi</code></td><td><code>Oban.insert(multi, cs)</code></td><td><span class="tag amber">仅靠 max_attempts: 1</span></td></tr>
+          <tr><td>Scala Akka Typed</td><td><span class="tag purple">At-Most-Once</span> Actor <code>!</code></td><td><span class="tag purple">编译期不同类型</span></td><td><code>ref ! msg</code> vs <code>sendNextTo ! msg</code></td><td><span class="tag green">类型级严格区分</span></td></tr>
+          <tr><td>Dkron（运维 Cron）</td><td>基础设施定时触发</td><td>外部 Raft 集群 + HTTP Webhook</td><td>无代码级 <code>enqueue</code></td><td><span class="tag red">不适用，无法加入业务事务</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="community">
+    <h2>代码对照：Task 是什么类型？怎么 <code>enqueue</code>？</h2>
+    <p class="lead">各库定义一个任务并入队的最小写法。</p>
+
+    <article class="example">
+      <h3>Go · River <span class="tag amber">MaxAttempts=25 + 文档推荐 InsertTx</span></h3>
+      <dl class="kv">
+        <dt>Task 类型</dt><dd><code>struct SyncBillArgs</code>（实现 <code>JobArgs</code>）</dd>
+        <dt>入队方法</dt><dd><code>client.InsertTx(tx, args)</code> / <code>client.Insert(args)</code></dd>
+        <dt>编译期限制</dt><dd><span class="tag red">无，任何 Job 都能裸调 Insert</span></dd>
+      </dl>
+      <pre><span class="kw">type</span> <span class="ty">SyncBillArgs</span> <span class="kw">struct</span> { BillID <span class="ty">int</span> }
 <span class="kw">func</span> (<span class="ty">SyncBillArgs</span>) <span class="fn">Kind</span>() <span class="ty">string</span> { <span class="kw">return</span> <span class="st">"sync_bill"</span> }
 <span class="kw">func</span> (<span class="ty">SyncBillArgs</span>) <span class="fn">InsertOpts</span>() river.<span class="ty">InsertOpts</span> {
     <span class="kw">return</span> river.<span class="ty">InsertOpts</span>{ MaxAttempts: 5 } <span class="cm">// 不写默认 25</span>
@@ -418,20 +175,16 @@
 _, err := client.<span class="fn">InsertTx</span>(ctx, tx, <span class="ty">SyncBillArgs</span>{BillID: 42}, <span class="kw">nil</span>)
 <span class="cm">// 2. 非事务入队（编译器不报错，存在丢任务窗口）</span>
 _, err  = client.<span class="fn">Insert</span>(ctx, <span class="ty">SyncBillArgs</span>{BillID: 42}, <span class="kw">nil</span>)</pre>
-        </article>
+    </article>
 
-        <!-- Rust Underway -->
-        <article class="card">
-          <div class="card-top">
-            <span class="card-title">Rust · Underway</span>
-            <span class="tag tag-amber">默认 RetryPolicy::default() + 双入队方法</span>
-          </div>
-          <ul class="kv-list">
-            <li><span class="kv-key">Task 类型</span><code>Job&lt;Input, State&gt;</code></li>
-            <li><span class="kv-key">入队方法</span><code>job.enqueue_using(&amp;mut *tx, &amp;in)</code> / <code>job.enqueue(&amp;in)</code></li>
-            <li><span class="kv-key">编译期限制</span><span class="tag tag-red">泛型仅约束 Input，不约束是否进事务</span></li>
-          </ul>
-          <pre><span class="kw">let</span> sync_bill: <span class="ty">Job</span>&lt;<span class="ty">SyncBill</span>, ()&gt; = <span class="ty">Job</span>::<span class="fn">builder</span>()
+    <article class="example">
+      <h3>Rust · Underway <span class="tag amber">RetryPolicy::default() + 双入队方法</span></h3>
+      <dl class="kv">
+        <dt>Task 类型</dt><dd><code>Job&lt;Input, State&gt;</code></dd>
+        <dt>入队方法</dt><dd><code>job.enqueue_using(&amp;mut *tx, &amp;in)</code> / <code>job.enqueue(&amp;in)</code></dd>
+        <dt>编译期限制</dt><dd><span class="tag red">泛型只约束 Input，不约束是否进事务</span></dd>
+      </dl>
+      <pre><span class="kw">let</span> sync_bill: <span class="ty">Job</span>&lt;<span class="ty">SyncBill</span>, ()&gt; = <span class="ty">Job</span>::<span class="fn">builder</span>()
     .<span class="fn">step</span>(|_cx, <span class="ty">SyncBill</span> { id }| <span class="kw">async move</span> { <span class="ty">To</span>::<span class="fn">done</span>() })
     .<span class="fn">name</span>(<span class="st">"sync_bill"</span>).<span class="fn">pool</span>(pool).<span class="fn">build</span>().<span class="kw">await</span>?;
 
@@ -439,20 +192,16 @@ _, err  = client.<span class="fn">Insert</span>(ctx, <span class="ty">SyncBillAr
 sync_bill.<span class="fn">enqueue_using</span>(&amp;<span class="kw">mut</span> *tx, &amp;<span class="ty">SyncBill</span> { id: 42 }).<span class="kw">await</span>?;
 <span class="cm">// 2. 连接池直接入队（同样随时可调）</span>
 sync_bill.<span class="fn">enqueue</span>(&amp;<span class="ty">SyncBill</span> { id: 42 }).<span class="kw">await</span>?;</pre>
-        </article>
+    </article>
 
-        <!-- Elixir Oban -->
-        <article class="card">
-          <div class="card-top">
-            <span class="card-title">Elixir · Oban</span>
-            <span class="tag tag-amber">默认 max_attempts: 20 + Ecto.Multi</span>
-          </div>
-          <ul class="kv-list">
-            <li><span class="kv-key">Task 类型</span><code>Oban.Changeset</code> (由 <code>Worker.new/2</code> 构造)</li>
-            <li><span class="kv-key">入队方法</span><code>Oban.insert(multi, name, cs)</code> / <code>Oban.insert(cs)</code></li>
-            <li><span class="kv-key">编译期限制</span><span class="tag tag-red">无（动态类型）</span></li>
-          </ul>
-          <pre><span class="kw">defmodule</span> <span class="ty">MyApp.SyncBill</span> <span class="kw">do</span>
+    <article class="example">
+      <h3>Elixir · Oban <span class="tag amber">max_attempts: 20 + Ecto.Multi</span></h3>
+      <dl class="kv">
+        <dt>Task 类型</dt><dd><code>Oban.Changeset</code>（由 <code>Worker.new/2</code> 构造）</dd>
+        <dt>入队方法</dt><dd><code>Oban.insert(multi, name, cs)</code> / <code>Oban.insert(cs)</code></dd>
+        <dt>编译期限制</dt><dd><span class="tag red">无（动态类型）</span></dd>
+      </dl>
+      <pre><span class="kw">defmodule</span> <span class="ty">MyApp.SyncBill</span> <span class="kw">do</span>
   <span class="kw">use</span> <span class="ty">Oban.Worker</span>, max_attempts: 5, unique: [period: 60]
   <span class="kw">def</span> <span class="fn">perform</span>(%<span class="ty">Oban.Job</span>{args: %{<span class="st">"id"</span> =&gt; id}}), <span class="kw">do</span>: :ok
 <span class="kw">end</span>
@@ -462,20 +211,16 @@ sync_bill.<span class="fn">enqueue</span>(&amp;<span class="ty">SyncBill</span> 
 |&gt; <span class="ty">Ecto.Multi</span>.<span class="fn">insert</span>(:bill, bill_cs)
 |&gt; <span class="ty">Oban</span>.<span class="fn">insert</span>(:job, <span class="ty">MyApp.SyncBill</span>.<span class="fn">new</span>(%{id: 42}))
 |&gt; <span class="ty">Repo</span>.<span class="fn">transaction</span>()</pre>
-        </article>
+    </article>
 
-        <!-- Scala Akka Typed -->
-        <article class="card">
-          <div class="card-top">
-            <span class="card-title">Scala · Akka Typed</span>
-            <span class="tag tag-purple">两套完全不同的类型（编译期强隔离）</span>
-          </div>
-          <ul class="kv-list">
-            <li><span class="kv-key">AtMostOnce 类型</span><code>ActorRef[Cmd]</code> → 直接 <code>ref ! msg</code></li>
-            <li><span class="kv-key">AtLeastOnce 类型</span><code>ProducerController[Cmd]</code> + <code>Delivery[Cmd]</code></li>
-            <li><span class="kv-key">编译期限制</span><span class="tag tag-green">AtLeastOnce 严禁裸发，Consumer 强制带 confirmTo</span></li>
-          </ul>
-          <pre><span class="cm">// At-Most-Once：普通 ActorRef，直接 ! 发送</span>
+    <article class="example">
+      <h3>Scala · Akka Typed <span class="tag purple">两套类型，编译期强隔离</span></h3>
+      <dl class="kv">
+        <dt>AtMostOnce 类型</dt><dd><code>ActorRef[Cmd]</code> → 直接 <code>ref ! msg</code></dd>
+        <dt>AtLeastOnce 类型</dt><dd><code>ProducerController[Cmd]</code> + <code>Delivery[Cmd]</code></dd>
+        <dt>编译期限制</dt><dd><span class="tag green">AtLeastOnce 不能裸发，Consumer 强制带 confirmTo</span></dd>
+      </dl>
+      <pre><span class="cm">// At-Most-Once：普通 ActorRef，直接 ! 发送</span>
 smsActor ! <span class="ty">SendSms</span>(<span class="st">"13800000000"</span>)
 
 <span class="cm">// At-Least-Once：只能在收到 RequestNext 令牌时通过 sendNextTo 发送</span>
@@ -486,20 +231,16 @@ smsActor ! <span class="ty">SendSms</span>(<span class="st">"13800000000"</span>
 <span class="kw">case</span> <span class="ty">ConsumerController.Delivery</span>(<span class="ty">SyncBill</span>(id), confirmTo) =&gt;
   <span class="fn">syncBill</span>(id)
   confirmTo ! <span class="ty">ConsumerController.Confirmed</span></pre>
-        </article>
+    </article>
 
-        <!-- Python Django 6.0 -->
-        <article class="card">
-          <div class="card-top">
-            <span class="card-title">Python · Django 6.0 (<code>django.tasks</code>)</span>
-            <span class="tag">仅定义接口契约，不含重试参数与 Worker</span>
-          </div>
-          <ul class="kv-list">
-            <li><span class="kv-key">Task 类型</span><code>django.tasks.Task</code></li>
-            <li><span class="kv-key">入队方法</span><code>task.enqueue(*args, **kwargs)</code></li>
-            <li><span class="kv-key">事务结合</span>靠 <code>transaction.on_commit(...)</code>（Commit 后崩溃仍会丢）</li>
-          </ul>
-          <pre>@<span class="fn">task</span>(priority=10, queue_name=<span class="st">"default"</span>, takes_context=<span class="kw">True</span>)
+    <article class="example">
+      <h3>Python · Django 6.0 <code>django.tasks</code> <span class="tag">只定义接口契约，不含重试参数与 Worker</span></h3>
+      <dl class="kv">
+        <dt>Task 类型</dt><dd><code>django.tasks.Task</code></dd>
+        <dt>入队方法</dt><dd><code>task.enqueue(*args, **kwargs)</code></dd>
+        <dt>事务结合</dt><dd>靠 <code>transaction.on_commit(...)</code>（Commit 后崩溃仍会丢）</dd>
+      </dl>
+      <pre>@<span class="fn">task</span>(priority=10, queue_name=<span class="st">"default"</span>, takes_context=<span class="kw">True</span>)
 <span class="kw">def</span> <span class="fn">sync_bill</span>(context: <span class="ty">TaskContext</span>, bill_id: <span class="ty">int</span>):
     <span class="cm"># context.attempt 从 1 开始，但 @task 无 max_attempts 参数</span>
     ...
@@ -508,105 +249,24 @@ smsActor ! <span class="ty">SendSms</span>(<span class="st">"13800000000"</span>
     Bill.objects.<span class="fn">create</span>(id=42)
     <span class="cm"># 注意：on_commit 在事务提交后执行，若此时进程崩溃，任务丢失</span>
     transaction.<span class="fn">on_commit</span>(<span class="fn">partial</span>(sync_bill.enqueue, bill_id=42))</pre>
-        </article>
+    </article>
 
-        <!-- Python Celery -->
-        <article class="card">
-          <div class="card-top">
-            <span class="card-title">Python · Celery</span>
-            <span class="tag tag-blue">Per-Task 装饰器三元组切换语义</span>
-          </div>
-          <ul class="kv-list">
-            <li><span class="kv-key">AtMostOnce (默认)</span><code>acks_late=False, max_retries=0</code></li>
-            <li><span class="kv-key">AtLeastOnce</span><code>acks_late=True, reject_on_worker_lost=True</code></li>
-            <li><span class="kv-key">入队方法</span><code>task.delay(...)</code> / <code>task.apply_async(...)</code></li>
-          </ul>
-          <pre><span class="cm"># 1. At-Most-Once（Worker 拿到消息先 ACK，崩溃绝不重跑）</span>
+    <article class="example">
+      <h3>Python · Celery <span class="tag blue">装饰器上的三个参数切换语义</span></h3>
+      <dl class="kv">
+        <dt>AtMostOnce（默认）</dt><dd><code>acks_late=False, max_retries=0</code></dd>
+        <dt>AtLeastOnce</dt><dd><code>acks_late=True, reject_on_worker_lost=True</code></dd>
+        <dt>入队方法</dt><dd><code>task.delay(...)</code> / <code>task.apply_async(...)</code></dd>
+      </dl>
+      <pre><span class="cm"># 1. At-Most-Once（Worker 拿到消息先 ACK，崩溃绝不重跑）</span>
 @app.<span class="fn">task</span>(acks_late=<span class="kw">False</span>, max_retries=0)
 <span class="kw">def</span> <span class="fn">send_sms</span>(phone: <span class="ty">str</span>): ...
 
 <span class="cm"># 2. At-Least-Once（执行完才 ACK，进程被杀自动重回队列）</span>
 @app.<span class="fn">task</span>(acks_late=<span class="kw">True</span>, reject_on_worker_lost=<span class="kw">True</span>, max_retries=5)
 <span class="kw">def</span> <span class="fn">sync_bill</span>(bill_id: <span class="ty">int</span>): ...</pre>
-        </article>
-      </div>
-    </section>
-
-    <!-- 3. 横向对比矩阵 -->
-    <section id="matrix">
-      <div class="section-head">
-        <span class="section-num">3</span>
-        <div>
-          <h2>横向对比矩阵</h2>
-          <p class="section-desc">主流库如何约束「默认 At-Least-Once」与「可选自由组合」。</p>
-        </div>
-      </div>
-
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>框架 / 库</th>
-              <th>默认投递语义</th>
-              <th>靠什么约束用户？</th>
-              <th>入队 API</th>
-              <th>能否混跑 AtMostOnce 与 AtLeastOnce？</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>Django 6.0 <code>tasks</code></td>
-              <td>取决于第三方 Backend</td>
-              <td>Feature Flags + 文档</td>
-              <td><code>task.enqueue()</code></td>
-              <td><span class="tag tag-red">无内置 per-task 区分</span></td>
-            </tr>
-            <tr>
-              <td>Celery</td>
-              <td><span class="tag tag-purple">At-Most-Once</span> (Early Ack)</td>
-              <td><code>@task(acks_late, max_retries)</code></td>
-              <td><code>task.delay()</code></td>
-              <td><span class="tag tag-green">支持 (按 Task 装饰器配置)</span></td>
-            </tr>
-            <tr>
-              <td>Go River</td>
-              <td><span class="tag tag-green">At-Least-Once</span> (25 次重试)</td>
-              <td>默认参数 + 文档推荐 <code>InsertTx</code></td>
-              <td><code>InsertTx(tx)</code> / <code>Insert()</code></td>
-              <td><span class="tag tag-amber">仅靠 MaxAttempts=1 近似</span></td>
-            </tr>
-            <tr>
-              <td>Rust Underway</td>
-              <td><span class="tag tag-green">At-Least-Once</span></td>
-              <td>默认 RetryPolicy + 文档示例</td>
-              <td><code>enqueue_using(tx)</code> / <code>enqueue()</code></td>
-              <td><span class="tag tag-amber">仅靠 RetryPolicy::never()</span></td>
-            </tr>
-            <tr>
-              <td>Elixir Oban</td>
-              <td><span class="tag tag-green">At-Least-Once</span> (20 次重试)</td>
-              <td>默认参数 + <code>Ecto.Multi</code></td>
-              <td><code>Oban.insert(multi, cs)</code></td>
-              <td><span class="tag tag-amber">仅靠 max_attempts: 1</span></td>
-            </tr>
-            <tr>
-              <td>Scala Akka Typed</td>
-              <td><span class="tag tag-purple">At-Most-Once</span> (Actor <code>!</code>)</td>
-              <td><span class="tag tag-purple">编译期不同类型</span></td>
-              <td><code>ref ! msg</code> vs <code>sendNextTo ! msg</code></td>
-              <td><span class="tag tag-green">类型级严格区分</span></td>
-            </tr>
-            <tr>
-              <td>Dkron (运维 Cron)</td>
-              <td>基础设施定时触发</td>
-              <td>外部 Raft 集群 + HTTP Webhook</td>
-              <td>无代码级 <code>enqueue</code></td>
-              <td><span class="tag tag-red">不适用（无法加入业务事务）</span></td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
-  </div>
+    </article>
+  </section>
+</main>
 </body>
 </html>
