@@ -347,24 +347,39 @@ async fn serve_creations(pool : Pool, group : @async.TaskGroup[Unit]) -> Unit {
 /// driver, spawn the connection's executor on the pool's task group,
 /// wait for the connection to become ready, then deliver the entry to
 /// the requester. On any failure the requester's result queue is closed
-/// with the original error.
+/// with `@driver.BadConn` — setup failures mean no operation reached
+/// the server, so `acquire_retry` may safely retry the request.
 async fn create_physical(
   pool : Pool,
   group : @async.TaskGroup[Unit],
   request : CreateRequest,
 ) -> Unit {
+  let mut conn : &@driver.Conn? = None
   let created : Result[ConnEntry, Error] = Ok(
     {
-      let (conn, executor) = pool.connector.connect()
+      let (c, executor) = pool.connector.connect()
+      conn = Some(c)
       group.spawn_bg(no_wait=true, allow_failure=true, () => executor.run())
-      conn.ready()
-      pool.new_entry(conn, @env.now().reinterpret_as_int64())
+      c.ready()
+      pool.new_entry(c, @env.now().reinterpret_as_int64())
     },
   ) catch {
     e => Err(e)
   }
   match created {
-    Err(e) => request.result.close(error=e)
+    // Failures here mean the operation never reached the server, so
+    // the request may be retried on a fresh connection: the error is
+    // delivered as `BadConn` and `acquire_retry` handles the retry.
+    Err(e) => {
+      // connect() succeeded but ready() failed: close the half-open
+      // connection so its socket/executor cannot leak per retry.
+      if conn is Some(c) {
+        c.close() catch {
+          _ => ()
+        }
+      }
+      request.result.close(error=@driver.BadConn(e))
+    }
     Ok(entry) => {
       pool.active_count += 1
       let delivered = !pool.closed &&
@@ -458,17 +473,22 @@ async fn acquire_retry(pool : Pool, attempt : Int32) -> ConnEntry? {
 
 ///|
 /// Release `entry` after a failed operation, discarding it when `e` is
-/// `BadConn`. Returns `true` when the error is a `BadConn` and attempts
-/// remain, i.e. the operation may be retried on a fresh connection.
+/// `BadConn` or the driver connection already reports itself dead.
+/// Returns `true` when the error is a `BadConn` and attempts remain,
+/// i.e. the operation may be retried on a fresh connection.
 async fn release_failed(
   pool : Pool,
   entry : ConnEntry,
   e : Error,
   attempt : Int32,
 ) -> Bool {
-  let bad = e is @driver.BadConn(_)
+  // A non-BadConn error still discards the entry when the driver
+  // connection reports itself dead — the error propagates (no retry:
+  // the operation may have reached the server) but a provably dead
+  // connection is never handed out again.
+  let bad = e is @driver.BadConn(_) || !entry.conn.is_valid()
   pool.release(entry, bad~)
-  bad && attempt < max_bad_conn_retries
+  e is @driver.BadConn(_) && attempt < max_bad_conn_retries
 }
 
 ///|

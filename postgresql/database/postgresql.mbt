@@ -119,25 +119,20 @@ struct Conn {
 }
 
 ///|
-/// Run `f`, translating errors that mean the connection is dead into
-/// `@driver.BadConn` so the pool discards the connection. Database
-/// errors reported by the server, codec errors and constraint failures
-/// leave the connection usable and are re-raised unchanged.
-async fn[T] Conn::op(self : Conn, f : async () -> T) -> T {
+/// Run `f`, reporting errors that prove the operation never reached the
+/// server as `@driver.BadConn` so the pool discards the connection and
+/// may retry on a fresh one. Errors that kill the connection
+/// mid-operation — `Protocol` desyncs, transport EOF and other unknown
+/// failures — are re-raised unchanged: the server may already have
+/// executed the operation, so retrying could duplicate it. Such a
+/// connection is returned to the pool as healthy and discarded by
+/// `is_valid` on the next checkout.
+async fn[T] Conn::op(_self : Conn, f : async () -> T) -> T {
   f() catch {
-    e =>
-      match e {
-        @client.ClientError::Closed(_)
-        | @client.ClientError::Protocol(_)
-        | @client.ClientError::Ssl(_)
-        | @client.ClientError::UnexpectedMessage(_) => raise @driver.BadConn(e)
-        _ =>
-          if self.inner.is_closed() {
-            raise @driver.BadConn(e)
-          } else {
-            raise e
-          }
-      }
+    // The client's operation gate rejects work on a closed connection
+    // before it reaches the wire, so it was never sent to the server.
+    @client.ClientError::Closed(_) as e => raise @driver.BadConn(e)
+    e => raise e
   }
 }
 

@@ -4,13 +4,60 @@
 
 Modern Batteries-included backend framework, based on MoonBack.
 
-## 模块
+## Install
 
-`xziheng/moondark`（`core/`）定义框架接口，只包含无第三方依赖的实现。依赖第三方技术的后端由集成模块提供，每个能力是一个与 core 包同名的子包：
+Add MoonDark to your project:
 
-| 集成模块 | `database` | `sessions` |
-|---|---|---|
-| [`xziheng/moondark_sqlite`](sqlite/README.mbt.md) | SQLite 驱动 | `SqliteSessionStore` |
-| [`xziheng/moondark_postgresql`](postgresql/README.mbt.md) | PostgreSQL 驱动 | `PostgresSessionStore` |
+```bash
+moon add xziheng/moondark
+```
 
-SQL 使用各后端的原生占位符（SQLite 为 `?`，PostgreSQL 为 `$1`、`$2`…），驱动不改写 SQL。
+Depending on the features you need, you may also need to add the following dependencies:
+
+```bash
+# Use SQLite as database
+moon add xziheng/moondark_sqlite
+# Use PostgreSQL as database
+moon add xziheng/moondark_postgresql
+```
+
+## What you get
+
+- [sessions](./core/sessions/README.mbt.md): Session management.
+- [auth](./core/auth/README.mbt.md): User authentication including password and OAuth2/OIDC login.
+- [tasks](./core/tasks/README.mbt.md): Transactional background task queue and worker.
+- [files](./core/files/README.mbt.md): File/attachment storage with presigned upload/download URLs.
+- [migration](./core/migration/README.mbt.md): In-place SQL and code database migrations.
+- [database/sql](./core/database/sql/README.mbt.md): Connection pool and SQL query API (`SQLite` / `PostgreSQL`).
+- [csrf](./core/csrf/README.mbt.md): Stateless `Sec-Fetch-Site` / `Origin` CSRF protection middleware.
+
+## Quick Start
+
+```mbt
+async fn main {
+  let files = @files.CasFileStore::new(
+    root="./uploads",
+    catalog=@files.MemoryCatalog::new(),
+    key="app-secret",
+  )
+  let app = @moonback.App(ctx => {
+    ctx.add_middleware(@csrf.middleware())
+    ctx.add_middleware(@sessions.middleware(@sessions.MemorySessionStore()))
+    ctx.use_(files.routes())
+
+    ctx.get("/", (req, res) => {
+      let session = @sessions.get_session(req).unwrap()
+      let views = match session["views"] {
+        Some(Number(n, ..)) => n.to_int() + 1
+        _ => 1
+      }
+      session["views"] = Json(views)
+      res.send_text("Views: \{views}")
+    })
+  })
+  defer app.close()
+
+  let server = @moonback.listen(port=3000)
+  app.serve(server)
+}
+```
