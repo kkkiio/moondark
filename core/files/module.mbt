@@ -15,7 +15,10 @@ pub fn CasFileStore::routes(self : CasFileStore) -> @moonback.Module {
 /// 直传路由的通用挂载：字节通道走 `LocalStore` 窄接口（上传流式落盘、
 /// 下载返回已打开的文件），凭证签发/验签走 `Presigner`——两者解耦，
 /// 任何 `LocalStore` 实现都能复用同一套路由。
-pub fn mount_routes(store : &LocalStore, presigner : Presigner) -> @moonback.Module {
+pub fn mount_routes(
+  store : &LocalStore,
+  presigner : Presigner,
+) -> @moonback.Module {
   @moonback.Module(ctx => {
     ctx.add_route(
       @http.RequestMethod::Put,
