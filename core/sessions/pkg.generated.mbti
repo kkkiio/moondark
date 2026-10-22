@@ -2,6 +2,7 @@
 package "xziheng/moondark/sessions"
 
 import {
+  "moonbitlang/core/debug",
   "moonbitlang/core/json",
   "moonbitlang/moonback",
 }
@@ -9,7 +10,7 @@ import {
 // Values
 pub fn get_session(@moonback.Request) -> Session?
 
-pub fn middleware(&SessionStore, session_cookie_name? : String, max_age? : UInt64) -> @moonback.Middleware
+pub fn middleware(&SessionStore, session_cookie_name? : String, max_age? : UInt64, same_site? : SameSite, secure? : Bool) -> @moonback.Middleware
 
 // Errors
 
@@ -21,6 +22,15 @@ pub async fn MemorySessionStore::delete(Self, String) -> Unit
 pub async fn MemorySessionStore::get(Self, String) -> Session?
 pub async fn MemorySessionStore::update(Self, Session) -> Bool
 pub impl SessionStore for MemorySessionStore
+
+pub(all) enum SameSite {
+  Lax
+  Strict
+  None
+} derive(Eq, @debug.Debug)
+pub fn SameSite::equal(Self, Self) -> Bool
+pub fn SameSite::not_equal(Self, Self) -> Bool
+pub fn SameSite::to_repr(Self) -> @debug.Repr
 
 type Session
 pub fn Session::cycle_key(Self) -> Unit

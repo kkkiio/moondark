@@ -30,6 +30,20 @@ impl @moonback.Flusher for DiscardWriter with fn flush(_) {
 impl @moonback.WriteFlusher for DiscardWriter
 
 ///|
+/// 会话 Cookie 的 `SameSite` 属性策略。
+pub(all) enum SameSite {
+  Lax
+  Strict
+  None
+} derive(Debug, Eq)
+
+///|
+pub extend SameSite with Debug::{to_repr}
+
+///|
+pub extend SameSite with Eq::{equal, not_equal}
+
+///|
 /// create a middleware that manages sessions
 /// 
 /// `max_age` limits the lifetime of a session in seconds, 
@@ -39,7 +53,16 @@ pub fn middleware(
   session_store : &SessionStore,
   session_cookie_name~ : String = "sessionid",
   max_age~ : UInt64 = 1209600,
+  same_site~ : SameSite = Lax,
+  secure~ : Bool = false,
 ) -> @moonback.Middleware {
+  let same_site_str = match same_site {
+    Lax => "Lax"
+    Strict => "Strict"
+    None => "None"
+  }
+  let secure_attr = if secure { "; Secure" } else { "" }
+  let cookie_attrs = "; Path=/; HttpOnly; SameSite=\{same_site_str}\{secure_attr}"
   Middleware(next => {
     (req, res) => {
       let session_id = req.cookie().get(session_cookie_name)
@@ -69,7 +92,7 @@ pub fn middleware(
               .to_mut()
               ..set(
                 "set-cookie",
-                "\{session_cookie_name}=; Path=/; HttpOnly; Max-Age=0",
+                "\{session_cookie_name}=\{cookie_attrs}; Max-Age=0",
               )
               .to_immut(),
             )
@@ -89,7 +112,7 @@ pub fn middleware(
             .to_mut()
             ..set(
               "set-cookie",
-              "\{session_cookie_name}=\{session.key}; Path=/; HttpOnly",
+              "\{session_cookie_name}=\{session.key}\{cookie_attrs}",
             )
             .to_immut(),
           )

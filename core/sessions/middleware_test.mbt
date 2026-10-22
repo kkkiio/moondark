@@ -453,3 +453,133 @@ async test "flush then write starts a fresh session" {
     }
   })
 }
+
+///|
+async test "session cookie security attributes default SameSite=Lax and custom Strict Secure" {
+  let default_store = @sessions.MemorySessionStore()
+  let last_default_set_cookie : Ref[String?] = { val: None, }
+  let default_app = @moonback.App(ctx => {
+    ctx.add_middleware(
+      @moonback.Middleware(next => {
+        (req, res) => {
+          next(req, (status, headers) => {
+            last_default_set_cookie.val = headers
+              .get("set-cookie")
+              .map(v => v.to_owned())
+            res(status, headers)
+          })
+        }
+      }),
+    )
+    ctx.add_middleware(@sessions.middleware(default_store))
+    ctx.get("/login", (req, res) => {
+      let session = @sessions.get_session(req).unwrap()
+      session["user"] = Json("alice")
+      res.send_text("ok")
+    })
+    ctx.get("/logout", (req, res) => {
+      let session = @sessions.get_session(req).unwrap()
+      session.flush()
+      res.send_text("ok")
+    })
+  })
+  defer default_app.close()
+
+  let strict_store = @sessions.MemorySessionStore()
+  let last_strict_set_cookie : Ref[String?] = { val: None, }
+  let strict_app = @moonback.App(ctx => {
+    ctx.add_middleware(
+      @moonback.Middleware(next => {
+        (req, res) => {
+          next(req, (status, headers) => {
+            last_strict_set_cookie.val = headers
+              .get("set-cookie")
+              .map(v => v.to_owned())
+            res(status, headers)
+          })
+        }
+      }),
+    )
+    ctx.add_middleware(
+      @sessions.middleware(
+        strict_store,
+        same_site=@sessions.Strict,
+        secure=true,
+      ),
+    )
+    ctx.get("/login", (req, res) => {
+      let session = @sessions.get_session(req).unwrap()
+      session["user"] = Json("alice")
+      res.send_text("ok")
+    })
+    ctx.get("/logout", (req, res) => {
+      let session = @sessions.get_session(req).unwrap()
+      session.flush()
+      res.send_text("ok")
+    })
+  })
+  defer strict_app.close()
+
+  @async.with_task_group(group => {
+    let s1 = @moonback.listen(port=0)
+    defer s1.close()
+    let t1 = group.spawn(() => default_app.serve(s1))
+    let base1 = "http://127.0.0.1:\{s1.addr.port()}"
+    let (resp1, _) = @http.get("\{base1}/login")
+    guard resp1.cookies is [c1] else { fail("expected Set-Cookie") }
+    assert_eq(c1.path, Some("/"))
+    assert_eq(c1.http_only, true)
+    assert_eq(c1.secure, false)
+    assert_eq(c1.extensions, ["SameSite=Lax"])
+    assert_eq(
+      last_default_set_cookie.val,
+      Some("sessionid=\{c1.value}; Path=/; HttpOnly; SameSite=Lax"),
+    )
+    let (resp1_out, _) = @http.get("\{base1}/logout", headers={
+      "cookie": "sessionid=\{c1.value}",
+    })
+    guard resp1_out.cookies is [c1_out] else { fail("expected Set-Cookie") }
+    assert_eq(c1_out.max_age, Some(0L))
+    assert_eq(c1_out.extensions, ["SameSite=Lax"])
+    assert_eq(
+      last_default_set_cookie.val,
+      Some("sessionid=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0"),
+    )
+    t1.cancel()
+    t1.wait() catch {
+      @async.WaitedTaskAlreadyCancelled => ()
+      err => raise err
+    }
+
+    let s2 = @moonback.listen(port=0)
+    defer s2.close()
+    let t2 = group.spawn(() => strict_app.serve(s2))
+    let base2 = "http://127.0.0.1:\{s2.addr.port()}"
+    let (resp2, _) = @http.get("\{base2}/login")
+    guard resp2.cookies is [c2] else { fail("expected Set-Cookie") }
+    assert_eq(c2.path, Some("/"))
+    assert_eq(c2.http_only, true)
+    assert_eq(c2.secure, true)
+    assert_eq(c2.extensions, ["SameSite=Strict"])
+    assert_eq(
+      last_strict_set_cookie.val,
+      Some("sessionid=\{c2.value}; Path=/; HttpOnly; SameSite=Strict; Secure"),
+    )
+    let (resp2_out, _) = @http.get("\{base2}/logout", headers={
+      "cookie": "sessionid=\{c2.value}",
+    })
+    guard resp2_out.cookies is [c2_out] else { fail("expected Set-Cookie") }
+    assert_eq(c2_out.secure, true)
+    assert_eq(c2_out.max_age, Some(0L))
+    assert_eq(c2_out.extensions, ["SameSite=Strict"])
+    assert_eq(
+      last_strict_set_cookie.val,
+      Some("sessionid=; Path=/; HttpOnly; SameSite=Strict; Secure; Max-Age=0"),
+    )
+    t2.cancel()
+    t2.wait() catch {
+      @async.WaitedTaskAlreadyCancelled => ()
+      err => raise err
+    }
+  })
+}

@@ -1,0 +1,32 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "xziheng/moondark/csrf"
+
+import {
+  "moonbitlang/core/debug",
+  "moonbitlang/moonback",
+}
+
+// Values
+pub fn middleware(trusted_origins? : ArrayView[String], deny_handler? : async (@moonback.Request, @moonback.Responder) -> Unit) -> @moonback.Middleware raise CsrfError
+
+// Errors
+pub(all) suberror CsrfError {
+  InvalidOrigin(String)
+  CrossOriginWrite
+  OriginMismatch
+} derive(Eq, @debug.Debug)
+pub fn CsrfError::equal(Self, Self) -> Bool
+pub fn CsrfError::not_equal(Self, Self) -> Bool
+pub fn CsrfError::to_repr(Self) -> @debug.Repr
+
+// Types and methods
+pub struct CrossOriginProtection {
+  // private fields
+}
+pub fn CrossOriginProtection::CrossOriginProtection(trusted_origins? : ArrayView[String], deny_handler? : async (@moonback.Request, @moonback.Responder) -> Unit) -> Self raise CsrfError
+pub fn CrossOriginProtection::check(Self, @moonback.Request) -> Unit raise CsrfError
+pub fn CrossOriginProtection::middleware(Self) -> @moonback.Middleware
+
+// Type aliases
+
+// Traits

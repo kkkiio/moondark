@@ -20,6 +20,7 @@ MoonDark 是基于 MoonBack 的 MoonBit 后端框架（设计参考 [Django](htt
 │   ├── moon.mod                  # 核心模块元数据与依赖
 │   ├── auth/                     # xziheng/moondark/auth：凭据存储、Auth、SessionAuth、SocialFlow
 │   │   └── oauth2/               # OAuth2/OIDC 协议层：Provider、Identity
+│   ├── csrf/                     # 无状态 CSRF 防护（CrossOriginProtection、CSRF 中间件）
 │   ├── database/sql/             # Go database/sql 风格的连接池与查询 API（DB、Conn、Rows、Tx、Stmt）
 │   │   ├── driver/               # 驱动 trait：Driver、Connector、Conn、Stmt、Rows、Tx、Value
 │   │   └── sqltest/              # 测试用内存驱动（FakeConnector）
@@ -68,6 +69,7 @@ MoonDark 是基于 MoonBack 的 MoonBit 后端框架（设计参考 [Django](htt
 - **SessionAuth** — 把已认证 user 写入 `Session` 的登录态管理器。
 - **SocialFlow** — 串联 `oauth2.Provider`、`Auth`、`SessionAuth` 的第三方登录流程。
 - **Provider / Identity** — OAuth2/OIDC 提供方配置 / 提供方返回的用户身份。
+- **CrossOriginProtection** — 基于 `Sec-Fetch-Site` 与 `Origin` 请求头的无状态 CSRF 防护器（对齐 Go 1.25 `net/http.CrossOriginProtection`）。
 - **Signer** — 用密钥和 salt 对字符串签名与校验的 Django 兼容签名器。
 - **TaskResult** — 一次入队的执行记录（status、attempts、return_value、errors），backend 存取的快照。
 - **TaskStore** — worker 侧存储协议：`claim`（原子领任务，FIFO + 僵尸行回收）与 `save`（写回终态）。
