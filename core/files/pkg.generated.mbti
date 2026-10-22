@@ -1,0 +1,51 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "xziheng/moondark/files"
+
+import {
+  "moonbitlang/async/http",
+  "moonbitlang/async/io",
+  "moonbitlang/core/debug",
+  "moonbitlang/moonback",
+}
+
+// Values
+
+// Errors
+pub(all) suberror FileError {
+  InvalidKey(key~ : String)
+  NotFound(key~ : String)
+} derive(Eq, @debug.Debug)
+pub fn FileError::equal(Self, Self) -> Bool
+pub fn FileError::not_equal(Self, Self) -> Bool
+pub fn FileError::to_repr(Self) -> @debug.Repr
+
+// Types and methods
+type LocalFileStore
+pub async fn LocalFileStore::LocalFileStore(root~ : String, key~ : String, url_prefix? : String, default_expires? : Int64, now? : () -> Int64) -> Self
+pub async fn LocalFileStore::delete(Self, key~ : String) -> Unit
+pub async fn LocalFileStore::exists(Self, key~ : String) -> Bool
+pub async fn LocalFileStore::get(Self, key~ : String) -> &@io.Data
+pub fn LocalFileStore::presign_get(Self, key~ : String, expires? : Int64, download_name? : String) -> String raise FileError
+pub fn LocalFileStore::presign_put(Self, key~ : String, expires? : Int64, content_type? : String, max_size? : Int64) -> PresignedUpload raise FileError
+pub async fn LocalFileStore::put(Self, key~ : String, &@io.Data, content_type? : String) -> Unit
+pub fn LocalFileStore::routes(Self) -> @moonback.Module
+pub impl FileStore for LocalFileStore
+
+pub(all) struct PresignedUpload {
+  url : String
+  meth : @http.RequestMethod
+  headers : Map[String, String]
+  expires_at : Int64
+}
+
+// Type aliases
+
+// Traits
+pub(open) trait FileStore {
+  fn presign_put(Self, key~ : String, expires? : Int64, content_type? : String, max_size? : Int64) -> PresignedUpload raise FileError
+  fn presign_get(Self, key~ : String, expires? : Int64, download_name? : String) -> String raise FileError
+  async fn put(Self, key~ : String, &@io.Data, content_type? : String) -> Unit
+  async fn get(Self, key~ : String) -> &@io.Data
+  async fn exists(Self, key~ : String) -> Bool
+  async fn delete(Self, key~ : String) -> Unit
+}

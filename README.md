@@ -4,13 +4,30 @@
 
 Modern Batteries-included backend framework, based on MoonBack.
 
-## 模块
+## Install
 
-`xziheng/moondark`（`core/`）定义框架接口，只包含无第三方依赖的实现。依赖第三方技术的后端由集成模块提供，每个能力是一个与 core 包同名的子包：
+Add MoonDark to your project:
 
-| 集成模块 | `database` | `sessions` |
-|---|---|---|
-| [`xziheng/moondark_sqlite`](sqlite/README.mbt.md) | SQLite 驱动 | `SqliteSessionStore` |
-| [`xziheng/moondark_postgresql`](postgresql/README.mbt.md) | PostgreSQL 驱动 | `PostgresSessionStore` |
+```bash
+moon add xziheng/moondark
+```
 
-SQL 使用各后端的原生占位符（SQLite 为 `?`，PostgreSQL 为 `$1`、`$2`…），驱动不改写 SQL。
+Depending on the features you need, you may also need to add the following dependencies:
+
+```bash
+# Use SQLite as database
+moon add xziheng/moondark_sqlite
+# Use PostgreSQL as database
+moon add xziheng/moondark_postgresql
+```
+
+## What you get
+
+- [session](./core/sessions/README.mbt.md): Session management.
+- [auth](./core/auth/README.mbt.md): User authentication including password and OIDC login.
+- [tasks](./core/tasks/README.mbt.md): Background task processing.
+- [files](./core/files/README.mbt.md): File/attachment storage with presigned upload/download URLs.
+
+## Quick Start
+
+TODO
