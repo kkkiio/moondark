@@ -11,6 +11,7 @@ import {
 }
 
 // Values
+pub fn mount_routes(&LocalStore, Presigner) -> @moonback.Module
 
 // Errors
 pub(all) suberror FileError {

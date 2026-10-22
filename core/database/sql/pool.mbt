@@ -354,7 +354,7 @@ async fn create_physical(
   group : @async.TaskGroup[Unit],
   request : CreateRequest,
 ) -> Unit {
-  let mut conn : (&@driver.Conn)? = None
+  let mut conn : &@driver.Conn? = None
   let created : Result[ConnEntry, Error] = Ok(
     {
       let (c, executor) = pool.connector.connect()
