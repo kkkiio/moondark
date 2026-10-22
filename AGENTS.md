@@ -6,7 +6,7 @@ MoonDark 是基于 MoonBack 的 MoonBit 后端框架（设计参考 [Django](htt
 
 ## Project Structure Guide
 
-仓库是一个 `moon.work` 工作区，包含核心模块 `core/` 和三个集成模块（`sqlite/`、`postgresql/`、`mysql/`）。
+仓库是一个 `moon.work` 工作区，包含核心模块 `core/` 和两个集成模块（`sqlite/`、`postgresql/`）。
 
 ### Repo Structure & Important Files
 
@@ -37,9 +37,6 @@ MoonDark 是基于 MoonBack 的 MoonBit 后端框架（设计参考 [Django](htt
 │   ├── database/                 # database/sql 驱动、open_db
 │   ├── sessions/                 # PostgresSessionStore
 │   └── tasks/                    # PostgresTaskBackend：FOR UPDATE SKIP LOCKED claim
-├── mysql/                        # 集成模块 xziheng/moondark_mysql
-│   ├── database/                 # database/sql 驱动、open_db
-│   └── sessions/                 # MysqlSessionStore
 ├── examples/todo/                # 示例应用 xziheng/moondark_example_todo：演示 migration 的典型接线
 ├── docs/research/                # agent 撰写的调研文档（HTML）
 ├── .agents/skills/               # 项目级 agent skills（如 write-snapshot-test）
@@ -140,7 +137,7 @@ just fmt
 
 ### Testing
 
-- `moon test` 是 workspace 级命令：在根目录、成员目录或 `-C <member>` 下都会跑整个工作区。`postgresql/` 与 `mysql/` 的测试通过 `xziheng/testcontainers` 启动临时容器，需要本地 Docker 可用。
+- `moon test` 是 workspace 级命令：在根目录、成员目录或 `-C <member>` 下都会跑整个工作区。`postgresql/` 的测试通过 `xziheng/testcontainers` 启动临时容器，需要本地 Docker 可用。
 - 只跑 core（不需要 Docker）：用 `MOON_WORK=off` 关闭工作区模式，只选中 `-C` 所在模块：
   ```bash
   MOON_WORK=off moon -C core test
