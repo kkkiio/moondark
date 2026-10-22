@@ -1,13 +1,8 @@
-# Database
+# sql
 
-Database library modelled on
-[moonbit-community/postgres](https://mooncakes.io/docs/moonbit-community/postgres)'s
-`pgpool`: creating a `DB` returns a `(DB, DBExecutor)` pair, and the
-pool's executor drives connection creation and teardown on a task
-group. The query/execute/transaction surface follows Go
-[`database/sql`](https://pkg.go.dev/database/sql).
+Asynchronous SQL connection pool and query API modelled on Go's [`database/sql`](https://pkg.go.dev/database/sql).
 
-## Query
+## Quick Start
 
 ```mbt check
 ///|

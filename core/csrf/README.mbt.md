@@ -1,6 +1,6 @@
 # csrf
 
-`xziheng/moondark/csrf` 提供基于 Fetch Metadata（`Sec-Fetch-Site`）与 `Origin` 请求头的无状态跨站请求伪造（CSRF）防护中间件（对齐 Go 1.25 `net/http.CrossOriginProtection`），无需签发或存储 CSRF Token 即可拦截跨源写请求。
+Stateless Cross-Site Request Forgery (CSRF) protection middleware based on `Sec-Fetch-Site` and `Origin` request headers.
 
 ## Quick Start
 
@@ -19,12 +19,12 @@ async test {
     defer server.close()
     let serve_task = group.spawn(() => app.serve(server))
     let base = "http://127.0.0.1:\{server.addr.port()}"
-    // 跨站 POST 被拦截，返回 403
+    // Cross-site POST is rejected with 403
     let (denied, _) = @http.post("\{base}/transfer", "", headers={
       "sec-fetch-site": "cross-site",
     })
     assert_eq(denied.code, 403)
-    // 同源 POST 放行，返回 200
+    // Same-origin POST is allowed with 200
     let (allowed, _) = @http.post("\{base}/transfer", "", headers={
       "sec-fetch-site": "same-origin",
     })
