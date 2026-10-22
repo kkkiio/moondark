@@ -1,13 +1,17 @@
 # files
 
-File storage abstraction with presigned upload and download URLs.
+File storage abstraction with presigned upload/download URLs; the local backend is content-addressed — bytes are stored once per sha256 in `blobs/`, and a `Catalog` upsert is the single atomic commit point.
 
 ## Quick Start
 
 ```mbt check
 ///|
 async test {
-  let store = @files.LocalFileStore(root="/tmp/files-demo", key="app-secret")
+  let store = @files.CasFileStore::new(
+    root="/tmp/files-demo",
+    catalog=@files.MemoryCatalog::new(),
+    key="app-secret",
+  )
   let app = @moonback.App(ctx => ctx.use_(store.routes()))
   defer app.close()
   @async.with_task_group(group => {

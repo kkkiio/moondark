@@ -2,7 +2,11 @@
 /// `check_key` 拒绝的 key 形态（贯穿 put/presign 两条入口）。
 async test "invalid keys are rejected" {
   let root = "/tmp/moondark-files-invalid-keys"
-  let store = @files.LocalFileStore(root~, key="test-secret")
+  let store = @files.CasFileStore::new(
+    root~,
+    catalog=@files.MemoryCatalog::new(),
+    key="test-secret",
+  )
   for bad in ["", "/abs", "a//b", "a/./b", "../x", "a/../b", "a\\b", "a\u0000b"] {
     let err : @files.FileError? = try {
       ignore(store.presign_put(key=bad))
@@ -17,7 +21,11 @@ async test "invalid keys are rejected" {
 ///|
 async test "presigned upload/download roundtrip over http" {
   let root = @fs.tmpdir(prefix="moondark-files")
-  let store = @files.LocalFileStore(root~, key="test-secret")
+  let store = @files.CasFileStore::new(
+    root~,
+    catalog=@files.MemoryCatalog::new(),
+    key="test-secret",
+  )
   let app = @moonback.App(ctx => ctx.use_(store.routes()))
   defer app.close()
   @async.with_task_group(group => {
@@ -99,7 +107,12 @@ async test "presigned upload/download roundtrip over http" {
 async test "presigned url expires" {
   let mut now = 1_000_000L
   let root = @fs.tmpdir(prefix="moondark-files-exp")
-  let store = @files.LocalFileStore(root~, key="test-secret", now=() => now)
+  let store = @files.CasFileStore::new(
+    root~,
+    catalog=@files.MemoryCatalog::new(),
+    key="test-secret",
+    now=() => now,
+  )
   let app = @moonback.App(ctx => ctx.use_(store.routes()))
   defer app.close()
   @async.with_task_group(group => {

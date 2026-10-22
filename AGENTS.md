@@ -24,7 +24,7 @@ MoonDark 是基于 MoonBack 的 MoonBit 后端框架（设计参考 [Django](htt
 │   ├── database/sql/             # Go database/sql 风格的连接池与查询 API（DB、Conn、Rows、Tx、Stmt）
 │   │   ├── driver/               # 驱动 trait：Driver、Connector、Conn、Stmt、Rows、Tx、Value
 │   │   └── sqltest/              # 测试用内存驱动（FakeConnector）
-│   ├── files/                    # FileStore（presign_put/presign_get + put/get/delete）、LocalFileStore、直传路由
+│   ├── files/                    # FileStore（presign_put/presign_get + put/get/delete）、CasFileStore（CAS 本地后端）、Catalog、直传路由
 │   │   └── filestest/            # FileStore conformance test suite
 │   ├── migration/                # Migration、Migrator、版本目录/schema 文件加载
 │   ├── sessions/                 # Session、SessionStore、会话中间件、MemorySessionStore
@@ -34,6 +34,7 @@ MoonDark 是基于 MoonBack 的 MoonBit 后端框架（设计参考 [Django](htt
 │   └── cmd/main/                 # 可执行入口（模板占位）
 ├── sqlite/                       # 集成模块 xziheng/moondark_sqlite
 │   ├── database/                 # database/sql 驱动、open_db；迁移在 SQLite 上的集成测试
+│   ├── files/                    # SqliteCatalog（file_objects 表）+ SqliteFileStore
 │   ├── sessions/                 # SqliteSessionStore
 │   └── tasks/                    # SqliteTaskBackend：单语句 CAS UPDATE claim
 ├── postgresql/                   # 集成模块 xziheng/moondark_postgresql
@@ -76,7 +77,9 @@ MoonDark 是基于 MoonBack 的 MoonBit 后端框架（设计参考 [Django](htt
 - **TaskResult** — 一次入队的执行记录（status、attempts、return_value、errors），backend 存取的快照。
 - **TaskStore** — worker 侧存储协议：`claim`（原子领任务，FIFO + 僵尸行回收）与 `save`（写回终态）。
 - **FileStore** — `files` 中的文件存储后端 trait：`presign_put`/`presign_get` 签发直传凭证，`put`/`get`/`exists`/`delete` 后端直读写。
-- **LocalFileStore** — 本地磁盘 `FileStore` 后端；`routes()` 返回的 moonback `Module` 挂出直传路由，完成 presign 闭环。
+- **Catalog** — `files` 中 key → blob 的目录 trait（`upsert`/`lookup`/`remove`）；`upsert` 是 CAS 的原子提交点。
+- **CasFileStore** — 内容寻址的本地磁盘 `FileStore` 后端：字节按 sha256 存 `blobs/`，key 映射走 `Catalog`；`routes()` 返回的 moonback `Module` 挂出直传路由，完成 presign 闭环。
+- **LocalStore** — 直传路由的字节通道窄接口（`upload_stream`/`download`），路由与具体 store 解耦。
 - **PresignedUpload** — 直传上传凭证（url、meth、headers、expires_at），前端按原样发起请求即可。
 
 ## Policies & Mandatory Rules

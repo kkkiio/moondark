@@ -35,7 +35,11 @@ moon add xziheng/moondark_postgresql
 
 ```mbt
 async fn main {
-  let files = @files.LocalFileStore(root="./uploads", key="app-secret")
+  let files = @files.CasFileStore::new(
+    root="./uploads",
+    catalog=@files.MemoryCatalog::new(),
+    key="app-secret",
+  )
   let app = @moonback.App(ctx => {
     ctx.add_middleware(@csrf.middleware())
     ctx.add_middleware(@sessions.middleware(@sessions.MemorySessionStore()))

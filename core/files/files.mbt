@@ -46,12 +46,55 @@ pub(all) struct PresignedUpload {
 }
 
 ///|
+/// 本地字节通道：直传路由与具体存储解耦的窄接口。路由只依赖
+/// 这两个方法——上传把 body 流式落盘，下载返回已打开的文件句柄；
+/// `CasFileStore` 之外的本地后端（内存、临时目录等）也可复用同一套路由。
+pub(open) trait LocalStore {
+  /// body 流式上传为 `key` 对应的对象；字节数超 `max_size` 时
+  /// 中断并抛 `TooLarge`（不完整的内容不得对 `key` 可见）。
+  async fn upload_stream(
+    Self,
+    key~ : String,
+    content_type~ : String?,
+    max_size~ : Int64?,
+    reader : &@io.Reader,
+  ) -> Unit
+  /// 打开 `key` 对应的对象读取；不存在返回 `None`。
+  async fn download(Self, key~ : String) -> Download?
+}
+
+///|
+/// `LocalStore::download` 的返回：已打开的读句柄与响应元数据。
+/// `file` 的所有权移交调用方，调用方负责 `close()`。
+pub(all) struct Download {
+  content_type : String?
+  size : Int64
+  file : @fs.File
+}
+
+///|
 pub(all) suberror FileError {
   /// `key` 不是合法的相对存储路径。
   InvalidKey(key~ : String)
   /// 对象不存在。
   NotFound(key~ : String)
+  /// 上传字节数超出 `max_size` 约束。
+  TooLarge(key~ : String)
 } derive(Debug, Eq)
+
+///|
+/// 校验 `key` 是相对 root 的安全路径：非空、不以 `/` 开头、
+/// 不含 `\` 和 NUL、每个 `/` 分段都不是空串 / `.` / `..`。
+fn check_key(key : String) -> Unit raise FileError {
+  let bad = key.is_empty() ||
+    key.has_prefix("/") ||
+    key.contains("\\") ||
+    key.contains("\u0000") ||
+    key.split("/").any(seg => seg is ("" | "." | ".."))
+  if bad {
+    raise InvalidKey(key~)
+  }
+}
 
 ///|
 pub extend FileError with Debug::{to_repr}
