@@ -21,19 +21,23 @@ MoonDark 是基于 MoonBack 的 MoonBit 后端框架（设计参考 [Django](htt
 │   ├── auth/                     # xziheng/moondark/auth：凭据存储、Auth、SessionAuth、SocialFlow
 │   │   └── oauth2/               # OAuth2/OIDC 协议层：Provider、Identity
 │   ├── database/sql/             # Go database/sql 风格的连接池与查询 API（DB、Conn、Rows、Tx、Stmt）
-│   │   └── driver/               # 驱动 trait：Driver、Connector、Conn、Stmt、Rows、Tx、Value
+│   │   ├── driver/               # 驱动 trait：Driver、Connector、Conn、Stmt、Rows、Tx、Value
+│   │   └── sqltest/              # 测试用内存驱动（FakeConnector）
 │   ├── migration/                # Migration、Migrator、按 Dialect 加载迁移文件
 │   ├── sessions/                 # Session、SessionStore、会话中间件、MemorySessionStore
-│   │   └── sessionstest/         # SessionStore 后端通用测试套件 check_session_store
-│   ├── signing/                  # 兼容 Django 的带时间戳签名（Signer、dumps/loads）
+│   │   └── sessionstest/         # SessionStore conformance test suite
+│   ├── signing/                  # 带时间戳签名
+│   ├── tasks/                    # 后台任务
 │   └── cmd/main/                 # 可执行入口（模板占位）
-├── sqlite/                       # 集成模块 xziheng/moondark_sqlite（根目录无包）
+├── sqlite/                       # 集成模块 xziheng/moondark_sqlite
 │   ├── database/                 # database/sql 驱动、open_db；迁移在 SQLite 上的集成测试
-│   └── sessions/                 # SqliteSessionStore
-├── postgresql/                   # 集成模块 xziheng/moondark_postgresql（根目录无包）
+│   ├── sessions/                 # SqliteSessionStore
+│   └── tasks/                    # SqliteTaskBackend：单语句 CAS UPDATE claim
+├── postgresql/                   # 集成模块 xziheng/moondark_postgresql
 │   ├── database/                 # database/sql 驱动、open_db
-│   └── sessions/                 # PostgresSessionStore
-├── mysql/                        # 集成模块 xziheng/moondark_mysql（根目录无包）
+│   ├── sessions/                 # PostgresSessionStore
+│   └── tasks/                    # PostgresTaskBackend：FOR UPDATE SKIP LOCKED claim
+├── mysql/                        # 集成模块 xziheng/moondark_mysql
 │   ├── database/                 # database/sql 驱动、open_db
 │   └── sessions/                 # MysqlSessionStore
 ├── docs/research/                # agent 撰写的调研文档（HTML）
@@ -66,6 +70,8 @@ MoonDark 是基于 MoonBack 的 MoonBit 后端框架（设计参考 [Django](htt
 - **SocialFlow** — 串联 `oauth2.Provider`、`Auth`、`SessionAuth` 的第三方登录流程。
 - **Provider / Identity** — OAuth2/OIDC 提供方配置 / 提供方返回的用户身份。
 - **Signer** — 用密钥和 salt 对字符串签名与校验的 Django 兼容签名器。
+- **TaskResult** — 一次入队的执行记录（status、attempts、return_value、errors），backend 存取的快照。
+- **TaskStore** — worker 侧存储协议：`claim`（原子领任务，FIFO + 僵尸行回收）与 `save`（写回终态）。
 
 ## Policies & Mandatory Rules
 
@@ -76,10 +82,6 @@ MoonDark 是基于 MoonBack 的 MoonBit 后端框架（设计参考 [Django](htt
 - 项目处于 0.x，不做稳定性保证。
 - 直接迁移调用方，不写兼容层；确需保留的已废弃代码块放进该包目录的 `deprecated.mbt`。
 - 在最终回复中说明有意引入的破坏性变更。
-
-### Auth Scope
-
-修改 `core/auth/` 时：只管理凭据与登录态，不要新增 users 表的增删改接口；用户业务数据由应用自行维护。
 
 ### Placeholder Convention
 
@@ -98,6 +100,14 @@ MoonDark 是基于 MoonBack 的 MoonBit 后端框架（设计参考 [Django](htt
 - 公开类型带后端前缀（`PostgresSessionStore`），避免导入多个集成模块时混淆。
 - 导入集成子包时显式写别名 `<集成模块目录名>_<包名>`，如 `"xziheng/moondark_postgresql/sessions" @postgresql_sessions`；集成子包内导入同名 core 包时写 `@moondark_<包>`，如 `"xziheng/moondark/sessions" @moondark_sessions`（否则黑盒测试会报别名冲突）。
 - 后端测试调用 core 的通用测试套件（如 `@sessionstest.check_session_store`），不要在各集成模块重复写断言。
+
+### README is sales pitch
+
+编写或更新 `README.md` 与 `README.mbt.md` 时：
+
+- 只写面向用户的定位与快速上手路径。
+- H1 下首段用 1 句话说明模块/包是什么、解决什么问题。
+- `README.mbt.md` 第一个 H2 标题固定为 `Quick Start`，给出最小可运行的 `mbt check` 示例（仅在需要外部服务或监听端口时用 `mbt nocheck`）。
 
 ### Agent Author
 

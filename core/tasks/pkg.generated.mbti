@@ -1,0 +1,122 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "xziheng/moondark/tasks"
+
+import {
+  "moonbitlang/core/debug",
+  "moonbitlang/core/json",
+  "xziheng/moondark/database/sql",
+}
+
+// Values
+pub fn default_backoff(Int32) -> Int64
+
+// Errors
+pub(all) suberror InvalidTask {
+  InvalidTask(String)
+}
+
+// Types and methods
+pub struct DummyBackend {
+  results : Array[TaskResult]
+  now : () -> Int64
+}
+pub async fn DummyBackend::claim(Self, worker_id~ : String, now~ : Int64, stale_before~ : Int64?) -> TaskResult?
+pub fn DummyBackend::clear(Self) -> Unit
+pub async fn DummyBackend::enqueue(Self, @sql.Transaction, TaskArgs, Json) -> String
+pub async fn DummyBackend::get_result(Self, String, String) -> TaskResult?
+pub fn DummyBackend::new(now? : () -> Int64) -> Self
+pub async fn DummyBackend::save(Self, TaskResult) -> Unit
+pub impl DBTaskBackend for DummyBackend
+pub impl TaskStore for DummyBackend
+
+pub(all) struct TaskArgs {
+  name : String
+  run_after : Int64?
+  max_attempts : Int32
+}
+
+pub(all) struct TaskContext {
+  task_result : TaskResult
+  attempt : Int32
+}
+
+pub(all) struct TaskError {
+  exception : String
+  traceback : String
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn TaskError::equal(Self, Self) -> Bool
+pub fn TaskError::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn TaskError::not_equal(Self, Self) -> Bool
+pub fn TaskError::to_json(Self) -> Json
+pub fn TaskError::to_repr(Self) -> @debug.Repr
+
+pub struct TaskExec {
+  name : String
+  func : async (TaskContext, Json) -> Json
+}
+pub fn[T : @json.FromJson] TaskExec::from_def(TransactionalTaskDef[T], func~ : async (TaskContext, T) -> Json) -> Self
+
+pub(all) struct TaskResult {
+  id : String
+  task_name : String
+  status : TaskResultStatus
+  args : Json
+  run_after : Int64?
+  enqueued_at : Int64
+  started_at : Int64?
+  finished_at : Int64?
+  attempts : Int32
+  max_attempts : Int32
+  return_value : Json?
+  errors : Array[TaskError]
+  worker_ids : Array[String]
+} derive(ToJson, @debug.Debug, @json.FromJson)
+pub fn TaskResult::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn TaskResult::to_json(Self) -> Json
+pub fn TaskResult::to_repr(Self) -> @debug.Repr
+
+pub(all) enum TaskResultStatus {
+  Ready
+  Running
+  Successful
+  Failed
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn TaskResultStatus::equal(Self, Self) -> Bool
+pub fn TaskResultStatus::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn TaskResultStatus::not_equal(Self, Self) -> Bool
+pub fn TaskResultStatus::to_json(Self) -> Json
+pub fn TaskResultStatus::to_repr(Self) -> @debug.Repr
+
+pub(all) struct TransactionalTaskDef[T] {
+  name : String
+  max_attempts : Int32
+}
+pub async fn[T : ToJson] TransactionalTaskDef::enqueue_on(Self[T], &DBTaskBackend, @sql.Transaction, args~ : T, run_after? : Int64) -> String
+pub async fn[T] TransactionalTaskDef::get_result(Self[T], &DBTaskBackend, String) -> TaskResult?
+pub fn[T] TransactionalTaskDef::new(name~ : String, max_attempts? : Int32) -> Self[T] raise InvalidTask
+
+pub struct Worker {
+  store : &TaskStore
+  tasks : Map[String, TaskExec]
+  id : String
+  poll_interval : Int32
+  backoff : (Int32) -> Int64
+  reclaim_after : Int64?
+  now : () -> Int64
+}
+pub fn Worker::new(store~ : &TaskStore, tasks~ : Array[TaskExec], id? : String, poll_interval? : Int32, backoff? : (Int32) -> Int64, reclaim_after? : Int64?, now? : () -> Int64) -> Self
+pub async fn Worker::run(Self) -> Unit
+pub async fn Worker::run_once(Self) -> Bool
+
+// Type aliases
+
+// Traits
+pub(open) trait DBTaskBackend {
+  async fn enqueue(Self, @sql.Transaction, TaskArgs, Json) -> String
+  async fn get_result(Self, String, String) -> TaskResult?
+}
+
+pub(open) trait TaskStore {
+  async fn claim(Self, worker_id~ : String, now~ : Int64, stale_before~ : Int64?) -> TaskResult?
+  async fn save(Self, TaskResult) -> Unit
+}

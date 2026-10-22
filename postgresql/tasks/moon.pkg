@@ -1,0 +1,16 @@
+import {
+  "xziheng/moondark/tasks" @moondark_tasks,
+  "xziheng/moondark/database/sql",
+  "xziheng/moondark/database/sql/driver",
+  "moonbitlang/core/env",
+  "moonbitlang/core/json",
+  "moonbitlang/x/uuid",
+}
+
+import {
+  "moonbitlang/async",
+  "xziheng/moondark_postgresql/database" @postgresql_database,
+  "xziheng/testcontainers/postgres",
+} for "test"
+
+supported_targets = "native"

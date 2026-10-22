@@ -1,0 +1,29 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "xziheng/moondark_postgresql/tasks"
+
+import {
+  "xziheng/moondark/database/sql",
+}
+
+// Values
+
+// Errors
+
+// Types and methods
+pub struct PostgresTaskBackend {
+  db : @sql.DB
+  table : String
+  now : () -> Int64
+}
+pub async fn PostgresTaskBackend::claim(Self, worker_id~ : String, now~ : Int64, stale_before~ : Int64?) -> @xziheng/moondark/tasks.TaskResult?
+pub async fn PostgresTaskBackend::enqueue(Self, @sql.Transaction, @xziheng/moondark/tasks.TaskArgs, Json) -> String
+pub async fn PostgresTaskBackend::get_result(Self, String, String) -> @xziheng/moondark/tasks.TaskResult?
+pub async fn PostgresTaskBackend::migrate(Self) -> Unit
+pub fn PostgresTaskBackend::new(@sql.DB, table? : String, now? : () -> Int64) -> Self
+pub async fn PostgresTaskBackend::save(Self, @xziheng/moondark/tasks.TaskResult) -> Unit
+pub impl @xziheng/moondark/tasks.DBTaskBackend for PostgresTaskBackend
+pub impl @xziheng/moondark/tasks.TaskStore for PostgresTaskBackend
+
+// Type aliases
+
+// Traits
