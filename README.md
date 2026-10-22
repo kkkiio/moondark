@@ -1,5 +1,7 @@
 # MoonDark
 
+[![Coverage Status](https://coveralls.io/repos/github/kkkiio/moondark/badge.svg?branch=main)](https://coveralls.io/github/kkkiio/moondark?branch=main)
+
 Modern Batteries-included backend framework, based on MoonBack.
 
 ## 模块

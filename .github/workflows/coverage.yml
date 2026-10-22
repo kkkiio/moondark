@@ -1,0 +1,57 @@
+# 测试覆盖率：`moon test --enable-coverage` → Coveralls + 运行页 summary。
+# 参考 moonbitlang/core 与 kkkiio/pi.mbt 的 coverage 工作流。
+#
+# `continue-on-error` 是有意的：覆盖率是报告不是门禁，Coveralls 故障不应阻塞合并。
+# `secrets.GITHUB_TOKEN` 直接当 Coveralls repo token，无需额外注册，fork PR 也可用。
+
+name: coverage
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  coverage:
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      MOON_COVE_REPORT_ENABLED: "1"
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install MoonBit
+        run: |
+          curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash -s latest
+          echo "$HOME/.moon/bin" >> "$GITHUB_PATH"
+
+      - name: Cache MoonBit packages
+        uses: actions/cache@v6
+        with:
+          path: .mooncakes
+          key: mooncakes-${{ hashFiles('**/moon.mod') }}
+          restore-keys: mooncakes-
+
+      # pg/mysql 测试经 testcontainers 起临时库，runner 自带 Docker。
+      # moon cram 不产出覆盖率数据，example 冒烟测试不在此运行。
+      - name: moon test
+        run: moon test --enable-coverage
+
+      - name: coverage report
+        run: |
+          moon coverage report -f summary > coverage_summary.txt
+          cat coverage_summary.txt >> "$GITHUB_STEP_SUMMARY"
+          moon coverage report \
+            -f coveralls \
+            --service-name github \
+            --service-job-id "$GITHUB_RUN_NUMBER" \
+            --service-pull-request "${{ github.event.number }}" \
+            --send-to coveralls
+        env:
+          COVERALLS_REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
