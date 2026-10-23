@@ -29,6 +29,8 @@ pub let default_query_redact : Array[String] = [
 ///   (`http.request.method`, `url.path`, `http.response.status_code`,
 ///   `http.server.request.duration` seconds, `client.address`,
 ///   `user_agent.original`, plus `url.query` per the `query` policy);
+///   a completed 5xx response logs at `error` even without a raise —
+///   a handler answering 500 is a server failure either way;
 /// - raise: one `error` entry carrying the propagated error, then
 ///   re-raises so moonback's `handle_request` still answers the bare
 ///   500 — the error would otherwise be swallowed unobserved
@@ -36,10 +38,15 @@ pub let default_query_redact : Array[String] = [
 ///   started writing a response.
 ///
 /// `moonback` exposes no route template, so `url.path` is the concrete
-/// path — beware cardinality on id-bearing routes.
+/// path — beware cardinality on id-bearing routes. Presigned file URLs
+/// put a capability token in the last path segment; `path_redact`
+/// lists prefixes whose final segment logs as `[FILTERED]` and
+/// defaults to the files module's presign prefix. Keep it in sync
+/// when `Presigner` is built with a custom `url_prefix`.
 pub fn middleware(
   category~ : String = "moondark.http",
   query~ : QueryLog = Full(redact=default_query_redact),
+  path_redact~ : Array[String] = ["/_files"],
 ) -> @moonback.Middleware {
   @moonback.Middleware(next => {
     (req, res) => {
@@ -55,12 +62,10 @@ pub fn middleware(
       }
       let duration = (@env.now() - start).reinterpret_as_int64().to_double() /
         1000.0
-      // Conditional fields can't sit inside a `<?` map literal, so the
-      // event is written field-by-field — only when the site is enabled.
       let emit = (ev : @xlog.Event, error : String?) => {
         ev.write_object_begin()
         ev.write_object_field("http.request.method", method_name(req.meth))
-        ev.write_object_field("url.path", req.path.to_owned())
+        ev.write_object_field("url.path", redact_path(req.path, path_redact[:]))
         ev.write_object_field("http.response.status_code", status)
         ev.write_object_field("http.server.request.duration", duration)
         match query {
@@ -91,7 +96,14 @@ pub fn middleware(
           }
           raise e
         }
-        Ok(_) => if @xlog.info(category~) is Some(ev) { emit(ev, None) }
+        Ok(_) =>
+          if status >= 500 {
+            if @xlog.error(category~) is Some(ev) {
+              emit(ev, None)
+            }
+          } else if @xlog.info(category~) is Some(ev) {
+            emit(ev, None)
+          }
       }
     }
   })
@@ -110,6 +122,19 @@ fn method_name(meth : @http.RequestMethod) -> String {
     Trace => "TRACE"
     Patch => "PATCH"
   }
+}
+
+///|
+/// Paths starting with `prefix/` carry a capability token as their
+/// final segment (presigned file URLs) — mask only that segment so
+/// the operation (`put`/`get`) stays visible.
+fn redact_path(path : StringView, prefixes : ArrayView[String]) -> String {
+  for p in prefixes {
+    if path.has_prefix("\{p}/") && path.rev_find("/") is Some(i) {
+      return "\{path[:i]}/[FILTERED]"
+    }
+  }
+  path.to_owned()
 }
 
 ///|

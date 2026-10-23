@@ -52,9 +52,6 @@ pub async fn Auth::authenticate_password(
   }
   guard cred.secret != "" else { return None }
   let ok = @bcrypt.verify(password=@utf8.encode(password), hashed=cred.secret) catch {
-    // A verify error means the stored hash is corrupt, not that the
-    // password mismatched — still answer `false` (no oracle), but the
-    // broken credentials row deserves a trace.
     e => {
       @xlog.warn(category="moondark.auth") <?
         {
@@ -165,8 +162,6 @@ async fn Auth::mark_used(self : Self, cred : CredentialModel) -> Unit {
     cred.identifier,
     last_used_at=now_ms(),
   )
-  // `false` = the credential row vanished between find and update —
-  // a normal race, worth a trace but never worth rejecting a login.
   if !updated {
     @xlog.debug(category="moondark.auth") <?
       {

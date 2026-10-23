@@ -115,8 +115,6 @@ fn Presigner::verify(
 ) -> Claims? {
   guard req.params.get("token") is Some(token) else { return None }
   let payload = self.signer.loads(token.to_owned()) catch {
-    // signature rejected: wrong key, truncated, or forged — the only
-    // branch here that is an actual security signal.
     e => {
       let e : Error = e
       @xlog.warn(category="moondark.files") <? { "error": e.to_string() }

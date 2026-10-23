@@ -124,10 +124,6 @@ pub fn[U : AuthUser] SocialFlow::callback_handler(
       code_verifier=verifier,
       nonce~,
     ) catch {
-      // The user-facing 502 hides the detail — and the log must too:
-      // variant payloads can embed provider response bodies carrying
-      // tokens, so only the variant name, upstream status and the
-      // transport `cause` are safe to record.
       e => {
         if @xlog.warn(category="moondark.auth") is Some(ev) {
           ev.write_object_begin()
@@ -172,7 +168,6 @@ pub fn[U : AuthUser] SocialFlow::callback_handler(
             return
           }
           UserInactive => false
-          // store errors must not masquerade as "account unavailable"
           err => raise err
         }
         guard ok else {

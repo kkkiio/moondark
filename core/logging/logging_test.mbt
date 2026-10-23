@@ -82,7 +82,6 @@ async test "middleware logs access fields and handler errors" {
     let (response, _) = @http.get("\{base}/boom")
     assert_eq(response.code, 500)
   })
-  // access log: one info entry carrying the OTel fields
   guard wait_entry(entries, "/ok") is Some(ok) else {
     fail("expect an access entry for /ok")
   }
@@ -92,7 +91,6 @@ async test "middleware logs access fields and handler errors" {
   guard field(ok, "http.server.request.duration") is Some(Number(_, ..)) else {
     fail("expect duration field")
   }
-  // error log: the raised error is recorded, then moonback answers 500
   guard wait_entry(entries, "/boom") is Some(boom) else {
     fail("expect an error entry for /boom")
   }
@@ -100,6 +98,31 @@ async test "middleware logs access fields and handler errors" {
   guard field(boom, "error") is Some(String(msg)) && msg.contains("boom") else {
     fail("expect the propagated error in the entry")
   }
+}
+
+///|
+async test "middleware redacts presign token paths and logs 5xx at error" {
+  let app = @moonback.App(
+    @moonback.Module(ctx => {
+      ctx.add_middleware(@logging.middleware())
+      ctx.add_route(@http.RequestMethod::Put, "/_files/put/:token", (_req, res) => {
+        res.send_void(status=204)
+      })
+      ctx.get("/sorry", (_req, res) => res.send_text("oops", status=500))
+    }),
+  )
+  with_server(app, base => {
+    ignore(@http.put("\{base}/_files/put/S3CRET.token", ""))
+    ignore(@http.get("\{base}/sorry"))
+  })
+  guard wait_entry(entries, "/_files/put/[FILTERED]") is Some(entry) else {
+    fail("expect a redacted access entry")
+  }
+  assert_true(entry.level == @xlog.Info)
+  guard wait_entry(entries, "/sorry") is Some(entry) else {
+    fail("expect an access entry for /sorry")
+  }
+  assert_true(entry.level == @xlog.Error)
 }
 
 ///|
@@ -111,8 +134,6 @@ async test "middleware redacts sensitive query params" {
     }),
   )
   with_server(app, base => {
-    // `%63ode` decodes to `code` — the denylist must match decoded
-    // keys or percent-encoding would bypass redaction entirely.
     ignore(
       @http.get("\{base}/cb-redact?code=abc123&state=xyz&keep=1&%63ode=enc"),
     )

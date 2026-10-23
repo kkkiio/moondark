@@ -40,7 +40,7 @@ catch `_` 把 DB 故障翻译成"用户不可用/已占用"这类业务结果是
 
 | 级别 | 用于 |
 |---|---|
-| `error` | 请求 500、翻译层收到的内部错误、worker store 持续不可用（超过窗口）、后台任务真正死亡 |
+| `error` | 请求 500（raise 或显式回 5xx）、翻译层收到的内部错误、worker store 持续不可用（超过窗口）、后台任务真正死亡 |
 | `warn` | 业务预期或瞬时失败：OAuth 握手失败、CSRF 拒绝、签名伪造/损坏、BadConn 重试、worker store 单次失败、bcrypt hash 损坏、迁移 records 写入失败 |
 | `debug` | 正常竞争与过期：session 并发登出、presign token 过期/格式坏、清理类 close/rollback 失败 |
 | `info` | 显著状态变化：worker 从持续故障恢复、启动摘要 |
@@ -135,6 +135,7 @@ executed`。
 | `http.request.method` | 请求方法 |
 | `url.path` | 请求路径（OTel 标记为安全默认字段） |
 | `http.route` | **路由模板**而非具体路径——防高基数，access log 最有价值的字段；moonback `Request` 不暴露匹配模板（0.8.9），暂用 `url.path`，注意 id 型路径的基数问题 |
+| `url.path` | presign URL 把 capability token 放在路径最后一段（`<prefix>/put/<token>`）——`path_redact` 前缀列表命中的路径把末段记为 `[FILTERED]`，默认 `/_files` 与 `Presigner` 默认 `url_prefix` 对齐 |
 | `http.response.status_code` | 响应状态码；moonback `Responder` 是 `(Int, Headers) -> &WriteFlusher` 的 tuple struct，middleware 包一层即可截获（handler 未响应时为 0） |
 | `http.server.request.duration` | 秒，float |
 | `client.address` | 客户端地址 |

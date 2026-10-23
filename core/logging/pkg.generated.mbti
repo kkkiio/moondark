@@ -9,7 +9,7 @@ import {
 // Values
 pub let default_query_redact : Array[String]
 
-pub fn middleware(category? : String, query? : QueryLog) -> @moonback.Middleware
+pub fn middleware(category? : String, query? : QueryLog, path_redact? : Array[String]) -> @moonback.Middleware
 
 // Errors
 

@@ -162,9 +162,6 @@ pub async fn Worker::run_once(self : Self) -> Bool {
     now~,
     stale_before=self.reclaim_after.map(d => now - d),
   )
-  // A successful claim — even an empty one — is a live store
-  // round-trip; refresh the heartbeat before the task runs so a
-  // long execution cannot age it out.
   self.last_success = (self.now)()
   guard claimed is Some(result) else { return false }
   guard self.tasks.get(result.task_name) is Some(task) else {
@@ -235,9 +232,6 @@ pub async fn Worker::run_once(self : Self) -> Bool {
   let saved : Result[Unit, Error] = Ok(self.store.save(finished)) catch {
     e => Err(e)
   }
-  // The task may have already run to completion — the row stays
-  // Running until the stale-claim reaper re-executes it, which is
-  // why this is `error` and mentions re-execution explicitly.
   if saved is Err(e) {
     @xlog.error(category="moondark.tasks") <?
       {
