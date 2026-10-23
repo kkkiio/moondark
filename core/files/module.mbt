@@ -56,7 +56,12 @@ async fn handle_put(
     len > ms {
     return res.send_void(status=413)
   }
-  let reader = req.body.reader() catch { _ => return res.send_void(status=400) }
+  let reader = req.body.reader() catch {
+    e => {
+      @xlog.debug(category="moondark.files") <? { "error": e.to_string() }
+      return res.send_void(status=400)
+    }
+  }
   let content_type = match claims.content_type {
     Some(ct) => Some(ct)
     None => req.headers.get("content-type").map(v => v.to_owned())

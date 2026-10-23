@@ -289,7 +289,13 @@ async fn Pool::acquire(self : Pool) -> ConnEntry {
         }
         if entry.returned {
           entry.conn.reset_session() catch {
-            _ => {
+            e => {
+              @xlog.debug(category="moondark.database") <?
+                {
+                  "error": e.to_string(),
+                  "conn": entry.id,
+                  "message": "reset_session failed, discarding connection",
+                }
               self.discard_entry(entry)
               continue
             }
@@ -458,6 +464,12 @@ async fn acquire_retry(pool : Pool, attempt : Int32) -> ConnEntry? {
     Ok(entry) => Some(entry)
     Err(e) =>
       if e is @driver.BadConn(_) && attempt < max_bad_conn_retries {
+        @xlog.warn(category="moondark.database") <?
+          {
+            "error": e.to_string(),
+            "attempt": attempt,
+            "message": "BadConn on acquire, retrying on a fresh connection",
+          }
         None
       } else {
         raise e
@@ -482,7 +494,18 @@ async fn release_failed(
   // connection is never handed out again.
   let bad = e is @driver.BadConn(_) || !entry.conn.is_valid()
   pool.release(entry, bad~)
-  e is @driver.BadConn(_) && attempt < max_bad_conn_retries
+  if e is @driver.BadConn(_) && attempt < max_bad_conn_retries {
+    @xlog.warn(category="moondark.database") <?
+      {
+        "error": e.to_string(),
+        "conn": entry.id,
+        "attempt": attempt,
+        "message": "BadConn, retrying operation on a fresh connection",
+      }
+    true
+  } else {
+    false
+  }
 }
 
 ///|

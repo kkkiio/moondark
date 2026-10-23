@@ -27,6 +27,7 @@ MoonDark 是基于 MoonBack 的 MoonBit 后端框架（设计参考 [Django](htt
 │   │   └── sqltest/              # 测试用内存驱动（FakeConnector）
 │   ├── files/                    # FileStore（presign_put/presign_get + put/get/delete）、CasFileStore（CAS 本地后端）、Catalog、直传路由
 │   │   └── filestest/            # FileStore conformance test suite
+│   ├── logging/                  # 请求日志中间件：access log（OTel 字段 + query 脱敏）+ handler 错误兜底
 │   ├── migration/                # Migration、Migrator、版本目录/schema 文件加载
 │   ├── sessions/                 # Session、SessionStore、会话中间件、MemorySessionStore
 │   │   └── sessionstest/         # SessionStore conformance test suite
@@ -95,6 +96,10 @@ MoonDark 是基于 MoonBack 的 MoonBit 后端框架（设计参考 [Django](htt
 - 项目处于 0.x，不做稳定性保证。
 - 直接迁移调用方，不写兼容层；确需保留的已废弃代码块放进该包目录的 `deprecated.mbt`。
 - 在最终回复中说明有意引入的破坏性变更。
+
+### Logging Policy
+
+日志点位、级别与错误表示约定见 `docs/logging.md`。
 
 ### Placeholder Convention
 

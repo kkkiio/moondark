@@ -1,9 +1,12 @@
+supported_targets = "native"
+
 import {
   "KKKIIO/moondark/database/sql",
   "KKKIIO/moondark/database/sql/driver",
   "moonbitlang/async/fs",
   "moonbitlang/core/env",
   "moonbitlang/core/encoding/utf8",
+  "tonyfettes/xlog",
 }
 
 // Embed the bookkeeping DDL templates: bookkeeping.<dialect>.sql is

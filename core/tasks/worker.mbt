@@ -47,6 +47,15 @@ pub struct Worker {
   /// re-execution — they belong to a worker that died mid-task.
   /// `None` never reclaims: at-most-once delivery.
   reclaim_after : Int64?
+  /// A store outage longer than this many ms escalates from `warn`
+  /// to one `error` log and makes `is_healthy` false — the window a
+  /// `/healthz` probe should use.
+  unhealthy_after : Int64
+  /// ms timestamp of the last successful store round-trip; doubles as
+  /// the worker heartbeat for liveness probes.
+  mut last_success : Int64
+  /// Whether the current outage already emitted its `error` entry.
+  mut unhealthy_logged : Bool
   now : () -> Int64
 }
 
@@ -95,6 +104,7 @@ pub fn Worker::new(
   poll_interval~ : Int32 = 200,
   backoff~ : (Int32) -> Int64 = default_backoff,
   reclaim_after~ : Int64? = Some(300_000),
+  unhealthy_after~ : Int64 = 60_000,
   now~ : () -> Int64 = () => @env.now().reinterpret_as_int64(),
 ) -> Worker {
   Worker::{
@@ -108,8 +118,26 @@ pub fn Worker::new(
     poll_interval,
     backoff,
     reclaim_after,
+    unhealthy_after,
+    last_success: now(),
+    unhealthy_logged: false,
     now,
   }
+}
+
+///|
+/// ms timestamp of the last successful store round-trip — wire it into
+/// a `/healthz` probe so a stuck worker is visible to k8s.
+pub fn Worker::last_heartbeat(self : Self) -> Int64 {
+  self.last_success
+}
+
+///|
+/// Whether the store has answered within `unhealthy_after`. `false`
+/// means the worker is alive but blind: it keeps retrying with
+/// backoff, yet the queue is effectively stalled.
+pub fn Worker::is_healthy(self : Self) -> Bool {
+  (self.now)() - self.last_success <= self.unhealthy_after
 }
 
 ///|
@@ -131,6 +159,12 @@ pub async fn Worker::run_once(self : Self) -> Bool {
     return false
   }
   guard self.tasks.get(result.task_name) is Some(task) else {
+    @xlog.warn(category="moondark.tasks") <?
+      {
+        "message": "unknown task claimed, marking failed",
+        "task": result.task_name,
+        "worker": self.id,
+      }
     self.store.save(TaskResult::{
       ..result,
       status: Failed,
@@ -158,6 +192,13 @@ pub async fn Worker::run_once(self : Self) -> Bool {
         finished_at: Some((self.now)()),
       }
     Err(e) => {
+      @xlog.warn(category="moondark.tasks") <?
+        {
+          "error": e.to_string(),
+          "task": result.task_name,
+          "attempt": result.attempts,
+          "worker": self.id,
+        }
       let errors = [
         ..result.errors,
         TaskError::{ exception: e.to_string(), traceback: "", },
@@ -180,7 +221,22 @@ pub async fn Worker::run_once(self : Self) -> Bool {
       }
     }
   }
-  self.store.save(finished)
+  let saved : Result[Unit, Error] = Ok(self.store.save(finished)) catch {
+    e => Err(e)
+  }
+  // The task may have already run to completion — the row stays
+  // Running until the stale-claim reaper re-executes it, which is
+  // why this is `error` and mentions re-execution explicitly.
+  if saved is Err(e) {
+    @xlog.error(category="moondark.tasks") <?
+      {
+        "message": "save failed after task executed; it may run again",
+        "error": e.to_string(),
+        "task": result.task_name,
+        "worker": self.id,
+      }
+    raise e
+  }
   true
 }
 
@@ -192,11 +248,61 @@ pub async fn Worker::run_once(self : Self) -> Bool {
 /// ```moonbit nocheck
 /// group.spawn_bg(no_wait=true, () => worker.run())
 /// ```
+///
+/// Store failures (`claim`/`save` raising) do **not** kill the worker:
+/// it warns, backs off exponentially (capped at 30s), and keeps
+/// polling — a blip must not become a dead queue. A sustained outage
+/// past `unhealthy_after` emits one `error` and flips `is_healthy`,
+/// which is the signal a `/healthz` probe should report; recovery is
+/// logged at `info`.
 pub async fn Worker::run(self : Self) -> Unit {
+  let mut failures = 0
   while true {
-    while self.run_once() {
-      ()
+    let outcome : Result[Bool, Error] = Ok(self.run_once()) catch {
+      e => Err(e)
     }
-    @async.sleep(self.poll_interval)
+    match outcome {
+      Ok(ran) => {
+        self.last_success = (self.now)()
+        if failures > 0 {
+          if self.unhealthy_logged {
+            @xlog.info(category="moondark.tasks") <?
+              {
+                "message": "task store recovered",
+                "worker": self.id,
+                "consecutive_failures": failures,
+              }
+          }
+          failures = 0
+          self.unhealthy_logged = false
+        }
+        if !ran {
+          @async.sleep(self.poll_interval)
+        }
+      }
+      Err(e) => {
+        failures += 1
+        @xlog.warn(category="moondark.tasks") <?
+          {
+            "error": e.to_string(),
+            "worker": self.id,
+            "consecutive_failures": failures,
+          }
+        if !self.unhealthy_logged &&
+          (self.now)() - self.last_success > self.unhealthy_after {
+          self.unhealthy_logged = true
+          @xlog.error(category="moondark.tasks") <?
+            {
+              "message": "task store unavailable",
+              "error": e.to_string(),
+              "worker": self.id,
+              "last_success": self.last_success,
+            }
+        }
+        let shift = if failures > 8 { 8 } else { failures }
+        let delay = self.poll_interval.to_int64() * (1L << shift)
+        @async.sleep(if delay > 30_000L { 30_000 } else { delay.to_int() })
+      }
+    }
   }
 }

@@ -83,7 +83,15 @@ pub fn CrossOriginProtection::middleware(
   @moonback.Middleware(next => {
     (req, res) => {
       self.check(req) catch {
-        _ => return (self.deny_handler)(req, res)
+        // The deny response hides which check failed; the variant is
+        // the diagnosis (and a cross-origin write attempt is a
+        // security signal worth a warn).
+        e => {
+          let e : Error = e
+          @xlog.warn(category="moondark.csrf") <?
+            { "error": e.to_string(), "path": req.path.to_owned() }
+          return (self.deny_handler)(req, res)
+        }
       }
       next(req, res)
     }

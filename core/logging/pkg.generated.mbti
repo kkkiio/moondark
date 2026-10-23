@@ -1,0 +1,25 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "KKKIIO/moondark/logging"
+
+import {
+  "moonbitlang/core/debug",
+  "moonbitlang/moonback",
+}
+
+// Values
+pub let default_query_redact : Array[String]
+
+pub fn middleware(category? : String, query? : QueryLog) -> @moonback.Middleware
+
+// Errors
+
+// Types and methods
+pub(all) enum QueryLog {
+  Full(redact~ : Array[String])
+  None
+} derive(@debug.Debug)
+pub fn QueryLog::to_repr(Self) -> @debug.Repr
+
+// Type aliases
+
+// Traits

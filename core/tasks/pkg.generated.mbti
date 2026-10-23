@@ -102,9 +102,14 @@ pub struct Worker {
   poll_interval : Int32
   backoff : (Int32) -> Int64
   reclaim_after : Int64?
+  unhealthy_after : Int64
+  mut last_success : Int64
+  mut unhealthy_logged : Bool
   now : () -> Int64
 }
-pub fn Worker::new(store~ : &TaskStore, tasks~ : Array[TaskExec], id? : String, poll_interval? : Int32, backoff? : (Int32) -> Int64, reclaim_after? : Int64?, now? : () -> Int64) -> Self
+pub fn Worker::is_healthy(Self) -> Bool
+pub fn Worker::last_heartbeat(Self) -> Int64
+pub fn Worker::new(store~ : &TaskStore, tasks~ : Array[TaskExec], id? : String, poll_interval? : Int32, backoff? : (Int32) -> Int64, reclaim_after? : Int64?, unhealthy_after? : Int64, now? : () -> Int64) -> Self
 pub async fn Worker::run(Self) -> Unit
 pub async fn Worker::run_once(Self) -> Bool
 

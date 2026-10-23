@@ -124,7 +124,12 @@ pub fn[U : AuthUser] SocialFlow::callback_handler(
       code_verifier=verifier,
       nonce~,
     ) catch {
-      _ => {
+      // `authenticate` only raises `OAuthError`; the user-facing 502
+      // deliberately hides the detail, so the variant is the diagnosis.
+      e => {
+        let e : Error = e
+        @xlog.warn(category="moondark.auth") <?
+          { "error": e.to_string(), "provider": provider.name }
         res.send_json({ "error": "identity verification failed." }, status=502)
         return
       }
@@ -132,7 +137,13 @@ pub fn[U : AuthUser] SocialFlow::callback_handler(
     match self.auth.authenticate_oauth(provider=p, identifier=identity.sub) {
       Some(user_id) => {
         let ok = self.session_auth.login_by_id(req, user_id) catch {
-          _ => false
+          NoSession => {
+            res.send_text("sessions.middleware is not installed", status=500)
+            return
+          }
+          UserInactive => false
+          // store errors must not masquerade as "account unavailable"
+          err => raise err
         }
         guard ok else {
           res.send_json({ "error": "account unavailable." }, status=403)
@@ -154,16 +165,22 @@ pub fn[U : AuthUser] SocialFlow::callback_handler(
           secret=identity.tokens.to_json().stringify(),
           verified=identity.email_verified,
         ) catch {
-          _ => {
+          IdentifierTaken(_, _, _) => {
             res.send_json({ "error": "identity already bound." }, status=409)
             return
           }
+          err => raise err
         }
         self.session_auth.login(req, user) catch {
-          _ => {
+          NoSession => {
+            res.send_text("sessions.middleware is not installed", status=500)
+            return
+          }
+          UserInactive => {
             res.send_json({ "error": "account unavailable." }, status=403)
             return
           }
+          err => raise err
         }
       }
     }

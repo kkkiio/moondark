@@ -52,7 +52,18 @@ pub async fn Auth::authenticate_password(
   }
   guard cred.secret != "" else { return None }
   let ok = @bcrypt.verify(password=@utf8.encode(password), hashed=cred.secret) catch {
-    _ => false
+    // A verify error means the stored hash is corrupt, not that the
+    // password mismatched — still answer `false` (no oracle), but the
+    // broken credentials row deserves a trace.
+    e => {
+      @xlog.warn(category="moondark.auth") <?
+        {
+          "error": e.to_string(),
+          "identifier": identifier,
+          "message": "bcrypt verify failed; stored hash may be corrupt",
+        }
+      false
+    }
   }
   guard ok else { return None }
   self.mark_used(cred)
@@ -148,14 +159,21 @@ pub async fn Auth::bind_oauth(
 /// Stamp `last_used_at` on a successful authentication. Best-effort:
 /// a failed stamp must not reject a valid login.
 async fn Auth::mark_used(self : Self, cred : CredentialModel) -> Unit {
-  ignore(
-    self.store.update_credential(
-      cred.kind,
-      cred.provider,
-      cred.identifier,
-      last_used_at=now_ms(),
-    ),
+  let updated = self.store.update_credential(
+    cred.kind,
+    cred.provider,
+    cred.identifier,
+    last_used_at=now_ms(),
   )
+  // `false` = the credential row vanished between find and update —
+  // a normal race, worth a trace but never worth rejecting a login.
+  if !updated {
+    @xlog.debug(category="moondark.auth") <?
+      {
+        "message": "last_used_at stamp skipped: credential gone",
+        "identifier": cred.identifier,
+      }
+  }
 }
 
 ///|
