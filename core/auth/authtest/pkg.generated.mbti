@@ -1,0 +1,17 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "KKKIIO/moondark/auth/authtest"
+
+import {
+  "KKKIIO/moondark/auth",
+}
+
+// Values
+pub async fn check_credential_store(&@auth.CredentialStore) -> Unit
+
+// Errors
+
+// Types and methods
+
+// Type aliases
+
+// Traits
