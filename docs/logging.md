@@ -165,6 +165,13 @@ pub enum QueryLog { Full(redact~ : Array[String]); None }
   `user_agent.original`），`<?` map 字面量放不下 → 用
   `if @xlog.error(...) is Some(ev)` + `write_object_field` 逐字段写；
   无条件字段的场景仍优先 `<?` 写法。
+- `<?`/` <+` 的 RHS 只接受四种模板形态（字符串、`#|`、`$|`、map
+  字面量），变量/block 会被 parser 拒绝——"先 build 一个 Map 再
+  `<?`"不成立。map 字面量的值可以是 `if`/block（条件取值），但
+  key 集合编译期固定（无 spread）；多次 `<?` 也不合并字段
+  （`write_object_begin` 每次 `fields.clear()`、`write_object_end`
+  立即 emit，两次 `<?` = 两条独立 entry）。条件**字段存在性**
+  只能 field-by-field。
 
 ## 背景
 
