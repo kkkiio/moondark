@@ -1,0 +1,25 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "KKKIIO/moondark_postgresql/auth"
+
+import {
+  "KKKIIO/moondark/database/sql",
+}
+
+// Values
+
+// Errors
+
+// Types and methods
+type PostgresCredentialStore
+pub fn PostgresCredentialStore::PostgresCredentialStore(@sql.DB, table? : String) -> Self
+pub async fn PostgresCredentialStore::add_credential(Self, @KKKIIO/moondark/auth.CredentialModel) -> Bool
+pub async fn PostgresCredentialStore::credentials_of(Self, String) -> Array[@KKKIIO/moondark/auth.CredentialModel]
+pub async fn PostgresCredentialStore::delete_credentials_of(Self, String) -> Unit
+pub async fn PostgresCredentialStore::find_credential(Self, @KKKIIO/moondark/auth.CredentialKind, String, String) -> @KKKIIO/moondark/auth.CredentialModel?
+pub async fn PostgresCredentialStore::remove_credential(Self, @KKKIIO/moondark/auth.CredentialKind, String, String) -> Bool
+pub async fn PostgresCredentialStore::update_credential(Self, @KKKIIO/moondark/auth.CredentialModel) -> Bool
+pub impl @KKKIIO/moondark/auth.CredentialStore for PostgresCredentialStore
+
+// Type aliases
+
+// Traits
