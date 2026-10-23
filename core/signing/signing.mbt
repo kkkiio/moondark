@@ -58,9 +58,10 @@ pub fn Signer::sign(self : Signer, value : String) -> String {
 ///|
 /// 校验并还原 `sign` 的原始值。
 /// 签名缺失或不匹配抛 `BadSignature`；
-/// `now - ts > max_age`（毫秒，`ts` 为 wire 上的秒时间戳，比较前换算）
-/// 时抛 `SignatureExpired`，默认永不超时（`age == max_age` 仍算有效、
-/// 未来时间戳必定过期）。
+/// `age > max_age`（毫秒）时抛 `SignatureExpired`，默认永不超时
+/// （`age == max_age` 仍算有效、未来时间戳必定过期）。
+/// 因为 wire 上的 `ts` 只精确到秒，验签时钟也取整到秒再比较——
+/// 否则零点几秒签出的 token 一出生就带着最多 999ms 的"年龄"。
 pub fn Signer::unsign(
   self : Signer,
   signed : String,
@@ -76,7 +77,8 @@ pub fn Signer::unsign(
   }
   guard stamped.rev_find(":") is Some(j) else { raise BadSignature }
   let timestamp = b62_decode(stamped[j + 1:])
-  if (self.now)().reinterpret_as_int64() - timestamp * 1000 > max_age {
+  let age = ((self.now)() / 1000).reinterpret_as_int64() - timestamp
+  if age * 1000 > max_age {
     raise SignatureExpired
   }
   stamped[:j].to_owned()
