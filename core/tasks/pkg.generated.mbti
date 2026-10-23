@@ -104,6 +104,7 @@ pub struct Worker {
   reclaim_after : Int64?
   unhealthy_after : Int64
   mut last_success : Int64
+  mut executing : Bool
   mut unhealthy_logged : Bool
   now : () -> Int64
 }

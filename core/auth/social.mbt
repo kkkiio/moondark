@@ -124,12 +124,42 @@ pub fn[U : AuthUser] SocialFlow::callback_handler(
       code_verifier=verifier,
       nonce~,
     ) catch {
-      // `authenticate` only raises `OAuthError`; the user-facing 502
-      // deliberately hides the detail, so the variant is the diagnosis.
+      // The user-facing 502 hides the detail — and the log must too:
+      // variant payloads can embed provider response bodies carrying
+      // tokens, so only the variant name, upstream status and the
+      // transport `cause` are safe to record.
       e => {
-        let e : Error = e
-        @xlog.warn(category="moondark.auth") <?
-          { "error": e.to_string(), "provider": provider.name }
+        if @xlog.warn(category="moondark.auth") is Some(ev) {
+          ev.write_object_begin()
+          ev.write_object_field("provider", provider.name)
+          match e {
+            @oauth2.EntropyUnavailable =>
+              ev.write_object_field("error", "entropy_unavailable")
+            @oauth2.TokenExchangeFailed(code, _, cause~) => {
+              ev.write_object_field("error", "token_exchange_failed")
+              ev.write_object_field("upstream_status", code)
+              if cause is Some(c) {
+                ev.write_object_field("error.cause", c.to_string())
+              }
+            }
+            @oauth2.UserInfoFailed(code, _, cause~) => {
+              ev.write_object_field("error", "user_info_failed")
+              ev.write_object_field("upstream_status", code)
+              if cause is Some(c) {
+                ev.write_object_field("error.cause", c.to_string())
+              }
+            }
+            @oauth2.InvalidTokenResponse(_) =>
+              ev.write_object_field("error", "invalid_token_response")
+            @oauth2.InvalidIdToken(_) =>
+              ev.write_object_field("error", "invalid_id_token")
+            @oauth2.ClaimMismatch(_) =>
+              ev.write_object_field("error", "claim_mismatch")
+            @oauth2.TokenExpired(_, _) =>
+              ev.write_object_field("error", "token_expired")
+          }
+          ev.write_object_end()
+        }
         res.send_json({ "error": "identity verification failed." }, status=502)
         return
       }

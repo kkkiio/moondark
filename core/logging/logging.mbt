@@ -68,7 +68,7 @@ pub fn middleware(
             if req.search is Some(search) && !search.is_empty() {
               ev.write_object_field(
                 "url.query",
-                redact_query(search, redact[:]),
+                redact_query(req.query(), redact[:]),
               )
             }
           None => ()
@@ -113,27 +113,26 @@ fn method_name(meth : @http.RequestMethod) -> String {
 }
 
 ///|
-/// Rewrite `k=v&...`: values whose key contains any `deny` entry
-/// (case-insensitive) render as `[FILTERED]`; other pairs pass through.
-fn redact_query(search : StringView, deny : ArrayView[String]) -> String {
+/// Rebuild `k=v&...` from the **decoded** pairs: matching against
+/// decoded keys keeps `%63ode=abc` from slipping `code` past the
+/// denylist. Log-only rendering — decoded values may contain `&`.
+fn redact_query(
+  params : @moonback.QueryParams,
+  deny : ArrayView[String],
+) -> String {
   let out = StringBuilder()
   let mut first = true
-  for pair in search.split("&") {
-    let (key, value) = match pair.find("=") {
-      Some(i) => (pair[:i], Some(pair[i + 1:]))
-      None => (pair, None)
-    }
+  for pair in params.iter() {
+    let (key, value) = pair
     if !first {
       out.write_char('&')
     }
     first = false
-    out.write_string(key.to_owned())
-    if value is Some(v) {
-      out.write_char('=')
-      let key_lower = key.to_owned().to_lower()
-      let redacted = deny.iter().any(d => key_lower.contains(d.to_lower()))
-      out.write_string(if redacted { "[FILTERED]" } else { v.to_owned() })
-    }
+    out.write_string(key)
+    out.write_char('=')
+    let key_lower = key.to_lower()
+    let redacted = deny.iter().any(d => key_lower.contains(d.to_lower()))
+    out.write_string(if redacted { "[FILTERED]" } else { value })
   }
   out.to_string()
 }

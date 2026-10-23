@@ -111,7 +111,11 @@ async test "middleware redacts sensitive query params" {
     }),
   )
   with_server(app, base => {
-    ignore(@http.get("\{base}/cb-redact?code=abc123&state=xyz&keep=1"))
+    // `%63ode` decodes to `code` — the denylist must match decoded
+    // keys or percent-encoding would bypass redaction entirely.
+    ignore(
+      @http.get("\{base}/cb-redact?code=abc123&state=xyz&keep=1&%63ode=enc"),
+    )
   })
   guard wait_entry(entries, "/cb-redact") is Some(entry) else {
     fail("expect an access entry")
@@ -122,6 +126,7 @@ async test "middleware redacts sensitive query params" {
   assert_true(query.contains("code=[FILTERED]"))
   assert_true(query.contains("state=[FILTERED]"))
   assert_true(query.contains("keep=1"))
+  assert_true(!query.contains("=enc") && !query.contains("abc123"))
 }
 
 ///|

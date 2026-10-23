@@ -54,6 +54,11 @@ pub struct Worker {
   /// ms timestamp of the last successful store round-trip; doubles as
   /// the worker heartbeat for liveness probes.
   mut last_success : Int64
+  /// `true` while a task function is executing — a busy worker is
+  /// healthy however old the heartbeat is, otherwise a task longer
+  /// than `unhealthy_after` would flap `/healthz` and invite a
+  /// restart that re-executes it.
+  mut executing : Bool
   /// Whether the current outage already emitted its `error` entry.
   mut unhealthy_logged : Bool
   now : () -> Int64
@@ -120,6 +125,7 @@ pub fn Worker::new(
     reclaim_after,
     unhealthy_after,
     last_success: now(),
+    executing: false,
     unhealthy_logged: false,
     now,
   }
@@ -133,11 +139,12 @@ pub fn Worker::last_heartbeat(self : Self) -> Int64 {
 }
 
 ///|
-/// Whether the store has answered within `unhealthy_after`. `false`
-/// means the worker is alive but blind: it keeps retrying with
-/// backoff, yet the queue is effectively stalled.
+/// Whether the store has answered within `unhealthy_after` — or a
+/// task is executing right now. `false` means the worker is alive
+/// but blind: it keeps retrying with backoff, yet the queue is
+/// effectively stalled.
 pub fn Worker::is_healthy(self : Self) -> Bool {
-  (self.now)() - self.last_success <= self.unhealthy_after
+  self.executing || (self.now)() - self.last_success <= self.unhealthy_after
 }
 
 ///|
@@ -150,12 +157,16 @@ pub fn Worker::is_healthy(self : Self) -> Bool {
 /// row's `max_attempts`, and marked `Failed` once the budget is spent.
 pub async fn Worker::run_once(self : Self) -> Bool {
   let now = (self.now)()
-  guard self.store.claim(
-      worker_id=self.id,
-      now~,
-      stale_before=self.reclaim_after.map(d => now - d),
-    )
-    is Some(result) else {
+  let claimed = self.store.claim(
+    worker_id=self.id,
+    now~,
+    stale_before=self.reclaim_after.map(d => now - d),
+  )
+  // A successful claim — even an empty one — is a live store
+  // round-trip; refresh the heartbeat before the task runs so a
+  // long execution cannot age it out.
+  self.last_success = (self.now)()
+  guard claimed is Some(result) else {
     return false
   }
   guard self.tasks.get(result.task_name) is Some(task) else {
@@ -180,9 +191,11 @@ pub async fn Worker::run_once(self : Self) -> Bool {
     return true
   }
   let context = TaskContext::{ task_result: result, attempt: result.attempts, }
+  self.executing = true
   let outcome : Result[Json, Error] = Ok((task.func)(context, result.args)) catch {
     e => Err(e)
   }
+  self.executing = false
   let finished = match outcome {
     Ok(value) =>
       TaskResult::{
@@ -237,6 +250,7 @@ pub async fn Worker::run_once(self : Self) -> Bool {
       }
     raise e
   }
+  self.last_success = (self.now)()
   true
 }
 
@@ -263,7 +277,6 @@ pub async fn Worker::run(self : Self) -> Unit {
     }
     match outcome {
       Ok(ran) => {
-        self.last_success = (self.now)()
         if failures > 0 {
           if self.unhealthy_logged {
             @xlog.info(category="moondark.tasks") <?
