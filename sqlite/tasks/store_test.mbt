@@ -237,7 +237,7 @@ async test "worker reclaim policy decides stale running rows" {
 
 ///|
 async test "a reclaimed task keeps the newer attempt when an old worker completes" {
-  with_backend("_build/moondark-sqlite-tasks-fencing.db", (backend, db) => {
+  with_backend((backend, db) => {
     let def : @moondark_tasks.TransactionalTaskDef[Json] = @moondark_tasks.TransactionalTaskDef::new(
       name="fenced",
       max_attempts=3,

@@ -109,10 +109,8 @@ async test "with_transaction commits and rolls back" {
 ///|
 async test "every pooled SQLite connection enables foreign keys and lock waiting" {
   @async.with_task_group(group => {
-    let (db, executor) = @database.open_db(
-      "_build/moondark-sqlite-pragmas.db",
-      max_open=2,
-    )
+    let dir = @fs.tmpdir(prefix="moondark-sqlite-pragmas")
+    let (db, executor) = @database.open_db("\{dir}/pragmas.db", max_open=2)
     group.spawn_bg(no_wait=true, () => executor.run())
     db.ready()
     defer db.close()

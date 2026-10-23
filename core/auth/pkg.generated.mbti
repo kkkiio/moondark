@@ -77,7 +77,7 @@ pub fn[U] SessionAuth::SessionAuth(key~ : @moonback.TypedKey[U?], load_user~ : a
 pub fn[U] SessionAuth::get_user(Self[U], @moonback.Request) -> U?
 pub fn[U : AuthUser] SessionAuth::login(Self[U], @moonback.Request, U) -> Unit raise AuthError
 pub async fn[U : AuthUser] SessionAuth::login_by_id(Self[U], @moonback.Request, String) -> Bool
-pub fn[U] SessionAuth::login_required(Self[U], async (@moonback.Request, @moonback.Responder, U) -> Unit, login_url? : String) -> async (@moonback.Request, @moonback.Responder) -> Unit
+pub fn[U] SessionAuth::login_required(Self[U], async (@moonback.Request, @moonback.Responder, U) -> Unit, login_url? : String?) -> async (@moonback.Request, @moonback.Responder) -> Unit
 pub fn[U] SessionAuth::logout(Self[U], @moonback.Request) -> Unit raise AuthError
 pub fn[U : AuthUser] SessionAuth::middleware(Self[U]) -> @moonback.Middleware
 pub fn[U : AuthUser] SessionAuth::routes(Self[U], auth? : Auth, flows? : Array[SocialFlow[U]], url_prefix? : String) -> @moonback.Module
