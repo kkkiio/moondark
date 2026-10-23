@@ -119,6 +119,15 @@ async test "auth routes: password login, logout, next handling" {
     )
     assert_eq(evil.code, 200)
     assert_false(evil.headers.get("location") is Some(_))
+    // a backslash resolves as a slash in WHATWG parsing — decoded %5C
+    // must be refused too, or /\evil.example would go cross-origin
+    let (backslash, _) = @http.post(
+      "\{base}/auth/login?next=/%5Cevil.test",
+      "{\"identifier\": \"alice\", \"password\": \"p w\"}",
+      headers={ "content-type": "application/json" },
+    )
+    assert_eq(backslash.code, 200)
+    assert_false(backslash.headers.get("location") is Some(_))
     serve_task.cancel()
     serve_task.wait() catch {
       @async.WaitedTaskAlreadyCancelled => ()

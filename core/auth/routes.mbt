@@ -92,9 +92,8 @@ async fn[U : AuthUser] password_login(
   guard ok else {
     return res.send_json({ "error": "account unavailable." }, status=403)
   }
-  // same open-redirect guard as SocialFlow::callback_handler
   match req.query().get("next") {
-    Some(next) if next.has_prefix("/") && !next.has_prefix("//") =>
+    Some(next) if is_safe_next(next) =>
       res.send_void(status=302, headers={ "location": next })
     _ => res.send_json({ "id": user_id })
   }
@@ -126,6 +125,16 @@ async fn read_credentials(req : @moonback.Request) -> (String, String)? {
       _ => None
     }
   }
+}
+
+///|
+/// `next` may only be 302'd to when it cannot resolve off-origin: a
+/// root-absolute path, not protocol-relative (`//host`), and with no `\`
+/// — WHATWG URL parsing treats backslashes as slashes, so `/\evil.example`
+/// would still land cross-origin. Query params are already decoded, so a
+/// smuggled `%5C` shows up as a literal `\` here.
+fn is_safe_next(next : StringView) -> Bool {
+  next.has_prefix("/") && !next.has_prefix("//") && !next.contains("\\")
 }
 
 ///|

@@ -168,8 +168,7 @@ pub fn[U : AuthUser] SocialFlow::callback_handler(
       }
     }
     let next = match session[next_key] {
-      Some(String(next)) if next.has_prefix("/") && !next.has_prefix("//") =>
-        next
+      Some(String(next)) if is_safe_next(next) => next
       _ => "/"
     }
     session[next_key] = Json("")
