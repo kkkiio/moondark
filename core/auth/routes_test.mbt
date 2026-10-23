@@ -128,6 +128,14 @@ async test "auth routes: password login, logout, next handling" {
     )
     assert_eq(backslash.code, 200)
     assert_false(backslash.headers.get("location") is Some(_))
+    // WHATWG parsing strips ASCII tabs too: /\t/evil would reassemble //
+    let (tab, _) = @http.post(
+      "\{base}/auth/login?next=/%09/evil.test",
+      "{\"identifier\": \"alice\", \"password\": \"p w\"}",
+      headers={ "content-type": "application/json" },
+    )
+    assert_eq(tab.code, 200)
+    assert_false(tab.headers.get("location") is Some(_))
     serve_task.cancel()
     serve_task.wait() catch {
       @async.WaitedTaskAlreadyCancelled => ()

@@ -129,12 +129,20 @@ async fn read_credentials(req : @moonback.Request) -> (String, String)? {
 
 ///|
 /// `next` may only be 302'd to when it cannot resolve off-origin: a
-/// root-absolute path, not protocol-relative (`//host`), and with no `\`
-/// — WHATWG URL parsing treats backslashes as slashes, so `/\evil.example`
-/// would still land cross-origin. Query params are already decoded, so a
-/// smuggled `%5C` shows up as a literal `\` here.
+/// root-absolute path, not protocol-relative (`//host`), and free of the
+/// characters URL parsers strip or reinterpret — `\` (treated as `/`)
+/// and C0 controls/DEL, since WHATWG parsing removes ASCII tab/LF/CR
+/// before resolving, so `/\t/evil` or `/\evil` would land cross-origin.
+/// Query params are decoded upstream, so a smuggled `%5C`/`%09` shows up
+/// as the literal byte here.
 fn is_safe_next(next : StringView) -> Bool {
-  next.has_prefix("/") && !next.has_prefix("//") && !next.contains("\\")
+  guard next.has_prefix("/") && !next.has_prefix("//") else { return false }
+  for c in next {
+    if c == '\\' || c.to_int() <= 0x20 || c.to_int() == 0x7f {
+      return false
+    }
+  }
+  true
 }
 
 ///|
