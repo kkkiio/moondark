@@ -235,7 +235,7 @@ pub async fn Worker::run_once(self : Self) -> Bool {
     e => Err(e)
   }
   if saved is Err(e) {
-    @xlog.error(category="moondark.tasks") <?
+    @xlog.warn(category="moondark.tasks") <?
       {
         "message": "save failed after task executed; it may run again",
         "error": e.to_string(),

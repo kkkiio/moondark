@@ -63,11 +63,34 @@ category 用模块路径：`moondark.auth`、`moondark.sessions`、`moondark.tas
 ## 错误在日志中的表示
 
 `Event::write_object_field(key, value)` 要求 `value : ToJson`，而 `Error`
-不实现 `ToJson`、也没有 `cause()` 访问器，目前只有 **`e.to_string()`**
-一条路：`Error` 打印变体的 Debug repr，携带 `Error` 载荷的变体
-（`BadConn`/`ApplyFailed`）会递归输出内层——不结构化、格式不可控，
-但信息是全的。等 MoonBit 官方提供 error cause 访问器后再升级为
-结构化链。
+不实现 `ToJson`、也没有 `cause()` 访问器，日志里只有
+**`e.to_string()`** 一条路。它的行为是编译器内建
+（`%error.to_string`），实测规则：
+
+- **具体错误类型实现了 `Show`** → 分派到该 `Show`（载荷按 Show 语义
+  打印，`String` 不带引号）；
+- **没有 `Show`** → 退化成全限定构造子名 `pkg.Type.Variant`，
+  **载荷不打印**；
+- 官方内建错误（`Failure`/`JsonDecodeError`）是特例，带 payload。
+
+推论两条：
+
+- **`derive(Debug)` 救不了日志**：`Debug`（`to_repr`/`debug_inspect`）
+  是另一套独立表示，会原样输出载荷——不能用它替代 `to_string`
+  打日志，否则 `OAuthError` 的 provider 响应体（可能含
+  access/refresh token）直接进日志。
+- **想让错误"打得出来"就必须给 `Show`**：本仓库的错误类型按
+  `Show` 输出安全分级处理——`OAuthError` 手写 `impl Show`，
+  变体 + upstream status + `cause` 保留，raw body 一律省略
+  （`InvalidTokenResponse(<body omitted>)`）；`BadConn(e)`、
+  `ApplyFailed(name~, e)` 这类 cause 包装器手写 `Show` 递归内层，
+  错误链可打印。
+- `derive(Show)` 已被工具链废弃（建议 `derive(Debug)` 或手写），
+  手写 `pub impl Show` 后需配套
+  `pub extend X with Show::{to_string, output}`（消除
+  implicit_impl_as_method 提升）。
+
+等 MoonBit 官方提供 error cause 访问器后再升级为结构化链。
 
 写法用 xlog 的官方惯用法——MoonBit 0.10 的条件模板写语法 `<?`：
 `Event?` 为 `None`（级别/category 被关闭）时右侧**不求值**，
@@ -87,7 +110,7 @@ category 用模块路径：`moondark.auth`、`moondark.sessions`、`moondark.tas
 |---|---|
 | 请求错误日志 middleware | 新建 `core/logging` 包导出 `middleware()`；应用第一个注册；`log.error` + `raise`（moonback `handle_request` 仍会回 500，见上游 issue [moonbitlang/moonback#7](https://github.com/moonbitlang/moonback/issues/7)） |
 | `SocialFlow::callback_handler` | `authenticate` 的 `OAuthError` → warn + 502；`login_by_id`/`bind_oauth`/`login` 只兜 `AuthError`，其余传播 |
-| `oauth2.mbt` | `TokenExchangeFailed`/`UserInfoFailed` 增加 `cause~ : Error`；移除 `derive(Eq)`（无容器/key 场景），测试 `assert_eq` 改 `is` 匹配断言；`InvalidTokenResponse` 保留原文本 |
+| `oauth2.mbt` | `TokenExchangeFailed`/`UserInfoFailed` 增加 `cause~ : Error`；移除 `derive(Eq)`（无容器/key 场景），测试 `assert_eq` 改 `is` 匹配断言；`InvalidTokenResponse` 保留原文本；手写 `impl Show`——打印变体/status/cause，raw body 省略，保证任何 `e.to_string()` 调用点都不会泄露 token |
 | `bcrypt.verify` 失败 | 仍返回 `false`（防 oracle），warn——意味着 credentials 表损坏 |
 | `mark_used` | debug（best-effort 是有意的） |
 | `csrf` deny | middleware catch 时 warn 记录具体 variant |

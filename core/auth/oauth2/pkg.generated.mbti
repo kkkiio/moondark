@@ -19,7 +19,10 @@ pub(all) suberror OAuthError {
   TokenExpired(Int64, Int64)
   UserInfoFailed(Int32, String, cause~ : Error?)
 } derive(@debug.Debug)
+pub fn OAuthError::output(Self, &Logger) -> Unit
 pub fn OAuthError::to_repr(Self) -> @debug.Repr
+pub fn OAuthError::to_string(Self) -> String
+pub impl Show for OAuthError
 
 // Types and methods
 pub(all) struct Identity {

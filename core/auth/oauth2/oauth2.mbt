@@ -346,6 +346,13 @@ pub extend TokenResponse with FromJson::{from_json}
 /// Errors raised during the OAuth 2.0 / OIDC handshake and validation.
 /// `cause` carries the underlying transport/parse error when one
 /// exists (`None` for HTTP error responses, whose detail is the body).
+///
+/// The `Show` impl (what `Error::to_string` prints) omits response
+/// bodies on purpose: `TokenExchangeFailed`/`UserInfoFailed`/
+/// `InvalidTokenResponse` carry raw provider payloads that can embed
+/// access/refresh tokens, so the printable form keeps only the
+/// variant, upstream status, and transport `cause`. The full payload
+/// stays accessible through pattern matching and `Debug`.
 pub(all) suberror OAuthError {
   EntropyUnavailable
   TokenExchangeFailed(Int32, String, cause~ : Error?)
@@ -358,3 +365,27 @@ pub(all) suberror OAuthError {
 
 ///|
 pub extend OAuthError with Debug::{to_repr}
+
+///|
+pub impl Show for OAuthError with fn to_string(self) {
+  match self {
+    EntropyUnavailable => "EntropyUnavailable"
+    TokenExchangeFailed(code, _, cause~) =>
+      match cause {
+        Some(c) => "TokenExchangeFailed(\{code}, cause=\{c})"
+        None => "TokenExchangeFailed(\{code})"
+      }
+    InvalidTokenResponse(_) => "InvalidTokenResponse(<body omitted>)"
+    InvalidIdToken(msg) => "InvalidIdToken(\{msg})"
+    ClaimMismatch(claim) => "ClaimMismatch(\{claim})"
+    TokenExpired(exp, now) => "TokenExpired(\{exp}, \{now})"
+    UserInfoFailed(code, _, cause~) =>
+      match cause {
+        Some(c) => "UserInfoFailed(\{code}, cause=\{c})"
+        None => "UserInfoFailed(\{code})"
+      }
+  }
+}
+
+///|
+pub extend OAuthError with Show::{to_string, output}

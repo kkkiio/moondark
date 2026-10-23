@@ -119,6 +119,27 @@ pub suberror MigrationError {
 }
 
 ///|
+/// `ApplyFailed` carries the underlying error; every other payload is
+/// a name/checksum — all safe to print.
+pub impl Show for MigrationError with fn to_string(self) {
+  match self {
+    DirtyState(names) => {
+      let joined = names.join(", ")
+      "DirtyState(\{joined})"
+    }
+    ChecksumMismatch(name~, stored~, current~) =>
+      "ChecksumMismatch(name=\{name}, stored=\{stored}, current=\{current})"
+    OutOfOrder(name~, latest~) => "OutOfOrder(name=\{name}, latest=\{latest})"
+    ApplyFailed(name~, e) => "ApplyFailed(\{name}, \{e})"
+    NotFresh => "NotFresh"
+    InvalidName(name) => "InvalidName(\{name})"
+  }
+}
+
+///|
+pub extend MigrationError with Show::{to_string, output}
+
+///|
 /// Runs pending migrations against `conn` and keeps the bookkeeping
 /// tables. Holds the connection for the whole migration run — check it
 /// out of the pool with `db.conn()` and close it afterwards.

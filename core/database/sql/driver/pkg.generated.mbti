@@ -12,6 +12,9 @@ import {
 pub(all) suberror BadConn {
   BadConn(Error)
 }
+pub fn BadConn::output(Self, &Logger) -> Unit
+pub fn BadConn::to_string(Self) -> String
+pub impl Show for BadConn
 
 // Types and methods
 pub(all) struct ExecResult {
