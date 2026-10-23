@@ -28,14 +28,6 @@ jobs:
           key: mooncakes-${{ hashFiles('**/moon.mod') }}
           restore-keys: mooncakes-
 
-      - name: Install aarch64 moon-cram
-        if: matrix.os == 'ubuntu-24.04-arm'
-        # The linux-aarch64 toolchain tarball bundles an x86-64 moon-cram
-        # binary; replace it with the real aarch64 release.
-        run: |
-          curl -fsSL https://github.com/moonbitlang/moon-cram/releases/download/v0.0.2/moon-cram-v0.0.2-linux-aarch64.tar.gz |
-            tar -xz --strip-components=1 -C "$HOME/.moon/bin"
-
       - name: Update MoonBit registry
         run: moon update
 
@@ -52,6 +44,11 @@ jobs:
         run: moon test
 
       - name: Example smoke test
-        run: |
-          moon build
-          moon cram test examples/todo/tests
+        run: moon build
+
+      # moon-cram ships no working linux-aarch64 binary (the v0.0.1/v0.0.2
+      # aarch64 release assets are actually x86-64), so cram coverage stays
+      # on x64 until upstream fixes the cross-compile.
+      - name: Cram smoke test
+        if: matrix.os == 'ubuntu-latest'
+        run: moon cram test examples/todo/tests
