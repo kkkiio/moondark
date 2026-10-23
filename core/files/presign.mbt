@@ -24,13 +24,13 @@ priv struct Claims {
 ///
 /// - `key`：签名密钥，泄漏等于可任意伪造上传/下载凭证。
 /// - `url_prefix`：直传路由前缀，同时是 presigned URL 的前缀。
-/// - `default_expires`：`presign_*` 未传 `expires` 时的默认有效期（秒）。
-/// - `now`：当前 unix 秒，测试可注入固定/可变时钟。
+/// - `default_expires`：`presign_*` 未传 `expires` 时的默认有效期（毫秒）。
+/// - `now`：当前 unix 毫秒，测试可注入固定/可变时钟。
 pub fn Presigner::new(
   key~ : String,
   url_prefix~ : String = "/_files",
-  default_expires~ : Int64 = 3600,
-  now~ : () -> Int64 = () => @env.now().reinterpret_as_int64() / 1000,
+  default_expires~ : Int64 = 3_600_000,
+  now~ : () -> Int64 = () => @env.now().reinterpret_as_int64(),
 ) -> Presigner {
   Presigner::{
     url_prefix,
@@ -44,7 +44,7 @@ pub fn Presigner::new(
 
 ///|
 /// 签发直传上传凭证。`key` 必须是合法的相对存储路径，
-/// 否则抛 `InvalidKey`。`expires` 为凭证有效期（秒），`None` 时
+/// 否则抛 `InvalidKey`。`expires` 为凭证有效期（毫秒），`None` 时
 /// 后端缺省值生效；`content_type`/`max_size` 是对上传的约束声明，
 /// 由直传路由在上传时校验。
 pub fn Presigner::presign_put(

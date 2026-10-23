@@ -51,7 +51,7 @@ pub impl @moondark_sessions.SessionStore for SqliteSessionStore with fn get(
     @moondark_sessions.Session::of_model(@moondark_sessions.SessionModel::{
       key,
       data,
-      expires_at: expires_at.to_int(),
+      expires_at,
     }),
   )
 }

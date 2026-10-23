@@ -19,6 +19,7 @@ MoonDark 是基于 MoonBack 的 MoonBit 后端框架（设计参考 [Django](htt
 ├── core/                         # 模块 KKKIIO/moondark（包路径省略 core/ 前缀）
 │   ├── moon.mod                  # 核心模块元数据与依赖
 │   ├── auth/                     # KKKIIO/moondark/auth：凭据存储、Auth、SessionAuth、SocialFlow
+│   │   ├── authtest/             # CredentialStore conformance test suite
 │   │   └── oauth2/               # OAuth2/OIDC 协议层：Provider、Identity
 │   ├── csrf/                     # 无状态 CSRF 防护（CrossOriginProtection、CSRF 中间件）
 │   ├── database/sql/             # Go database/sql 风格的连接池与查询 API（DB、Conn、Rows、Tx、Stmt）
@@ -33,11 +34,13 @@ MoonDark 是基于 MoonBack 的 MoonBit 后端框架（设计参考 [Django](htt
 │   ├── tasks/                    # 后台任务
 │   └── cmd/main/                 # 可执行入口（模板占位）
 ├── sqlite/                       # 集成模块 KKKIIO/moondark_sqlite
+│   ├── auth/                     # SqliteCredentialStore（credentials 表）
 │   ├── database/                 # database/sql 驱动、open_db；迁移在 SQLite 上的集成测试
 │   ├── files/                    # SqliteCatalog（file_objects 表）+ SqliteFileStore
 │   ├── sessions/                 # SqliteSessionStore
 │   └── tasks/                    # SqliteTaskBackend：单语句 CAS UPDATE claim
 ├── postgresql/                   # 集成模块 KKKIIO/moondark_postgresql
+│   ├── auth/                     # PostgresCredentialStore
 │   ├── database/                 # database/sql 驱动、open_db
 │   ├── sessions/                 # PostgresSessionStore
 │   └── tasks/                    # PostgresTaskBackend：FOR UPDATE SKIP LOCKED claim
@@ -81,6 +84,7 @@ MoonDark 是基于 MoonBack 的 MoonBit 后端框架（设计参考 [Django](htt
 - **CasFileStore** — 内容寻址的本地磁盘 `FileStore` 后端：字节按 sha256 存 `blobs/`，key 映射走 `Catalog`；`routes()` 返回的 moonback `Module` 挂出直传路由，完成 presign 闭环。
 - **LocalStore** — 直传路由的字节通道窄接口（`upload_stream`/`download`），路由与具体 store 解耦。
 - **PresignedUpload** — 直传上传凭证（url、meth、headers、expires_at），前端按原样发起请求即可。
+- **Timestamp** — 内部所有绝对时间点与时长一律 Unix epoch 毫秒 `Int64`，字段名不带单位后缀。协议边界按各自规范显式换算：JWT/OIDC 的 `exp`/`iat`（秒）、Cookie `Max-Age`/`Expires`（秒）、`signing` 签名串内嵌时间戳（秒，Django 兼容）。
 
 ## Policies & Mandatory Rules
 

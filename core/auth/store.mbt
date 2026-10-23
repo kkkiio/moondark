@@ -19,9 +19,20 @@ pub(open) trait CredentialStore {
   ) -> CredentialModel?
   /// Every credential bound to `user_id`, in creation order.
   async fn credentials_of(Self, user_id : String) -> Array[CredentialModel]
-  /// Persist `secret`/`verified`/`last_used_at` changes. `false` if the
-  /// credential's key is unknown.
-  async fn update_credential(Self, CredentialModel) -> Bool
+  /// Update the mutable fields of the credential identified by
+  /// `(kind, provider, identifier)`. Each supplied field is written;
+  /// omitted ones are left untouched. `user_id` and `created_at`
+  /// are immutable. Raises `NothingToUpdate` when no field is given.
+  /// `false` if the credential's key is unknown.
+  async fn update_credential(
+    Self,
+    kind : CredentialKind,
+    provider : String,
+    identifier : String,
+    secret? : String,
+    verified? : Bool,
+    last_used_at? : Int64,
+  ) -> Bool
   /// Remove the credential with the given key. `false` if unknown.
   async fn remove_credential(
     Self,
@@ -91,14 +102,28 @@ pub impl CredentialStore for MemoryCredentialStore with fn credentials_of(
 ///|
 pub impl CredentialStore for MemoryCredentialStore with fn update_credential(
   self,
-  cred,
+  kind,
+  provider,
+  identifier,
+  secret?,
+  verified?,
+  last_used_at?,
 ) {
-  let key = cred_key(cred.kind, cred.provider, cred.identifier)
-  if self.creds.contains(key) {
-    self.creds[key] = cred
-    true
-  } else {
-    false
+  guard secret is Some(_) || verified is Some(_) || last_used_at is Some(_) else {
+    raise NothingToUpdate
+  }
+  let key = cred_key(kind, provider, identifier)
+  match self.creds.get(key) {
+    Some(cred) => {
+      self.creds[key] = {
+        ..cred,
+        secret: secret.unwrap_or(cred.secret),
+        verified: verified.unwrap_or(cred.verified),
+        last_used_at: last_used_at.unwrap_or(cred.last_used_at),
+      }
+      true
+    }
+    None => false
   }
 }
 

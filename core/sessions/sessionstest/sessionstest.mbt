@@ -13,7 +13,7 @@ pub async fn check_session_store(store : &@sessions.SessionStore) -> Unit {
   let session = @sessions.Session::of_model(@sessions.SessionModel::{
     key,
     data: { "user": Json::number(1), "name": Json::string("moon") },
-    expires_at: 2_000_000_000,
+    expires_at: 2_000_000_000_000,
   })
   assert_false(store.update(session), msg="update of a missing key")
   assert_true(store.create(session), msg="create on a free key")
@@ -23,7 +23,7 @@ pub async fn check_session_store(store : &@sessions.SessionStore) -> Unit {
   }
   let model = loaded.to_model()
   assert_eq(model.key, key)
-  assert_eq(model.expires_at, 2_000_000_000)
+  assert_eq(model.expires_at, 2_000_000_000_000)
   assert_eq(model.data, {
     "user": Json::number(1),
     "name": Json::string("moon"),

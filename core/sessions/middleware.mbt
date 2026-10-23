@@ -46,13 +46,13 @@ pub extend SameSite with Eq::{equal, not_equal}
 ///|
 /// create a middleware that manages sessions
 /// 
-/// `max_age` limits the lifetime of a session in seconds, 
+/// `max_age` limits the lifetime of a session in ms, 
 /// refreshed on every save (sliding expiration).
 /// Defaults to two weeks like Django.
 pub fn middleware(
   session_store : &SessionStore,
   session_cookie_name~ : String = "sessionid",
-  max_age~ : UInt64 = 1209600,
+  max_age~ : Int64 = 1_209_600_000,
   same_site~ : SameSite = Lax,
   secure~ : Bool = false,
 ) -> @moonback.Middleware {
@@ -71,7 +71,9 @@ pub fn middleware(
       let session = if session_id is Some(id) {
         session_store
         .get(id)
-        .filter(session => session.expires_at.to_uint64() > @env.now() / 1000)
+        .filter(session => {
+          session.expires_at > @env.now().reinterpret_as_int64()
+        })
       } else {
         None
       }
@@ -100,7 +102,7 @@ pub fn middleware(
             )
           }
         }
-        session.expires_at = (@env.now() / 1000 + max_age).to_int()
+        session.expires_at = @env.now().reinterpret_as_int64() + max_age
         let saved = if session.key.is_empty() {
           create_session(session_store, session)
           true

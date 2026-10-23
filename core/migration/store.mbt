@@ -59,7 +59,7 @@ async fn Migrator::insert_started(self : Migrator, name : String) -> Int64 {
   if self.dialect is Postgres {
     let rows = self.conn.query(
       "INSERT INTO \{self.records_table} (name, status, started_at) VALUES ($1, 'started', $2) RETURNING id",
-      params=[name, now_s()],
+      params=[name, now_ms()],
     )
     let id = match rows.next() {
       Some(row) => as_i64(row.get("id"))
@@ -70,7 +70,7 @@ async fn Migrator::insert_started(self : Migrator, name : String) -> Int64 {
   } else {
     let result = self.conn.execute(
       "INSERT INTO \{self.records_table} (name, status, started_at) VALUES (?, 'started', ?)",
-      params=[name, now_s()],
+      params=[name, now_ms()],
     )
     result.last_insert_id.unwrap_or(-1)
   }
@@ -98,7 +98,7 @@ async fn Migrator::finish_record(
     self.conn.execute(sql, params=[
       status,
       error,
-      now_s(),
+      now_ms(),
       now_ms() - started_ms,
       id,
     ]),

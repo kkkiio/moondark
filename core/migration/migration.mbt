@@ -283,7 +283,7 @@ pub async fn Migrator::bootstrap(
         ignore(self.conn.execute("BEGIN"))
       }
       self.conn.execute_script(schema)
-      let ts = now_s()
+      let ts = now_ms()
       for mig in sorted {
         self.insert_applied(mig.name(), mig.checksum(), ts)
       }
@@ -328,7 +328,7 @@ async fn Migrator::apply(self : Migrator, mig : Migration) -> Unit {
         Sql(sql~, ..) => self.conn.execute_script(sql)
         Run(run~, ..) => run(self.conn)
       }
-      self.insert_applied(name, mig.checksum(), now_s())
+      self.insert_applied(name, mig.checksum(), now_ms())
       if mig.use_tx() {
         ignore(self.conn.execute("COMMIT"))
       }
@@ -484,11 +484,6 @@ fn fnv1a64(s : String) -> String {
     h = (h ^ b.to_int().to_uint64()) * 1099511628211
   }
   h.reinterpret_as_int64().to_string()
-}
-
-///|
-fn now_s() -> Int64 {
-  (@env.now() / 1000).reinterpret_as_int64()
 }
 
 ///|

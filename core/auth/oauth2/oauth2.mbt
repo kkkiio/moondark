@@ -132,6 +132,7 @@ pub async fn Provider::authenticate(
       is Object(claims) else {
       raise InvalidIdToken("payload is not an object")
     }
+    // JWT claims are unix seconds (RFC 7519) — protocol boundary.
     let now = (@env.now() / 1000).reinterpret_as_int64()
     guard claims.get("iss") is Some(String(iss)) && iss == self.issuer else {
       raise ClaimMismatch("iss")

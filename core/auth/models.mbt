@@ -69,10 +69,10 @@ pub(all) struct CredentialModel {
   /// whether the channel behind `identifier` was verified — a confirmed
   /// email, or the provider asserting a verified email
   verified : Bool
-  /// unix timestamp in seconds
+  /// unix timestamp in ms
   created_at : Int64
-  /// unix timestamp in seconds of the last successful authentication
-  last_used_at : Int64?
+  /// unix timestamp in ms of the last successful authentication; 0 = never
+  last_used_at : Int64
 } derive(Debug, ToJson, FromJson)
 
 ///|

@@ -2,8 +2,8 @@
 pub(all) struct SessionModel {
   key : String
   data : Map[String, Json]
-  /// expires at (unix timestamp in seconds)
-  expires_at : Int32
+  /// expires at (unix timestamp in ms)
+  expires_at : Int64
 } derive(ToJson, FromJson)
 
 ///|
@@ -17,8 +17,8 @@ struct Session {
   /// session key, empty string for new session
   mut key : String
   data : Map[String, Json]
-  /// expires at (unix timestamp in seconds)
-  mut expires_at : Int32
+  /// expires at (unix timestamp in ms)
+  mut expires_at : Int64
   mut modified : Bool
   /// rotate to a fresh key on the next save (see `cycle_key`)
   mut cycled : Bool

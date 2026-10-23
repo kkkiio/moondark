@@ -142,7 +142,7 @@ async test "inactive user resolves as anonymous and cannot log in" {
     "alice-session": @sessions.SessionModel::{
       key: "alice-session",
       data: { "_auth_user_id": Json("u-1") },
-      expires_at: 2_000_000_000,
+      expires_at: 2_000_000_000_000,
     },
   })
   let app = @moonback.App(ctx => {

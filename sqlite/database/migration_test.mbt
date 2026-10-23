@@ -1,6 +1,7 @@
 ///|
-fn open(file : String) -> (@sql.DB, @sql.DBExecutor) raise {
-  @database.open_db("_build/\{file}")
+async fn open(file : String) -> (@sql.DB, @sql.DBExecutor) {
+  let dir = @fs.tmpdir(prefix="moondark-mig")
+  @database.open_db("\{dir}/\{file}")
 }
 
 ///|
@@ -213,7 +214,7 @@ async test "bootstrap stamps the full set on a fresh database" {
 
 ///|
 async test "Migration::load picks the dialect override in a version dir" {
-  let dir = "_build/mig-dir-test"
+  let dir = @fs.tmpdir(prefix="moondark-mig-dir")
   @fs.mkdir(
     "\{dir}/v0001_a",
     permission=0o755,
@@ -251,7 +252,7 @@ async test "Migration::load picks the dialect override in a version dir" {
 
 ///|
 async test "load_schema prefers the dialect override" {
-  let dir = "_build/mig-dir-test"
+  let dir = @fs.tmpdir(prefix="moondark-mig-dir")
   @fs.mkdir(dir, permission=0o755, recursive=true, allow_exist=true)
   @fs.write_file(
     "\{dir}/schema.sql",

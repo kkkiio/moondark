@@ -11,7 +11,7 @@
 ///   也是 `filestest` conformance suite 的验证对象。
 pub(open) trait FileStore {
   /// 签发直传上传凭证。`key` 必须是合法的相对存储路径，
-  /// 否则抛 `InvalidKey`。`expires` 为凭证有效期（秒），不传时
+  /// 否则抛 `InvalidKey`。`expires` 为凭证有效期（毫秒），不传时
   /// 后端缺省值生效；`content_type`/`max_size` 是对上传的约束声明，
   /// 由后端在上传时校验。
   fn presign_put(
@@ -41,7 +41,7 @@ pub(all) struct PresignedUpload {
   url : String
   meth : @http.RequestMethod
   headers : Map[String, String]
-  /// 凭证过期时间（unix 秒）。
+  /// 凭证过期时间（unix 毫秒）。
   expires_at : Int64
 }
 

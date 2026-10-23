@@ -27,8 +27,8 @@ pub async fn CasFileStore::new(
   catalog~ : &Catalog,
   key~ : String,
   url_prefix~ : String = "/_files",
-  default_expires~ : Int64 = 3600,
-  now~ : () -> Int64 = () => @env.now().reinterpret_as_int64() / 1000,
+  default_expires~ : Int64 = 3_600_000,
+  now~ : () -> Int64 = () => @env.now().reinterpret_as_int64(),
 ) -> CasFileStore {
   @fs.mkdir("\{root}/blobs", recursive=true, allow_exist=true)
   @fs.mkdir("\{root}/staging", recursive=true, allow_exist=true)

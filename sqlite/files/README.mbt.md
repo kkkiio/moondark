@@ -10,9 +10,8 @@ Apply [`schema.sql`](./schema.sql) to create the `file_objects` table, then buil
 ///|
 async test {
   @async.with_task_group(group => {
-    let (db, executor) = @sqlite_database.open_db(
-      "_build/moondark-sqlite-files-readme.db",
-    )
+    let dir = @fs.tmpdir(prefix="moondark-files-readme")
+    let (db, executor) = @sqlite_database.open_db("\{dir}/catalog.db")
     group.spawn_bg(no_wait=true, () => executor.run())
     db.ready()
     defer db.close()
@@ -21,7 +20,7 @@ async test {
     conn.execute_script(@fs.read_file("files/schema.sql").text())
     let store = @files.SqliteFileStore::new(
       db,
-      root="/tmp/moondark-files-demo",
+      root="\{dir}/files",
       key="app-secret",
     )
     store.put(key="docs/hello.txt", "hello moondark")
