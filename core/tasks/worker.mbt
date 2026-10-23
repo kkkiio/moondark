@@ -166,9 +166,7 @@ pub async fn Worker::run_once(self : Self) -> Bool {
   // round-trip; refresh the heartbeat before the task runs so a
   // long execution cannot age it out.
   self.last_success = (self.now)()
-  guard claimed is Some(result) else {
-    return false
-  }
+  guard claimed is Some(result) else { return false }
   guard self.tasks.get(result.task_name) is Some(task) else {
     @xlog.warn(category="moondark.tasks") <?
       {
