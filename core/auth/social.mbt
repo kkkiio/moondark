@@ -32,6 +32,13 @@ pub fn[U] SocialFlow::SocialFlow(
 }
 
 ///|
+/// The `Provider.name` this flow serves — the path segment under which
+/// `SessionAuth::routes` mounts its login/callback handlers.
+pub fn[U] SocialFlow::provider_name(self : SocialFlow[U]) -> String {
+  self.provider.name
+}
+
+///|
 /// `GET {prefix}login/` — the "Sign in with {provider}" target.
 /// Generates the CSRF `state`, the OIDC `nonce` and (when `use_pkce`)
 /// the PKCE verifier into the session, remembers `?next=/path`, and
