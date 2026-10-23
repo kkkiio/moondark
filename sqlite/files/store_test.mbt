@@ -1,16 +1,16 @@
 ///|
-/// Open a `SqliteFileStore`-backed `CasFileStore` against a per-test
-/// database file and run `f` with the pool executor running; the
-/// package's `files/schema.sql` (which also sets `busy_timeout` on
-/// that connection) has already run. Blobs are stored under `root`.
+/// Open a `SqliteFileStore`-backed `CasFileStore` against a fresh
+/// per-test catalog database inside `root` and run `f` with the pool
+/// executor running; the package's `files/schema.sql` (which also sets
+/// `busy_timeout` on that connection) has already run. Blobs are
+/// stored under `root`.
 async fn with_store(
-  path : String,
   root~ : String,
   key~ : String = "test-secret",
   f : async (@moondark_files.CasFileStore, @sql.DB) -> Unit,
 ) -> Unit {
   @async.with_task_group(group => {
-    let (db, executor) = @sqlite_database.open_db(path)
+    let (db, executor) = @sqlite_database.open_db("\{root}/catalog.db")
     group.spawn_bg(no_wait=true, () => executor.run())
     db.ready()
     defer db.close()
@@ -42,15 +42,13 @@ async fn blob_paths(root : String) -> Array[String] {
 ///|
 async test "sqlite file store passes the conformance suite" {
   let root = @fs.tmpdir(prefix="moondark-sqlite-files")
-  with_store("_build/moondark-sqlite-files-conformance.db", root~, (store, _db) => {
-    @filestest.check_file_store(store)
-  })
+  with_store(root~, (store, _db) => @filestest.check_file_store(store))
 }
 
 ///|
 async test "catalog dedups blobs and delete unmaps the key" {
   let root = @fs.tmpdir(prefix="moondark-sqlite-files")
-  with_store("_build/moondark-sqlite-files-cas.db", root~, (store, db) => {
+  with_store(root~, (store, db) => {
     // the catalog row points at a hash-named blob on disk holding the
     // exact bytes that were put (the block scopes `rows`, so its read
     // cursor is closed before the writes below grab the write lock)

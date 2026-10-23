@@ -1,14 +1,15 @@
 ///|
-/// Open a `SqliteTaskBackend` against a per-test database file and run
-/// `f` with the pool executor running; the package's `tasks/schema.sql`
-/// (which also sets `busy_timeout` on that connection) has already run.
+/// Open a `SqliteTaskBackend` against a fresh per-test database in a
+/// temporary directory and run `f` with the pool executor running; the
+/// package's `tasks/schema.sql` (which also sets `busy_timeout` on
+/// that connection) has already run.
 async fn with_backend(
-  path : String,
   now~ : () -> Int64 = () => @env.now().reinterpret_as_int64(),
   f : async (@tasks.SqliteTaskBackend, @sql.DB) -> Unit,
 ) -> Unit {
   @async.with_task_group(group => {
-    let (db, executor) = @sqlite_database.open_db(path)
+    let dir = @fs.tmpdir(prefix="moondark-sqlite-tasks")
+    let (db, executor) = @sqlite_database.open_db("\{dir}/tasks.db")
     group.spawn_bg(no_wait=true, () => executor.run())
     db.ready()
     defer db.close()
@@ -23,10 +24,7 @@ async fn with_backend(
 
 ///|
 async test "enqueue stores a ready row that get_result round-trips" {
-  with_backend("_build/moondark-sqlite-tasks-roundtrip.db", now=() => 1000, (
-    backend,
-    db,
-  ) => {
+  with_backend(now=() => 1000, (backend, db) => {
     let email : @moondark_tasks.TransactionalTaskDef[Json] = @moondark_tasks.TransactionalTaskDef::new(
       name="send_email",
       max_attempts=3,
@@ -56,7 +54,7 @@ async test "enqueue stores a ready row that get_result round-trips" {
 
 ///|
 async test "rolling back the transaction removes the task row" {
-  with_backend("_build/moondark-sqlite-tasks-outbox.db", (backend, db) => {
+  with_backend((backend, db) => {
     let email : @moondark_tasks.TransactionalTaskDef[Json] = @moondark_tasks.TransactionalTaskDef::new(
       name="send_email",
     )
@@ -84,10 +82,7 @@ async test "rolling back the transaction removes the task row" {
 
 ///|
 async test "worker runs a claimed row to successful and persists bookkeeping" {
-  with_backend("_build/moondark-sqlite-tasks-worker.db", now=() => 1000, (
-    backend,
-    db,
-  ) => {
+  with_backend(now=() => 1000, (backend, db) => {
     let def : @moondark_tasks.TransactionalTaskDef[Json] = @moondark_tasks.TransactionalTaskDef::new(
       name="t",
     )
@@ -120,7 +115,7 @@ async test "worker runs a claimed row to successful and persists bookkeeping" {
 
 ///|
 async test "worker reschedules failures within the attempt budget" {
-  with_backend("_build/moondark-sqlite-tasks-retry.db", (backend, db) => {
+  with_backend((backend, db) => {
     let def : @moondark_tasks.TransactionalTaskDef[Json] = @moondark_tasks.TransactionalTaskDef::new(
       name="t",
       max_attempts=2,
@@ -168,10 +163,7 @@ async test "worker reschedules failures within the attempt budget" {
 
 ///|
 async test "worker claims due rows in enqueue order" {
-  with_backend("_build/moondark-sqlite-tasks-order.db", now=() => 0, (
-    backend,
-    db,
-  ) => {
+  with_backend(now=() => 0, (backend, db) => {
     let def : @moondark_tasks.TransactionalTaskDef[Json] = @moondark_tasks.TransactionalTaskDef::new(
       name="t",
     )
@@ -201,7 +193,7 @@ async test "worker claims due rows in enqueue order" {
 
 ///|
 async test "worker reclaim policy decides stale running rows" {
-  with_backend("_build/moondark-sqlite-tasks-reclaim.db", (backend, db) => {
+  with_backend((backend, db) => {
     let def : @moondark_tasks.TransactionalTaskDef[Json] = @moondark_tasks.TransactionalTaskDef::new(
       name="t",
       max_attempts=3,

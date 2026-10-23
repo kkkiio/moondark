@@ -1,7 +1,8 @@
 ///|
 async test "execute, query and value round trip" {
   @async.with_task_group(group => {
-    let (db, executor) = @database.open_db("_build/moondark-sqlite-test.db")
+    let dir = @fs.tmpdir(prefix="moondark-sqlite-test")
+    let (db, executor) = @database.open_db("\{dir}/test.db")
     group.spawn_bg(no_wait=true, () => executor.run())
     db.ready()
     defer db.close()
@@ -43,9 +44,8 @@ async test "execute, query and value round trip" {
 ///|
 async test "execute_script runs statements and keeps trigger bodies whole" {
   @async.with_task_group(group => {
-    let (db, executor) = @database.open_db(
-      "_build/moondark-sqlite-script-test.db",
-    )
+    let dir = @fs.tmpdir(prefix="moondark-sqlite-script")
+    let (db, executor) = @database.open_db("\{dir}/script.db")
     group.spawn_bg(no_wait=true, () => executor.run())
     db.ready()
     defer db.close()
@@ -77,7 +77,8 @@ async test "execute_script runs statements and keeps trigger bodies whole" {
 ///|
 async test "with_transaction commits and rolls back" {
   @async.with_task_group(group => {
-    let (db, executor) = @database.open_db("_build/moondark-sqlite-tx-test.db")
+    let dir = @fs.tmpdir(prefix="moondark-sqlite-tx")
+    let (db, executor) = @database.open_db("\{dir}/tx.db")
     group.spawn_bg(no_wait=true, () => executor.run())
     db.ready()
     defer db.close()
