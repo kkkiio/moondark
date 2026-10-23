@@ -8,6 +8,8 @@ pub(open) trait Connector {
   /// Open a new physical connection together with the executor driving
   /// its protocol. The pool spawns the executor on its own task group;
   /// callers only ever see the connection half of the pair.
+  /// Establishment failures must raise the original error rather than
+  /// `BadConn`; the pool propagates them directly to the caller.
   async fn connect(Self) -> (&Conn, &ConnExecutor)
 }
 
@@ -37,10 +39,10 @@ pub impl ConnExecutor for NoopExecutor with fn run(_self) {
 pub extend NoopExecutor with ConnExecutor::{run}
 
 ///|
-/// An error raised by a driver to signal that the connection is no longer
-/// usable. The pool discards the connection; when raised before the
-/// operation was sent to the server, the operation may be retried on a new
-/// connection. Carries the underlying error.
+/// An error carrying the underlying cause when an existing connection is
+/// unusable and the current operation can safely be retried on another
+/// connection. Drivers must only raise it when the server could not have
+/// executed the operation. The pool discards the connection and may retry.
 pub(all) suberror BadConn {
   BadConn(Error)
 }
@@ -77,6 +79,8 @@ pub(open) trait Conn {
   /// connection's executor has been spawned. The default implementation
   /// returns immediately: self-sufficient connections are ready as soon
   /// as `connect` returns.
+  /// Handshake failures must raise the original error rather than
+  /// `BadConn`; the pool closes the connection and propagates the error.
   async fn ready(Self) -> Unit = _
   /// Execute `script` verbatim — the text may contain multiple
   /// statements separated by `;`. No parameters are bound and result

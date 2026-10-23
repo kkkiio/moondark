@@ -346,9 +346,8 @@ async fn serve_creations(pool : Pool, group : @async.TaskGroup[Unit]) -> Unit {
 /// Open one physical connection for `request`: connect through the
 /// driver, spawn the connection's executor on the pool's task group,
 /// wait for the connection to become ready, then deliver the entry to
-/// the requester. On any failure the requester's result queue is closed
-/// with `@driver.BadConn` — setup failures mean no operation reached
-/// the server, so `acquire_retry` may safely retry the request.
+/// the requester. On failure, close any partially opened connection and
+/// deliver the original driver error to the requester.
 async fn create_physical(
   pool : Pool,
   group : @async.TaskGroup[Unit],
@@ -367,18 +366,13 @@ async fn create_physical(
     e => Err(e)
   }
   match created {
-    // Failures here mean the operation never reached the server, so
-    // the request may be retried on a fresh connection: the error is
-    // delivered as `BadConn` and `acquire_retry` handles the retry.
     Err(e) => {
-      // connect() succeeded but ready() failed: close the half-open
-      // connection so its socket/executor cannot leak per retry.
       if conn is Some(c) {
         c.close() catch {
           _ => ()
         }
       }
-      request.result.close(error=@driver.BadConn(e))
+      request.result.close(error=e)
     }
     Ok(entry) => {
       pool.active_count += 1

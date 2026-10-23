@@ -103,6 +103,8 @@ priv struct MockStats {
 priv struct MockConnector {
   stats : MockStats
   conns : Array[MockConn]
+  mut fail_connect : Error?
+  mut fail_ready : Error?
   mut fail_exec : Error?
 }
 
@@ -116,25 +118,31 @@ fn MockConnector::MockConnector() -> MockConnector {
       rollback_count: 0,
     },
     conns: [],
+    fail_connect: None,
+    fail_ready: None,
     fail_exec: None,
   }
 }
 
 ///|
 impl @driver.Connector for MockConnector with fn connect(self) {
+  self.stats.connect_count += 1
+  if self.fail_connect is Some(e) {
+    raise e
+  }
   let conn = MockConn::{
     stats: self.stats,
     closed: false,
     valid: true,
     fail_reset: false,
     fail_ping: false,
+    fail_ready: self.fail_ready,
     fail_exec: self.fail_exec,
     fail_begin: None,
     reset_count: 0,
     ping_count: 0,
     prepare_count: 0,
   }
-  self.stats.connect_count += 1
   self.conns.push(conn)
   (conn, @driver.NoopExecutor::{ })
 }
@@ -146,6 +154,7 @@ priv struct MockConn {
   mut valid : Bool
   mut fail_reset : Bool
   mut fail_ping : Bool
+  fail_ready : Error?
   mut fail_exec : Error?
   mut fail_begin : Error?
   mut reset_count : Int32
@@ -163,6 +172,13 @@ impl @driver.Conn for MockConn with fn prepare(self, _query) {
 impl @driver.Conn for MockConn with fn close(self) {
   self.closed = true
   self.stats.close_count += 1
+}
+
+///|
+impl @driver.Conn for MockConn with fn ready(self) {
+  if self.fail_ready is Some(e) {
+    raise e
+  }
 }
 
 ///|
@@ -268,6 +284,53 @@ async fn run_db(
 ///|
 async test "ping" {
   run_db(@sql.DB::create(MockAnswerDB()), db => db.ping())
+}
+
+///|
+async test "connection failure preserves the driver error and frees capacity" {
+  let connector = MockConnector()
+  connector.fail_connect = Some(Failure("connection refused"))
+  run_db(@sql.DB::create(connector, max_open=1), db => {
+    try db.ping() catch {
+      e => assert_true(e is Failure("connection refused"))
+    } noraise {
+      _ => fail("expected connection failure")
+    }
+    assert_eq(connector.stats.connect_count, 1)
+    assert_eq(connector.stats.close_count, 0)
+    assert_eq(connector.conns.length(), 0)
+    assert_eq(db.stats().open, 0)
+    assert_eq(db.stats().in_use, 0)
+    connector.fail_connect = None
+    db.ping()
+    assert_eq(connector.stats.connect_count, 2)
+    assert_eq(connector.conns[0].ping_count, 1)
+    assert_eq(db.stats().idle, 1)
+  })
+}
+
+///|
+async test "handshake failure preserves the driver error and closes the connection" {
+  let connector = MockConnector()
+  connector.fail_ready = Some(Failure("authentication failed"))
+  run_db(@sql.DB::create(connector, max_open=1), db => {
+    try db.ping() catch {
+      e => assert_true(e is Failure("authentication failed"))
+    } noraise {
+      _ => fail("expected handshake failure")
+    }
+    assert_eq(connector.stats.connect_count, 1)
+    assert_eq(connector.stats.close_count, 1)
+    assert_true(connector.conns[0].closed)
+    assert_eq(connector.conns[0].ping_count, 0)
+    assert_eq(db.stats().open, 0)
+    assert_eq(db.stats().in_use, 0)
+    connector.fail_ready = None
+    db.ping()
+    assert_eq(connector.stats.connect_count, 2)
+    assert_eq(connector.conns[1].ping_count, 1)
+    assert_eq(db.stats().idle, 1)
+  })
 }
 
 ///|
