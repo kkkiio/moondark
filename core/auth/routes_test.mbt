@@ -72,16 +72,15 @@ async test "auth routes: password login, logout, next handling" {
     // wrong password → uniform 401, no credential-vs-user distinction
     let (denied, _) = @http.post(
       "\{base}/auth/login",
-      "{\"identifier\": \"alice\", \"password\": \"nope\"}",
+      Json::object({ "identifier": "alice", "password": "nope" }).stringify(),
       headers={ "content-type": "application/json" },
     )
     assert_eq(denied.code, 401)
     // JSON login → {"id"} + session cookie
-    let (login, body) = @http.post(
-      "\{base}/auth/login",
-      "{\"identifier\": \"alice\", \"password\": \"p w\"}",
-      headers={ "content-type": "application/json" },
-    )
+    let credentials = Json::object({ "identifier": "alice", "password": "p w" }).stringify()
+    let (login, body) = @http.post("\{base}/auth/login", credentials, headers={
+      "content-type": "application/json",
+    })
     assert_eq(login.code, 200)
     guard body.json() is Object(obj) && obj.get("id") is Some(String("u-1")) else {
       fail("unexpected login response")
@@ -114,7 +113,7 @@ async test "auth routes: password login, logout, next handling" {
     // an unsafe next is refused — no open redirect
     let (evil, _) = @http.post(
       "\{base}/auth/login?next=//evil.test",
-      "{\"identifier\": \"alice\", \"password\": \"p w\"}",
+      credentials,
       headers={ "content-type": "application/json" },
     )
     assert_eq(evil.code, 200)
@@ -123,7 +122,7 @@ async test "auth routes: password login, logout, next handling" {
     // must be refused too, or /\evil.example would go cross-origin
     let (backslash, _) = @http.post(
       "\{base}/auth/login?next=/%5Cevil.test",
-      "{\"identifier\": \"alice\", \"password\": \"p w\"}",
+      credentials,
       headers={ "content-type": "application/json" },
     )
     assert_eq(backslash.code, 200)
@@ -131,7 +130,7 @@ async test "auth routes: password login, logout, next handling" {
     // WHATWG parsing strips ASCII tabs too: /\t/evil would reassemble //
     let (tab, _) = @http.post(
       "\{base}/auth/login?next=/%09/evil.test",
-      "{\"identifier\": \"alice\", \"password\": \"p w\"}",
+      credentials,
       headers={ "content-type": "application/json" },
     )
     assert_eq(tab.code, 200)
@@ -209,7 +208,7 @@ async test "auth routes: oauth login/callback mounted under provider name" {
     // no `auth` given → the password endpoint is not mounted
     let (no_password, _) = @http.post(
       "\{base}/auth/login",
-      "{\"identifier\": \"a\", \"password\": \"b\"}",
+      Json::object({ "identifier": "a", "password": "b" }).stringify(),
       headers={ "content-type": "application/json" },
     )
     assert_eq(no_password.code, 404)
