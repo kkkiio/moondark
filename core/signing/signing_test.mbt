@@ -25,10 +25,11 @@ fn[T] is_expired(f : () -> T raise @signing.SignError) -> Bool {
 ///|
 /// Django 5.x 实测向量：
 /// `TimestampSigner(key="test-secret-key", salt="repage-job").signature("abc:1Z9")`
-/// 其中 b62_decode("1Z9") == 6023，固定时钟下 sign 应与 Django 逐字节一致。
+/// 其中 b62_decode("1Z9") == 6023（秒）；`now` 注入毫秒，嵌入时换算为秒，
+/// 固定时钟下 sign 应与 Django 逐字节一致。
 test "sign matches django 5.x wire format" {
   let signer = @signing.Signer(key="test-secret-key", salt="repage-job", now=() => {
-    6023UL
+    6_023_000UL
   })
   assert_eq(
     signer.sign("abc"),
@@ -108,8 +109,12 @@ test "unsign rejects wrong key or salt" {
 
 ///|
 test "unsign enforces max_age and its boundary" {
-  let signed = @signing.Signer(key="k", salt="s", now=() => 1000UL).sign("abc")
-  let signer = @signing.Signer(key="k", salt="s", now=() => 1100UL)
+  // sign 于 now=1_000_000ms → wire ts=1000s
+  let signed = @signing.Signer(key="k", salt="s", now=() => 1_000_000UL).sign(
+    "abc",
+  )
+  // unsign 于 1_000_100ms → age=100ms
+  let signer = @signing.Signer(key="k", salt="s", now=() => 1_000_100UL)
   // age == max_age 仍然有效（Django 是 > 判断）
   assert_eq(signer.unsign(signed, max_age=100), "abc")
   assert_true(is_expired(() => signer.unsign(signed, max_age=99)))

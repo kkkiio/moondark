@@ -10,7 +10,7 @@ import {
 // Values
 pub fn get_session(@moonback.Request) -> Session?
 
-pub fn middleware(&SessionStore, session_cookie_name? : String, max_age? : UInt64, same_site? : SameSite, secure? : Bool) -> @moonback.Middleware
+pub fn middleware(&SessionStore, session_cookie_name? : String, max_age? : Int64, same_site? : SameSite, secure? : Bool) -> @moonback.Middleware
 
 // Errors
 
@@ -47,7 +47,7 @@ pub impl Default for Session
 pub(all) struct SessionModel {
   key : String
   data : Map[String, Json]
-  expires_at : Int32
+  expires_at : Int64
 } derive(ToJson, @json.FromJson)
 pub fn SessionModel::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
 pub fn SessionModel::to_json(Self) -> Json

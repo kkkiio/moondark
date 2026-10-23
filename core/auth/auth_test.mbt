@@ -133,7 +133,7 @@ async test "authenticate updates last_used_at" {
     is Some(cred) else {
     fail("credential missing")
   }
-  assert_true(cred.last_used_at is None)
+  assert_eq(cred.last_used_at, 0L)
   ignore(
     auth.authenticate_password(
       identifier="alice@example.com",
@@ -144,7 +144,7 @@ async test "authenticate updates last_used_at" {
     is Some(cred) else {
     fail("credential missing")
   }
-  assert_true(cred.last_used_at is Some(_))
+  assert_true(cred.last_used_at != 0)
 }
 
 ///|

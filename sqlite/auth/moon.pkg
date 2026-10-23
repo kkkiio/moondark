@@ -1,0 +1,14 @@
+import {
+  "KKKIIO/moondark/database/sql",
+  "KKKIIO/moondark/database/sql/driver",
+  "KKKIIO/moondark/auth" @moondark_auth,
+}
+
+import {
+  "moonbitlang/async",
+  "moonbitlang/async/fs",
+  "KKKIIO/moondark/auth/authtest",
+  "KKKIIO/moondark_sqlite/database" @sqlite_database,
+} for "test"
+
+supported_targets = "native"

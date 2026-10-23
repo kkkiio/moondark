@@ -15,6 +15,7 @@ pub(all) suberror AuthError {
   IdentifierTaken(CredentialKind, String, String)
   NoSession
   UserInactive
+  NothingToUpdate
 } derive(@debug.Debug)
 pub fn AuthError::to_repr(Self) -> @debug.Repr
 
@@ -50,7 +51,7 @@ pub(all) struct CredentialModel {
   secret : String
   verified : Bool
   created_at : Int64
-  last_used_at : Int64?
+  last_used_at : Int64
 } derive(ToJson, @debug.Debug, @json.FromJson)
 pub fn CredentialModel::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
 pub fn CredentialModel::to_json(Self) -> Json
@@ -65,7 +66,7 @@ pub async fn MemoryCredentialStore::credentials_of(Self, String) -> Array[Creden
 pub async fn MemoryCredentialStore::delete_credentials_of(Self, String) -> Unit
 pub async fn MemoryCredentialStore::find_credential(Self, CredentialKind, String, String) -> CredentialModel?
 pub async fn MemoryCredentialStore::remove_credential(Self, CredentialKind, String, String) -> Bool
-pub async fn MemoryCredentialStore::update_credential(Self, CredentialModel) -> Bool
+pub async fn MemoryCredentialStore::update_credential(Self, CredentialKind, String, String, secret? : String, verified? : Bool, last_used_at? : Int64) -> Bool
 pub impl CredentialStore for MemoryCredentialStore
 
 pub struct SessionAuth[U] {
@@ -105,7 +106,7 @@ pub(open) trait CredentialStore {
   async fn add_credential(Self, CredentialModel) -> Bool
   async fn find_credential(Self, CredentialKind, String, String) -> CredentialModel?
   async fn credentials_of(Self, String) -> Array[CredentialModel]
-  async fn update_credential(Self, CredentialModel) -> Bool
+  async fn update_credential(Self, CredentialKind, String, String, secret? : String, verified? : Bool, last_used_at? : Int64) -> Bool
   async fn remove_credential(Self, CredentialKind, String, String) -> Bool
   async fn delete_credentials_of(Self, String) -> Unit
 }

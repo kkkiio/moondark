@@ -6,7 +6,7 @@
 pub(all) suberror SignError {
   /// 签名缺失、被篡改，或 key/salt 不匹配
   BadSignature
-  /// 签名有效但超过了 `max_age` 秒
+  /// 签名有效但超过了 `max_age`（毫秒）
   SignatureExpired
 } derive(Debug)
 
@@ -25,7 +25,7 @@ pub extend SignError with Debug::{to_repr}
 pub struct Signer {
   priv key_salt : Bytes // utf8(salt + "signer")，派生 HMAC 密钥用
   priv key : Bytes // utf8(secret key)
-  priv now : () -> UInt64 // 当前 unix 秒；测试可注入固定时钟
+  priv now : () -> UInt64 // 当前 unix 毫秒；测试可注入固定时钟
 }
 
 ///|
@@ -37,7 +37,7 @@ pub struct Signer {
 pub fn Signer::Signer(
   key~ : String,
   salt~ : String = "KKKIIO.moondark.signing",
-  now~ : () -> UInt64 = () => @env.now() / 1000,
+  now~ : () -> UInt64 = () => @env.now(),
 ) -> Signer {
   Signer::{
     key_salt: @utf8.encode("\{salt}signer"),
@@ -49,16 +49,18 @@ pub fn Signer::Signer(
 ///|
 /// 给 `value` 追加当前时间戳与签名，返回 `value:ts:sig`。
 /// `value` 里允许出现 ':'——unsign 固定从末尾按段数切分。
+/// `now` 以毫秒提供，嵌入 wire 的 `ts` 换算为秒以保持 Django 兼容。
 pub fn Signer::sign(self : Signer, value : String) -> String {
-  let stamped = "\{value}:\{b62_encode((self.now)())}"
+  let stamped = "\{value}:\{b62_encode((self.now)() / 1000)}"
   "\{stamped}:\{b64_encode(self.signature_bytes(stamped).unsafe_reinterpret_as_bytes())}"
 }
 
 ///|
 /// 校验并还原 `sign` 的原始值。
 /// 签名缺失或不匹配抛 `BadSignature`；
-/// `now - ts > max_age`（秒）时抛 `SignatureExpired`，默认永不超时
-/// （边界上 `age == max_age` 仍算有效、负数必定过期，与 Django 一致）。
+/// `now - ts > max_age`（毫秒，`ts` 为 wire 上的秒时间戳，比较前换算）
+/// 时抛 `SignatureExpired`，默认永不超时（`age == max_age` 仍算有效、
+/// 未来时间戳必定过期）。
 pub fn Signer::unsign(
   self : Signer,
   signed : String,
@@ -74,7 +76,7 @@ pub fn Signer::unsign(
   }
   guard stamped.rev_find(":") is Some(j) else { raise BadSignature }
   let timestamp = b62_decode(stamped[j + 1:])
-  if (self.now)().reinterpret_as_int64() - timestamp > max_age {
+  if (self.now)().reinterpret_as_int64() - timestamp * 1000 > max_age {
     raise SignatureExpired
   }
   stamped[:j].to_owned()
@@ -89,7 +91,7 @@ pub fn Signer::dumps(self : Signer, obj : Json) -> String {
 
 ///|
 /// `unsign_object`：先 `unsign`，再 base64 解码并解析 Json。
-/// 任何形式的载荷损坏都归为 `BadSignature`。`max_age` 语义同 `unsign`。
+/// 任何形式的载荷损坏都归为 `BadSignature`。`max_age`（毫秒）语义同 `unsign`。
 pub fn Signer::loads(
   self : Signer,
   signed : String,
@@ -118,7 +120,7 @@ pub fn dumps(
 
 ///|
 /// `django.core.signing.loads`：校验 `dumps` 的产出并还原 Json。
-/// `max_age`（秒）超时时抛 `SignatureExpired`，默认永不超时。
+/// `max_age`（毫秒）超时时抛 `SignatureExpired`，默认永不超时。
 pub fn loads(
   signed : String,
   key~ : String,

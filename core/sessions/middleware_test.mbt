@@ -103,7 +103,7 @@ async test "read-only access does not save or set cookie" {
     "existing-session-key": @sessions.SessionModel::{
       key: "existing-session-key",
       data: { "user": Json("bob") },
-      expires_at: 2_000_000_000,
+      expires_at: 2_000_000_000_000,
     },
   })
   let app = @moonback.App(ctx => {
@@ -264,7 +264,7 @@ async test "session deleted mid-request responds 400" {
     "doomed-session-key": @sessions.SessionModel::{
       key: "doomed-session-key",
       data: {},
-      expires_at: 2_000_000_000,
+      expires_at: 2_000_000_000_000,
     },
   })
   let app = @moonback.App(ctx => {
@@ -339,7 +339,7 @@ async test "cycle_key rotates the key and keeps the data" {
     "old-key": @sessions.SessionModel::{
       key: "old-key",
       data: { "user": Json("bob") },
-      expires_at: 2_000_000_000,
+      expires_at: 2_000_000_000_000,
     },
   })
   let app = @moonback.App(ctx => {
@@ -381,7 +381,7 @@ async test "flush deletes the session and expires the cookie" {
     "doomed": @sessions.SessionModel::{
       key: "doomed",
       data: { "user": Json("bob") },
-      expires_at: 2_000_000_000,
+      expires_at: 2_000_000_000_000,
     },
   })
   let app = @moonback.App(ctx => {
@@ -417,7 +417,7 @@ async test "flush then write starts a fresh session" {
     "old-key": @sessions.SessionModel::{
       key: "old-key",
       data: { "user": Json("bob") },
-      expires_at: 2_000_000_000,
+      expires_at: 2_000_000_000_000,
     },
   })
   let app = @moonback.App(ctx => {

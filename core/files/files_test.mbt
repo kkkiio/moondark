@@ -126,7 +126,7 @@ async test "presigned url expires" {
     now = 1_000_060L
     let (ok_resp, _) = @http.get("\{base}\{url}")
     assert_eq(ok_resp.code, 200)
-    // one second past expiry -> 403
+    // past expiry -> 403
     now = 1_000_061L
     let (expired_resp, _) = @http.get("\{base}\{url}")
     assert_eq(expired_resp.code, 403)

@@ -9,6 +9,8 @@ pub(all) suberror AuthError {
   NoSession
   /// `login` refuses a user whose `is_active()` is `false`.
   UserInactive
+  /// `update_credential` was called with no field to update.
+  NothingToUpdate
 } derive(Debug)
 
 ///|
@@ -92,7 +94,7 @@ pub async fn Auth::set_password(
   let secret = hash_password(password, self.bcrypt_cost)
   match self.store.find_credential(Password, "", identifier) {
     Some(cred) if cred.user_id == user_id =>
-      ignore(self.store.update_credential({ ..cred, secret, }))
+      ignore(self.store.update_credential(Password, "", identifier, secret~))
     Some(_) => raise IdentifierTaken(Password, "", identifier)
     None => {
       let added = self.store.add_credential(CredentialModel::{
@@ -102,8 +104,8 @@ pub async fn Auth::set_password(
         identifier,
         secret,
         verified: false,
-        created_at: now_seconds(),
-        last_used_at: None,
+        created_at: now_ms(),
+        last_used_at: 0,
       })
       if !added {
         raise IdentifierTaken(Password, "", identifier)
@@ -135,8 +137,8 @@ pub async fn Auth::bind_oauth(
     identifier,
     secret,
     verified,
-    created_at: now_seconds(),
-    last_used_at: None,
+    created_at: now_ms(),
+    last_used_at: 0,
   }) else {
     raise IdentifierTaken(OAuth, provider, identifier)
   }
@@ -147,7 +149,12 @@ pub async fn Auth::bind_oauth(
 /// a failed stamp must not reject a valid login.
 async fn Auth::mark_used(self : Self, cred : CredentialModel) -> Unit {
   ignore(
-    self.store.update_credential({ ..cred, last_used_at: Some(now_seconds()), }),
+    self.store.update_credential(
+      cred.kind,
+      cred.provider,
+      cred.identifier,
+      last_used_at=now_ms(),
+    ),
   )
 }
 
@@ -161,6 +168,6 @@ fn hash_password(password : String, cost : Int32) -> String raise {
 }
 
 ///|
-fn now_seconds() -> Int64 {
-  (@env.now() / 1000).reinterpret_as_int64()
+fn now_ms() -> Int64 {
+  @env.now().reinterpret_as_int64()
 }
