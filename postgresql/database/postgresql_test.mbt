@@ -60,6 +60,38 @@ async test "execute, query and value round trip" {
 }
 
 ///|
+async test "connection setup errors preserve PostgreSQL SQLSTATE" {
+  let pg = @postgres.run()
+  defer pg.cleanup()
+  let dsn = pg.connection_string(ssl_mode="disable")
+  let missing_database = dsn.replace(
+    old="/" + @percent.encode(pg.database()) + "?",
+    new="/moondark_missing?",
+  )
+  let wrong_password = dsn.replace(
+    old=":" + @percent.encode(pg.password()) + "@",
+    new=":wrong_password@",
+  )
+  for (dsn, code) in [(missing_database, "3D000"), (wrong_password, "28P01")] {
+    @async.with_task_group(group => {
+      let (db, executor) = @database.open_db(dsn, max_open=1)
+      group.spawn_bg(no_wait=true, () => executor.run())
+      db.ready()
+      defer db.close()
+      try db.ping() catch {
+        @client.ClientError::Database(error) =>
+          assert_eq(error.code, Some(code))
+        error => fail("expected PostgreSQL error, got \{error}")
+      } noraise {
+        _ => fail("expected connection setup failure")
+      }
+      assert_eq(db.stats().open, 0)
+      assert_eq(db.stats().in_use, 0)
+    })
+  }
+}
+
+///|
 async test "with_transaction commits and rolls back" {
   run_db(db => {
     ignore(db.execute("CREATE TABLE entries(value INT4)"))
