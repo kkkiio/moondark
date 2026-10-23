@@ -85,8 +85,7 @@ pub fn CrossOriginProtection::middleware(
       self.check(req) catch {
         e => {
           let e : Error = e
-          @xlog.warn(category="moondark.csrf") <?
-            { "error": e.to_string(), "path": req.path.to_owned() }
+          @xlog.warn(category="moondark.csrf") <? { "error": e.to_string() }
           return (self.deny_handler)(req, res)
         }
       }

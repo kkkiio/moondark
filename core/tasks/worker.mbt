@@ -187,10 +187,10 @@ pub async fn Worker::run_once(self : Self) -> Bool {
   }
   let context = TaskContext::{ task_result: result, attempt: result.attempts, }
   self.executing = true
+  defer self.executing = false
   let outcome : Result[Json, Error] = Ok((task.func)(context, result.args)) catch {
     e => Err(e)
   }
-  self.executing = false
   let finished = match outcome {
     Ok(value) =>
       TaskResult::{
