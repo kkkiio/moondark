@@ -8,7 +8,10 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
@@ -41,6 +44,11 @@ jobs:
         run: moon test
 
       - name: Example smoke test
-        run: |
-          moon build
-          moon cram test examples/todo/tests
+        run: moon build
+
+      # moon-cram ships no working linux-aarch64 binary (the v0.0.1/v0.0.2
+      # aarch64 release assets are actually x86-64), so cram coverage stays
+      # on x64 until upstream fixes the cross-compile.
+      - name: Cram smoke test
+        if: matrix.os == 'ubuntu-latest'
+        run: moon cram test examples/todo/tests

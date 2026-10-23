@@ -105,3 +105,33 @@ async test "with_transaction commits and rolls back" {
     assert_true(rows.next() is None)
   })
 }
+
+///|
+async test "every pooled SQLite connection enables foreign keys and lock waiting" {
+  @async.with_task_group(group => {
+    let dir = @fs.tmpdir(prefix="moondark-sqlite-pragmas")
+    let (db, executor) = @database.open_db("\{dir}/pragmas.db", max_open=2)
+    group.spawn_bg(no_wait=true, () => executor.run())
+    db.ready()
+    defer db.close()
+    let first = db.conn()
+    defer first.close()
+    let second = db.conn()
+    defer second.close()
+    for conn in [first, second] {
+      for
+        (sql, column, expected) in [
+          ("PRAGMA busy_timeout", "timeout", 5000L),
+          ("PRAGMA foreign_keys", "foreign_keys", 1L),
+        ] {
+        let rows = conn.query(sql)
+        defer rows.close()
+        let row = rows.next().unwrap()
+        guard row.get(column) is Some(Int64(actual)) else {
+          fail("Missing pragma value")
+        }
+        assert_eq(actual, expected)
+      }
+    }
+  })
+}

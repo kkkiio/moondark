@@ -107,7 +107,7 @@ pub impl @moondark_tasks.TaskStore for SqliteTaskBackend with fn save(
 ) {
   ignore(
     self.db.execute(
-      "UPDATE \{self.table} SET status = ?, run_after = ?, started_at = ?, finished_at = ?, attempts = ?, return_value = ?, errors = ?, worker_ids = ? WHERE id = ?",
+      "UPDATE \{self.table} SET status = ?, run_after = ?, started_at = ?, finished_at = ?, attempts = ?, return_value = ?, errors = ?, worker_ids = ? WHERE id = ? AND status = 'running' AND attempts = ? AND worker_ids = ?",
       params=[
         status_text(result.status),
         opt_int64(result.run_after),
@@ -118,6 +118,8 @@ pub impl @moondark_tasks.TaskStore for SqliteTaskBackend with fn save(
         Json(result.errors).stringify(),
         Json(result.worker_ids).stringify(),
         result.id,
+        result.attempts,
+        Json(result.worker_ids).stringify(),
       ],
     ),
   )

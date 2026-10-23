@@ -129,7 +129,11 @@ pub impl TaskStore for DummyBackend with fn claim(
 pub impl TaskStore for DummyBackend with fn save(self, result) {
   for i, stored in self.results {
     if stored.id == result.id {
-      self.results[i] = result
+      if stored.status is Running &&
+        stored.attempts == result.attempts &&
+        stored.worker_ids == result.worker_ids {
+        self.results[i] = result
+      }
       return
     }
   }

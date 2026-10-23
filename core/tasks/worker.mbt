@@ -21,7 +21,9 @@ pub(open) trait TaskStore {
     stale_before~ : Int64?,
   ) -> TaskResult?
   /// Persist `result` as the row's new state: a terminal
-  /// `Successful`/`Failed`, or a `Ready` reschedule for a retry.
+  /// `Successful`/`Failed`, or a `Ready` reschedule for a retry. Only
+  /// update a Running row whose attempts and worker_ids still match;
+  /// silently ignore completion from an attempt that was reclaimed.
   async fn save(Self, result : TaskResult) -> Unit
 }
 

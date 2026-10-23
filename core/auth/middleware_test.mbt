@@ -215,3 +215,39 @@ async test "login_required without auth middleware fails loudly" {
     }
   })
 }
+
+///|
+async test "API login_required responds with JSON 401" {
+  let auth_guard = test_guard(Map([]))
+  let app = @moonback.App(ctx => {
+    ctx.add_middleware(@sessions.middleware(@sessions.MemorySessionStore()))
+    ctx.add_middleware(auth_guard.middleware())
+    ctx.get(
+      "/api/me",
+      auth_guard.login_required(
+        (_req, res, _user) => res.send_text("private"),
+        login_url=None,
+      ),
+    )
+  })
+  defer app.close()
+  @async.with_task_group(group => {
+    let server = @moonback.listen(port=0)
+    defer server.close()
+    let task = group.spawn(() => app.serve(server))
+    let (response, body) = @http.get(
+      "http://127.0.0.1:\{server.addr.port()}/api/me",
+    )
+    assert_eq(response.code, 401)
+    assert_true(response.headers.get("location") is None)
+    assert_eq(
+      body.json(),
+      Json::object({ "error": Json("authentication required.") }),
+    )
+    task.cancel()
+    task.wait() catch {
+      @async.WaitedTaskAlreadyCancelled => ()
+      error => raise error
+    }
+  })
+}
