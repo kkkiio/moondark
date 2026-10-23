@@ -1,9 +1,9 @@
 // Generated using `moon info`, DON'T EDIT IT
-package "xziheng/moondark/database/sql/sqltest"
+package "KKKIIO/moondark/database/sql/sqltest"
 
 import {
-  "xziheng/moondark/database/sql",
-  "xziheng/moondark/database/sql/driver",
+  "KKKIIO/moondark/database/sql",
+  "KKKIIO/moondark/database/sql/driver",
 }
 
 // Values

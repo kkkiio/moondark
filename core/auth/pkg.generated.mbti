@@ -1,11 +1,11 @@
 // Generated using `moon info`, DON'T EDIT IT
-package "xziheng/moondark/auth"
+package "KKKIIO/moondark/auth"
 
 import {
+  "KKKIIO/moondark/auth/oauth2",
   "moonbitlang/core/debug",
   "moonbitlang/core/json",
   "moonbitlang/moonback",
-  "xziheng/moondark/auth/oauth2",
 }
 
 // Values

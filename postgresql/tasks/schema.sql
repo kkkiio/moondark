@@ -1,5 +1,5 @@
 -- Task-result table for PostgresTaskBackend
--- (xziheng/moondark_postgresql/tasks). Apply it with psql or your own
+-- (KKKIIO/moondark_postgresql/tasks). Apply it with psql or your own
 -- migration tool, e.g. `psql "$DATABASE_URL" -f schema.sql`.
 -- If you pass a different `table~` name to the backend, rename the
 -- table and the index here too.

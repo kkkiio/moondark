@@ -1,5 +1,5 @@
 -- Session table for PostgresSessionStore
--- (xziheng/moondark_postgresql/sessions). Apply it with psql or your
+-- (KKKIIO/moondark_postgresql/sessions). Apply it with psql or your
 -- own migration tool, e.g. `psql "$DATABASE_URL" -f schema.sql`.
 -- If you pass a different `table~` name to the store, rename the table
 -- here too.

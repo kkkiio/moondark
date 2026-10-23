@@ -1,4 +1,4 @@
--- Bookkeeping tables for xziheng/moondark/migration, SQLite flavor.
+-- Bookkeeping tables for KKKIIO/moondark/migration, SQLite flavor.
 -- This is a template: {migrations_table} / {records_table} are
 -- substituted with the Migrator's configured names at runtime
 -- (defaults: moondark_migrations / moondark_migration_records).

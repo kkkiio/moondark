@@ -1,5 +1,5 @@
 -- Task-result table for SqliteTaskBackend
--- (xziheng/moondark_sqlite/tasks). Apply it with the sqlite3 CLI,
+-- (KKKIIO/moondark_sqlite/tasks). Apply it with the sqlite3 CLI,
 -- `Conn::execute_script`, or your own migration tool, e.g.
 -- `sqlite3 app.db < schema.sql`.
 -- If you pass a different `table~` name to the backend, rename the

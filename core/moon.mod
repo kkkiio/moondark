@@ -16,7 +16,7 @@ import {
 
 preferred_target = "native"
 
-name = "xziheng/moondark"
+name = "KKKIIO/moondark"
 
 version = "0.1.0"
 

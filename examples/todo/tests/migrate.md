@@ -55,7 +55,7 @@ $ cd "$TESTDIR/.."
 > rm -f test.db
 > moondark_example_todo.exe --db test.db migrate
 > moondark_example_todo.exe --db test.db load
-xziheng/moondark/migration.MigrationError.NotFresh
+KKKIIO/moondark/migration.MigrationError.NotFresh
 [1]
 ```
 

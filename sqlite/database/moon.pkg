@@ -1,14 +1,14 @@
 import {
   "moonbit-community/sqlite3",
-  "xziheng/moondark/database/sql",
-  "xziheng/moondark/database/sql/driver",
+  "KKKIIO/moondark/database/sql",
+  "KKKIIO/moondark/database/sql/driver",
   "moonbitlang/x/time",
 }
 
 import {
   "moonbitlang/async",
   "moonbitlang/async/fs",
-  "xziheng/moondark/migration",
+  "KKKIIO/moondark/migration",
 } for "test"
 
 supported_targets = "native"

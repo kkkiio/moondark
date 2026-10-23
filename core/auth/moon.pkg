@@ -5,8 +5,8 @@ import {
   "moonbitlang/core/env",
   "moonbitlang/core/json",
   "moonbitlang/moonback",
-  "xziheng/moondark/auth/oauth2",
-  "xziheng/moondark/sessions",
+  "KKKIIO/moondark/auth/oauth2",
+  "KKKIIO/moondark/sessions",
 }
 
 import {

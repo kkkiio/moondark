@@ -1,8 +1,8 @@
 // Generated using `moon info`, DON'T EDIT IT
-package "xziheng/moondark_example_todo/migrations/v0001_todos"
+package "KKKIIO/moondark_example_todo/migrations/v0001_todos"
 
 import {
-  "xziheng/moondark/migration",
+  "KKKIIO/moondark/migration",
 }
 
 // Values

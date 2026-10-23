@@ -1,6 +1,6 @@
 # moondark_sqlite/tasks
 
-SQLite backend for `xziheng/moondark/tasks`, storing enqueued tasks and execution results in a SQLite table.
+SQLite backend for `KKKIIO/moondark/tasks`, storing enqueued tasks and execution results in a SQLite table.
 
 ## Quick Start
 

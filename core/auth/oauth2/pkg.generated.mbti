@@ -1,5 +1,5 @@
 // Generated using `moon info`, DON'T EDIT IT
-package "xziheng/moondark/auth/oauth2"
+package "KKKIIO/moondark/auth/oauth2"
 
 import {
   "moonbitlang/core/debug",

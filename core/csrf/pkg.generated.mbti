@@ -1,5 +1,5 @@
 // Generated using `moon info`, DON'T EDIT IT
-package "xziheng/moondark/csrf"
+package "KKKIIO/moondark/csrf"
 
 import {
   "moonbitlang/core/debug",

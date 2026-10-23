@@ -1,6 +1,6 @@
 import {
-  "xziheng/moondark/database/sql",
-  "xziheng/moondark/database/sql/driver",
+  "KKKIIO/moondark/database/sql",
+  "KKKIIO/moondark/database/sql/driver",
   "moonbitlang/async/fs",
   "moonbitlang/core/env",
   "moonbitlang/core/encoding/utf8",
@@ -46,5 +46,5 @@ dev_build(
 
 import {
   "moonbitlang/async",
-  "xziheng/moondark/database/sql/sqltest",
+  "KKKIIO/moondark/database/sql/sqltest",
 } for "test"

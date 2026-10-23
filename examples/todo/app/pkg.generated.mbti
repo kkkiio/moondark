@@ -1,8 +1,8 @@
 // Generated using `moon info`, DON'T EDIT IT
-package "xziheng/moondark_example_todo/app"
+package "KKKIIO/moondark_example_todo/app"
 
 import {
-  "xziheng/moondark/database/sql",
+  "KKKIIO/moondark/database/sql",
 }
 
 // Values

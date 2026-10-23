@@ -2,7 +2,7 @@
 /// The app folds every integration package's `schema.sql` into its
 /// own version packages; keep `v0002_moondark_sessions/up.sql` (and
 /// the bootstrap snapshot) in sync with
-/// `xziheng/moondark_sqlite/sessions`'s DDL — comments and whitespace
+/// `KKKIIO/moondark_sqlite/sessions`'s DDL — comments and whitespace
 /// are ignored, statements must match.
 async test "sessions migration mirrors the package's schema.sql" {
   let packaged = sql_norm(

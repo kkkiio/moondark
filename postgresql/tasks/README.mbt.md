@@ -1,6 +1,6 @@
 # moondark_postgresql/tasks
 
-PostgreSQL backend for `xziheng/moondark/tasks`, storing enqueued tasks and execution results in a PostgreSQL table.
+PostgreSQL backend for `KKKIIO/moondark/tasks`, storing enqueued tasks and execution results in a PostgreSQL table.
 
 ## Quick Start
 

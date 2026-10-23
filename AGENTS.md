@@ -16,9 +16,9 @@ MoonDark 是基于 MoonBack 的 MoonBit 后端框架（设计参考 [Django](htt
 ├── README.md                     # 项目简介（面向用户）
 ├── moon.work                     # 工作区成员
 ├── justfile                      # check / fmt / test 快捷命令
-├── core/                         # 模块 xziheng/moondark（包路径省略 core/ 前缀）
+├── core/                         # 模块 KKKIIO/moondark（包路径省略 core/ 前缀）
 │   ├── moon.mod                  # 核心模块元数据与依赖
-│   ├── auth/                     # xziheng/moondark/auth：凭据存储、Auth、SessionAuth、SocialFlow
+│   ├── auth/                     # KKKIIO/moondark/auth：凭据存储、Auth、SessionAuth、SocialFlow
 │   │   └── oauth2/               # OAuth2/OIDC 协议层：Provider、Identity
 │   ├── csrf/                     # 无状态 CSRF 防护（CrossOriginProtection、CSRF 中间件）
 │   ├── database/sql/             # Go database/sql 风格的连接池与查询 API（DB、Conn、Rows、Tx、Stmt）
@@ -32,16 +32,16 @@ MoonDark 是基于 MoonBack 的 MoonBit 后端框架（设计参考 [Django](htt
 │   ├── signing/                  # 带时间戳签名
 │   ├── tasks/                    # 后台任务
 │   └── cmd/main/                 # 可执行入口（模板占位）
-├── sqlite/                       # 集成模块 xziheng/moondark_sqlite
+├── sqlite/                       # 集成模块 KKKIIO/moondark_sqlite
 │   ├── database/                 # database/sql 驱动、open_db；迁移在 SQLite 上的集成测试
 │   ├── files/                    # SqliteCatalog（file_objects 表）+ SqliteFileStore
 │   ├── sessions/                 # SqliteSessionStore
 │   └── tasks/                    # SqliteTaskBackend：单语句 CAS UPDATE claim
-├── postgresql/                   # 集成模块 xziheng/moondark_postgresql
+├── postgresql/                   # 集成模块 KKKIIO/moondark_postgresql
 │   ├── database/                 # database/sql 驱动、open_db
 │   ├── sessions/                 # PostgresSessionStore
 │   └── tasks/                    # PostgresTaskBackend：FOR UPDATE SKIP LOCKED claim
-├── examples/todo/                # 示例应用 xziheng/moondark_example_todo：演示 migration 的典型接线
+├── examples/todo/                # 示例应用 KKKIIO/moondark_example_todo：演示 migration 的典型接线
 ├── docs/research/                # agent 撰写的调研文档（HTML）
 ├── .agents/skills/               # 项目级 agent skills（如 write-snapshot-test）
 └── .scratch/                     # 已 gitignore，agent 临时实验目录
@@ -107,7 +107,7 @@ MoonDark 是基于 MoonBack 的 MoonBit 后端框架（设计参考 [Django](htt
 - 放进对应集成模块中与所实现 core 包同名的子包，如 `postgresql/sessions` 实现 `core/sessions` 的接口；集成模块根目录不放包。
 - 一个能力一个子包，子包只导入该能力需要的依赖。
 - 公开类型带后端前缀（`PostgresSessionStore`），避免导入多个集成模块时混淆。
-- 导入集成子包时显式写别名 `<集成模块目录名>_<包名>`，如 `"xziheng/moondark_postgresql/sessions" @postgresql_sessions`；集成子包内导入同名 core 包时写 `@moondark_<包>`，如 `"xziheng/moondark/sessions" @moondark_sessions`（否则黑盒测试会报别名冲突）。
+- 导入集成子包时显式写别名 `<集成模块目录名>_<包名>`，如 `"KKKIIO/moondark_postgresql/sessions" @postgresql_sessions`；集成子包内导入同名 core 包时写 `@moondark_<包>`，如 `"KKKIIO/moondark/sessions" @moondark_sessions`（否则黑盒测试会报别名冲突）。
 - 后端测试调用 core 的通用测试套件（如 `@sessionstest.check_session_store`），不要在各集成模块重复写断言。
 
 ### README is sales pitch
@@ -152,10 +152,10 @@ just fmt
   ```bash
   MOON_WORK=off moon -C core test
   ```
-- 按包名批量跑用 `-p`：先按完整包名精确匹配，失败才用 fzf 风格模糊匹配（按子序列匹配而非子串，`xziheng/moondark/` 也会匹配 `xziheng/moondark_sqlite/database`）。需要精确范围时用 `^` 前缀匹配或 `'` 子串匹配：
+- 按包名批量跑用 `-p`：先按完整包名精确匹配，失败才用 fzf 风格模糊匹配（按子序列匹配而非子串，`KKKIIO/moondark/` 也会匹配 `KKKIIO/moondark_sqlite/database`）。需要精确范围时用 `^` 前缀匹配或 `'` 子串匹配：
   ```bash
   moon test -p "'moondark_sqlite"        # sqlite/database + sqlite/sessions
-  moon test -p '^xziheng/moondark/'      # core 的全部包
+  moon test -p '^KKKIIO/moondark/'      # core 的全部包
   moon test -p sessions                  # 模糊：所有名字含该子序列的包
   ```
 - 只跑单个包（路径必须是含 `moon.pkg` 的目录，集成模块根目录不是包）：

@@ -1,13 +1,13 @@
 // Generated using `moon info`, DON'T EDIT IT
-package "xziheng/moondark/files"
+package "KKKIIO/moondark/files"
 
 import {
+  "KKKIIO/moondark/signing",
   "moonbitlang/async/fs",
   "moonbitlang/async/http",
   "moonbitlang/async/io",
   "moonbitlang/core/debug",
   "moonbitlang/moonback",
-  "xziheng/moondark/signing",
 }
 
 // Values

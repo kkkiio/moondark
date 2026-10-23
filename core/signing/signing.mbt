@@ -36,7 +36,7 @@ pub struct Signer {
 /// `now` 默认取系统时钟，测试可注入固定值。
 pub fn Signer::Signer(
   key~ : String,
-  salt~ : String = "xziheng.moondark.signing",
+  salt~ : String = "KKKIIO.moondark.signing",
   now~ : () -> UInt64 = () => @env.now() / 1000,
 ) -> Signer {
   Signer::{
@@ -111,7 +111,7 @@ pub fn Signer::loads(
 pub fn dumps(
   obj : Json,
   key~ : String,
-  salt~ : String = "xziheng.moondark.signing",
+  salt~ : String = "KKKIIO.moondark.signing",
 ) -> String {
   Signer::Signer(key~, salt~).dumps(obj)
 }
@@ -122,7 +122,7 @@ pub fn dumps(
 pub fn loads(
   signed : String,
   key~ : String,
-  salt~ : String = "xziheng.moondark.signing",
+  salt~ : String = "KKKIIO.moondark.signing",
   max_age~ : Int64 = 0x7fffffffffffffffL,
 ) -> Json raise SignError {
   Signer::Signer(key~, salt~).loads(signed, max_age~)

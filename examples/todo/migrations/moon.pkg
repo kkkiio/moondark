@@ -1,6 +1,6 @@
 import {
-  "xziheng/moondark/migration",
-  "xziheng/moondark_example_todo/migrations/v0001_todos",
-  "xziheng/moondark_example_todo/migrations/v0002_moondark_sessions",
-  "xziheng/moondark_example_todo/migrations/v0003_seed_todos",
+  "KKKIIO/moondark/migration",
+  "KKKIIO/moondark_example_todo/migrations/v0001_todos",
+  "KKKIIO/moondark_example_todo/migrations/v0002_moondark_sessions",
+  "KKKIIO/moondark_example_todo/migrations/v0003_seed_todos",
 }

@@ -1,10 +1,10 @@
 // Generated using `moon info`, DON'T EDIT IT
-package "xziheng/moondark_postgresql/database"
+package "KKKIIO/moondark_postgresql/database"
 
 import {
+  "KKKIIO/moondark/database/sql",
+  "KKKIIO/moondark/database/sql/driver",
   "moonbitlang/x/time",
-  "xziheng/moondark/database/sql",
-  "xziheng/moondark/database/sql/driver",
 }
 
 // Values

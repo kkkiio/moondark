@@ -1,15 +1,15 @@
 import {
-  "xziheng/moondark/database/sql",
-  "xziheng/moondark/database/sql/driver",
-  "xziheng/moondark/sessions" @moondark_sessions,
+  "KKKIIO/moondark/database/sql",
+  "KKKIIO/moondark/database/sql/driver",
+  "KKKIIO/moondark/sessions" @moondark_sessions,
   "moonbitlang/core/json",
 }
 
 import {
   "moonbitlang/async",
   "moonbitlang/async/fs",
-  "xziheng/moondark/sessions/sessionstest",
-  "xziheng/moondark_sqlite/database" @sqlite_database,
+  "KKKIIO/moondark/sessions/sessionstest",
+  "KKKIIO/moondark_sqlite/database" @sqlite_database,
 } for "test"
 
 supported_targets = "native"

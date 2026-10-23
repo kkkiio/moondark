@@ -1,5 +1,5 @@
 // Generated using `moon info`, DON'T EDIT IT
-package "xziheng/moondark/sessions"
+package "KKKIIO/moondark/sessions"
 
 import {
   "moonbitlang/core/debug",

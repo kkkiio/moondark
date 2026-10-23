@@ -1,5 +1,5 @@
 import {
-  "xziheng/moondark/database/sql",
+  "KKKIIO/moondark/database/sql",
   "moonbitlang/async",
   "moonbitlang/core/env",
   "moonbitlang/core/json",
@@ -7,5 +7,5 @@ import {
 }
 
 import {
-  "xziheng/moondark/database/sql/sqltest",
+  "KKKIIO/moondark/database/sql/sqltest",
 } for "test"

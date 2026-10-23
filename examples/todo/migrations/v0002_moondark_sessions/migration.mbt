@@ -1,6 +1,6 @@
 ///|
 /// v0002: the sessions table, folded in from
-/// `xziheng/moondark_sqlite/sessions`'s `schema.sql` — integration
+/// `KKKIIO/moondark_sqlite/sessions`'s `schema.sql` — integration
 /// packages ship their DDL as example files; the app owns them as
 /// versions like any other.
 pub async fn migration() -> @migration.Migration {

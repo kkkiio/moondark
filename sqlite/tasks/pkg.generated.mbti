@@ -1,8 +1,8 @@
 // Generated using `moon info`, DON'T EDIT IT
-package "xziheng/moondark_sqlite/tasks"
+package "KKKIIO/moondark_sqlite/tasks"
 
 import {
-  "xziheng/moondark/database/sql",
+  "KKKIIO/moondark/database/sql",
 }
 
 // Values
@@ -11,13 +11,13 @@ import {
 
 // Types and methods
 type SqliteTaskBackend
-pub async fn SqliteTaskBackend::claim(Self, worker_id~ : String, now~ : Int64, stale_before~ : Int64?) -> @xziheng/moondark/tasks.TaskResult?
-pub async fn SqliteTaskBackend::enqueue(Self, @sql.Transaction, @xziheng/moondark/tasks.TaskArgs, Json) -> String
-pub async fn SqliteTaskBackend::get_result(Self, String, String) -> @xziheng/moondark/tasks.TaskResult?
+pub async fn SqliteTaskBackend::claim(Self, worker_id~ : String, now~ : Int64, stale_before~ : Int64?) -> @KKKIIO/moondark/tasks.TaskResult?
+pub async fn SqliteTaskBackend::enqueue(Self, @sql.Transaction, @KKKIIO/moondark/tasks.TaskArgs, Json) -> String
+pub async fn SqliteTaskBackend::get_result(Self, String, String) -> @KKKIIO/moondark/tasks.TaskResult?
 pub fn SqliteTaskBackend::new(@sql.DB, table? : String, now? : () -> Int64) -> Self
-pub async fn SqliteTaskBackend::save(Self, @xziheng/moondark/tasks.TaskResult) -> Unit
-pub impl @xziheng/moondark/tasks.DBTaskBackend for SqliteTaskBackend
-pub impl @xziheng/moondark/tasks.TaskStore for SqliteTaskBackend
+pub async fn SqliteTaskBackend::save(Self, @KKKIIO/moondark/tasks.TaskResult) -> Unit
+pub impl @KKKIIO/moondark/tasks.DBTaskBackend for SqliteTaskBackend
+pub impl @KKKIIO/moondark/tasks.TaskStore for SqliteTaskBackend
 
 // Type aliases
 

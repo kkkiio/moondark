@@ -1,15 +1,15 @@
 import {
-  "xziheng/moondark/database/sql",
-  "xziheng/moondark/database/sql/driver",
-  "xziheng/moondark/sessions" @moondark_sessions,
+  "KKKIIO/moondark/database/sql",
+  "KKKIIO/moondark/database/sql/driver",
+  "KKKIIO/moondark/sessions" @moondark_sessions,
   "moonbitlang/core/json",
 }
 
 import {
   "moonbitlang/async",
   "moonbitlang/async/fs",
-  "xziheng/moondark/sessions/sessionstest",
-  "xziheng/moondark_postgresql/database" @postgresql_database,
+  "KKKIIO/moondark/sessions/sessionstest",
+  "KKKIIO/moondark_postgresql/database" @postgresql_database,
   "xziheng/testcontainers/postgres",
 } for "test"
 

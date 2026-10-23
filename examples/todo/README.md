@@ -1,6 +1,6 @@
 # moondark_example_todo
 
-Minimal todo list CLI demonstrating schema management with `xziheng/moondark/migration`.
+Minimal todo list CLI demonstrating schema management with `KKKIIO/moondark/migration`.
 
 ## Quick Start
 

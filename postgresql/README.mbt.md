@@ -24,9 +24,9 @@ async test {
 
 | Package | Core Interface | Public API |
 |---|---|---|
-| `xziheng/moondark_postgresql/database` | `database/sql/driver` | `open_db`, `Driver` |
-| `xziheng/moondark_postgresql/sessions` | `sessions.SessionStore` | `PostgresSessionStore` |
-| `xziheng/moondark_postgresql/tasks` | `tasks.DBTaskBackend`, `tasks.TaskStore` | `PostgresTaskBackend` |
+| `KKKIIO/moondark_postgresql/database` | `database/sql/driver` | `open_db`, `Driver` |
+| `KKKIIO/moondark_postgresql/sessions` | `sessions.SessionStore` | `PostgresSessionStore` |
+| `KKKIIO/moondark_postgresql/tasks` | `tasks.DBTaskBackend`, `tasks.TaskStore` | `PostgresTaskBackend` |
 
 ## Sessions
 

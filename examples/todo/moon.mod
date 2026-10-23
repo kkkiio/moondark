@@ -1,13 +1,13 @@
 import {
-  "xziheng/moondark@0.1.0",
-  "xziheng/moondark_sqlite@0.1.0",
+  "KKKIIO/moondark@0.1.0",
+  "KKKIIO/moondark_sqlite@0.1.0",
   "moonbitlang/async@0.22.5",
   "moonbitlang/x@0.5.5",
 }
 
 preferred_target = "native"
 
-name = "xziheng/moondark_example_todo"
+name = "KKKIIO/moondark_example_todo"
 
 version = "0.1.0"
 

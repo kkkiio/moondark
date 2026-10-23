@@ -1,6 +1,6 @@
 # moondark_sqlite/files
 
-SQLite catalog for `xziheng/moondark/files`: `SqliteCatalog` stores the key → blob index in a SQLite table while `SqliteFileStore` builds a `CasFileStore` that keeps the content-addressed blobs on disk.
+SQLite catalog for `KKKIIO/moondark/files`: `SqliteCatalog` stores the key → blob index in a SQLite table while `SqliteFileStore` builds a `CasFileStore` that keeps the content-addressed blobs on disk.
 
 ## Quick Start
 

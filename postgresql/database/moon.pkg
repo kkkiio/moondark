@@ -3,8 +3,8 @@ import {
   "moonbit-community/postgres/protocol" @proto,
   "moonbitlang/core/encoding/percent",
   "moonbitlang/core/string",
-  "xziheng/moondark/database/sql",
-  "xziheng/moondark/database/sql/driver",
+  "KKKIIO/moondark/database/sql",
+  "KKKIIO/moondark/database/sql/driver",
   "moonbitlang/x/time",
 }
 

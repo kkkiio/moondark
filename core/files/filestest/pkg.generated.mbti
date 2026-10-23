@@ -1,8 +1,8 @@
 // Generated using `moon info`, DON'T EDIT IT
-package "xziheng/moondark/files/filestest"
+package "KKKIIO/moondark/files/filestest"
 
 import {
-  "xziheng/moondark/files",
+  "KKKIIO/moondark/files",
 }
 
 // Values

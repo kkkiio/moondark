@@ -1,6 +1,6 @@
 import {
-  "xziheng/moondark_example_todo/app",
-  "xziheng/moondark_sqlite/database" @sqlite_database,
+  "KKKIIO/moondark_example_todo/app",
+  "KKKIIO/moondark_sqlite/database" @sqlite_database,
   "moonbitlang/core/argparse",
   "moonbitlang/async",
 }

@@ -1,7 +1,7 @@
 import {
-  "xziheng/moondark/tasks" @moondark_tasks,
-  "xziheng/moondark/database/sql",
-  "xziheng/moondark/database/sql/driver",
+  "KKKIIO/moondark/tasks" @moondark_tasks,
+  "KKKIIO/moondark/database/sql",
+  "KKKIIO/moondark/database/sql/driver",
   "moonbitlang/core/env",
   "moonbitlang/core/json",
   "moonbitlang/x/uuid",
@@ -10,7 +10,7 @@ import {
 import {
   "moonbitlang/async",
   "moonbitlang/async/fs",
-  "xziheng/moondark_sqlite/database" @sqlite_database,
+  "KKKIIO/moondark_sqlite/database" @sqlite_database,
 } for "test"
 
 supported_targets = "native"

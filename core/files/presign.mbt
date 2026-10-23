@@ -34,7 +34,7 @@ pub fn Presigner::new(
 ) -> Presigner {
   Presigner::{
     url_prefix,
-    signer: @signing.Signer::Signer(key~, salt="xziheng.moondark.files", now=() => {
+    signer: @signing.Signer::Signer(key~, salt="KKKIIO.moondark.files", now=() => {
       now().reinterpret_as_uint64()
     }),
     now,
