@@ -79,6 +79,7 @@ pub async fn[U : AuthUser] SessionAuth::login_by_id(Self[U], @moonback.Request, 
 pub fn[U] SessionAuth::login_required(Self[U], async (@moonback.Request, @moonback.Responder, U) -> Unit, login_url? : String) -> async (@moonback.Request, @moonback.Responder) -> Unit
 pub fn[U] SessionAuth::logout(Self[U], @moonback.Request) -> Unit raise AuthError
 pub fn[U : AuthUser] SessionAuth::middleware(Self[U]) -> @moonback.Middleware
+pub fn[U : AuthUser] SessionAuth::routes(Self[U], auth? : Auth, flows? : Array[SocialFlow[U]], url_prefix? : String) -> @moonback.Module
 
 pub struct SocialFlow[U] {
   provider : @oauth2.Provider
@@ -90,6 +91,7 @@ pub struct SocialFlow[U] {
 pub fn[U] SocialFlow::SocialFlow(provider~ : @oauth2.Provider, auth~ : Auth, session_auth~ : SessionAuth[U], create_user~ : async (@oauth2.Identity) -> U?, use_pkce? : Bool) -> Self[U]
 pub fn[U : AuthUser] SocialFlow::callback_handler(Self[U]) -> async (@moonback.Request, @moonback.Responder) -> Unit
 pub fn[U] SocialFlow::login_handler(Self[U]) -> async (@moonback.Request, @moonback.Responder) -> Unit
+pub fn[U] SocialFlow::provider_name(Self[U]) -> String
 
 // Type aliases
 

@@ -115,3 +115,24 @@ let github = @auth.SocialFlow(
 ctx.get("/auth/github/login", github.login_handler())
 ctx.get("/auth/github/callback", github.callback_handler())
 ```
+
+## Ready-made routes
+
+`SessionAuth::routes` mounts the `accounts/`-style endpoint set as one
+`Module` — enough for an SPA frontend to sign users in and out:
+
+```mbt nocheck
+ctx.use_(session_auth.routes(auth~, flows=[github]))
+```
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `POST` | `/auth/login` | `{"identifier", "password"}` (JSON or form) → `{"id"}` or 302 to `?next=` |
+| `GET` | `/auth/{provider}/login` | 302 to the provider's authorization URL |
+| `GET` | `/auth/{provider}/callback` | provider redirect target; 302 to remembered `next` |
+| `POST` | `/auth/logout` | flush the session → 204 |
+
+Drop `auth` for OAuth-only apps (`/auth/login` is not mounted), drop
+`flows` for password-only ones, and pass `url_prefix` to move the whole
+set. Mount the underlying handlers manually when a different URL layout
+is needed.
