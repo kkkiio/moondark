@@ -1,6 +1,8 @@
 ///|
 async test "sqlite credential store passes the conformance suite" {
   @async.with_task_group(group => {
+    // sqlite can't create parent dirs; nothing else may have made _build yet.
+    @fs.mkdir("_build", permission=0o755, recursive=true, allow_exist=true)
     let (db, executor) = @sqlite_database.open_db(
       "_build/moondark-sqlite-auth-test.db",
     )
