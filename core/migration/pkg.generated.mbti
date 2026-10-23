@@ -17,6 +17,9 @@ pub suberror MigrationError {
   NotFresh
   InvalidName(String)
 }
+pub fn MigrationError::output(Self, &Logger) -> Unit
+pub fn MigrationError::to_string(Self) -> String
+pub impl Show for MigrationError
 
 // Types and methods
 pub(all) enum Dialect {

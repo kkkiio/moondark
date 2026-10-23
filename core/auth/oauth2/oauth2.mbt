@@ -95,13 +95,14 @@ pub async fn Provider::authenticate(
     "Content-Type": "application/x-www-form-urlencoded",
     "Accept": "application/json",
   }) catch {
-    _ => raise TokenExchangeFailed(0, "token endpoint unreachable")
+    e =>
+      raise TokenExchangeFailed(0, "token endpoint unreachable", cause=Some(e))
   }
   let text = data.text() catch {
-    _ => raise TokenExchangeFailed(response.code, "")
+    e => raise TokenExchangeFailed(response.code, "", cause=Some(e))
   }
   guard response.code == 200 else {
-    raise TokenExchangeFailed(response.code, text)
+    raise TokenExchangeFailed(response.code, text, cause=None)
   }
   let tokens : TokenResponse = @json.from_json(
     @json.parse(text) catch {
@@ -163,17 +164,20 @@ pub async fn Provider::authenticate(
       "Authorization": "Bearer \{tokens.access_token}",
       "Accept": "application/json",
     }) catch {
-      _ => raise UserInfoFailed(0, "userinfo endpoint unreachable")
+      e =>
+        raise UserInfoFailed(0, "userinfo endpoint unreachable", cause=Some(e))
     }
     let text = data.text() catch {
-      _ => raise UserInfoFailed(response.code, "")
+      e => raise UserInfoFailed(response.code, "", cause=Some(e))
     }
     guard response.code == 200 else {
-      raise UserInfoFailed(response.code, text)
+      raise UserInfoFailed(response.code, text, cause=None)
     }
-    guard (@json.parse(text) catch { _ => raise UserInfoFailed(0, text) })
+    guard (@json.parse(text) catch {
+        e => raise UserInfoFailed(0, text, cause=Some(e))
+      })
       is Object(claims) else {
-      raise UserInfoFailed(0, text)
+      raise UserInfoFailed(0, text, cause=None)
     }
     claims
   }
@@ -340,18 +344,48 @@ pub extend TokenResponse with FromJson::{from_json}
 
 ///|
 /// Errors raised during the OAuth 2.0 / OIDC handshake and validation.
+/// `cause` carries the underlying transport/parse error when one
+/// exists (`None` for HTTP error responses, whose detail is the body).
+///
+/// The `Show` impl (what `Error::to_string` prints) omits response
+/// bodies on purpose: `TokenExchangeFailed`/`UserInfoFailed`/
+/// `InvalidTokenResponse` carry raw provider payloads that can embed
+/// access/refresh tokens, so the printable form keeps only the
+/// variant, upstream status, and transport `cause`. The full payload
+/// stays accessible through pattern matching and `Debug`.
 pub(all) suberror OAuthError {
   EntropyUnavailable
-  TokenExchangeFailed(Int32, String)
+  TokenExchangeFailed(Int32, String, cause~ : Error?)
   InvalidTokenResponse(String)
   InvalidIdToken(String)
   ClaimMismatch(String)
   TokenExpired(Int64, Int64)
-  UserInfoFailed(Int32, String)
-} derive(Debug, Eq)
+  UserInfoFailed(Int32, String, cause~ : Error?)
+} derive(Debug)
 
 ///|
 pub extend OAuthError with Debug::{to_repr}
 
 ///|
-pub extend OAuthError with Eq::{equal, not_equal}
+pub impl Show for OAuthError with fn to_string(self) {
+  match self {
+    EntropyUnavailable => "EntropyUnavailable"
+    TokenExchangeFailed(code, _, cause~) =>
+      match cause {
+        Some(c) => "TokenExchangeFailed(\{code}, cause=\{c})"
+        None => "TokenExchangeFailed(\{code})"
+      }
+    InvalidTokenResponse(_) => "InvalidTokenResponse(<body omitted>)"
+    InvalidIdToken(msg) => "InvalidIdToken(\{msg})"
+    ClaimMismatch(claim) => "ClaimMismatch(\{claim})"
+    TokenExpired(exp, now) => "TokenExpired(\{exp}, \{now})"
+    UserInfoFailed(code, _, cause~) =>
+      match cause {
+        Some(c) => "UserInfoFailed(\{code}, cause=\{c})"
+        None => "UserInfoFailed(\{code})"
+      }
+  }
+}
+
+///|
+pub extend OAuthError with Show::{to_string, output}

@@ -119,6 +119,27 @@ pub suberror MigrationError {
 }
 
 ///|
+/// `ApplyFailed` carries the underlying error; every other payload is
+/// a name/checksum — all safe to print.
+pub impl Show for MigrationError with fn to_string(self) {
+  match self {
+    DirtyState(names) => {
+      let joined = names.join(", ")
+      "DirtyState(\{joined})"
+    }
+    ChecksumMismatch(name~, stored~, current~) =>
+      "ChecksumMismatch(name=\{name}, stored=\{stored}, current=\{current})"
+    OutOfOrder(name~, latest~) => "OutOfOrder(name=\{name}, latest=\{latest})"
+    ApplyFailed(name~, e) => "ApplyFailed(\{name}, \{e})"
+    NotFresh => "NotFresh"
+    InvalidName(name) => "InvalidName(\{name})"
+  }
+}
+
+///|
+pub extend MigrationError with Show::{to_string, output}
+
+///|
 /// Runs pending migrations against `conn` and keeps the bookkeeping
 /// tables. Holds the connection for the whole migration run — check it
 /// out of the pool with `db.conn()` and close it afterwards.
@@ -299,11 +320,23 @@ pub async fn Migrator::bootstrap(
     Err(e) => {
       if use_tx {
         ignore(self.conn.execute("ROLLBACK")) catch {
-          _ => ()
+          re =>
+            @xlog.warn(category="moondark.migration") <?
+              {
+                "error": re.to_string(),
+                "migration": "bootstrap",
+                "message": "ROLLBACK failed",
+              }
         }
       }
       self.finish_record(rec_id, "failed", e.to_string(), started_ms) catch {
-        _ => ()
+        fe =>
+          @xlog.warn(category="moondark.migration") <?
+            {
+              "error": fe.to_string(),
+              "migration": "bootstrap",
+              "message": "records write failed",
+            }
       }
       raise e
     }
@@ -341,11 +374,23 @@ async fn Migrator::apply(self : Migrator, mig : Migration) -> Unit {
     Err(e) => {
       if mig.use_tx() {
         ignore(self.conn.execute("ROLLBACK")) catch {
-          _ => ()
+          re =>
+            @xlog.warn(category="moondark.migration") <?
+              {
+                "error": re.to_string(),
+                "migration": name,
+                "message": "ROLLBACK failed",
+              }
         }
       }
       self.finish_record(rec_id, "failed", e.to_string(), started_ms) catch {
-        _ => ()
+        fe =>
+          @xlog.warn(category="moondark.migration") <?
+            {
+              "error": fe.to_string(),
+              "migration": name,
+              "message": "records write failed",
+            }
       }
       raise ApplyFailed(name~, e)
     }

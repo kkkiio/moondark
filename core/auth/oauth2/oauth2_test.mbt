@@ -280,7 +280,7 @@ async test "authenticate rejects a token endpoint error" {
       token_url: "http://127.0.0.1:\{server.addr.port()}/token",
     }
     try provider.authenticate(code="bad") catch {
-      TokenExchangeFailed(400, _) => ()
+      TokenExchangeFailed(400, _, ..) => ()
       _ => fail("expected TokenExchangeFailed")
     } noraise {
       _ => fail("expected TokenExchangeFailed")

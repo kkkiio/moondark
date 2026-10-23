@@ -1,0 +1,15 @@
+supported_targets = "native"
+
+import {
+  "moonbitlang/moonback",
+  "moonbitlang/async/http",
+  "moonbitlang/core/env",
+  "tonyfettes/xlog",
+}
+
+import {
+  "moonbitlang/async",
+  "moonbitlang/async/http",
+  "moonbitlang/moonback",
+  "tonyfettes/xlog",
+} for "test"

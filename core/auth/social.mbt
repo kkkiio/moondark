@@ -124,7 +124,38 @@ pub fn[U : AuthUser] SocialFlow::callback_handler(
       code_verifier=verifier,
       nonce~,
     ) catch {
-      _ => {
+      e => {
+        if @xlog.warn(category="moondark.auth") is Some(ev) {
+          ev.write_object_begin()
+          ev.write_object_field("provider", provider.name)
+          match e {
+            @oauth2.EntropyUnavailable =>
+              ev.write_object_field("error", "entropy_unavailable")
+            @oauth2.TokenExchangeFailed(code, _, cause~) => {
+              ev.write_object_field("error", "token_exchange_failed")
+              ev.write_object_field("upstream_status", code)
+              if cause is Some(c) {
+                ev.write_object_field("error.cause", c.to_string())
+              }
+            }
+            @oauth2.UserInfoFailed(code, _, cause~) => {
+              ev.write_object_field("error", "user_info_failed")
+              ev.write_object_field("upstream_status", code)
+              if cause is Some(c) {
+                ev.write_object_field("error.cause", c.to_string())
+              }
+            }
+            @oauth2.InvalidTokenResponse(_) =>
+              ev.write_object_field("error", "invalid_token_response")
+            @oauth2.InvalidIdToken(_) =>
+              ev.write_object_field("error", "invalid_id_token")
+            @oauth2.ClaimMismatch(_) =>
+              ev.write_object_field("error", "claim_mismatch")
+            @oauth2.TokenExpired(_, _) =>
+              ev.write_object_field("error", "token_expired")
+          }
+          ev.write_object_end()
+        }
         res.send_json({ "error": "identity verification failed." }, status=502)
         return
       }
@@ -132,7 +163,12 @@ pub fn[U : AuthUser] SocialFlow::callback_handler(
     match self.auth.authenticate_oauth(provider=p, identifier=identity.sub) {
       Some(user_id) => {
         let ok = self.session_auth.login_by_id(req, user_id) catch {
-          _ => false
+          NoSession => {
+            res.send_text("sessions.middleware is not installed", status=500)
+            return
+          }
+          UserInactive => false
+          err => raise err
         }
         guard ok else {
           res.send_json({ "error": "account unavailable." }, status=403)
@@ -154,16 +190,22 @@ pub fn[U : AuthUser] SocialFlow::callback_handler(
           secret=identity.tokens.to_json().stringify(),
           verified=identity.email_verified,
         ) catch {
-          _ => {
+          IdentifierTaken(_, _, _) => {
             res.send_json({ "error": "identity already bound." }, status=409)
             return
           }
+          err => raise err
         }
         self.session_auth.login(req, user) catch {
-          _ => {
+          NoSession => {
+            res.send_text("sessions.middleware is not installed", status=500)
+            return
+          }
+          UserInactive => {
             res.send_json({ "error": "account unavailable." }, status=403)
             return
           }
+          err => raise err
         }
       }
     }

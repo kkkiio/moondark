@@ -114,14 +114,44 @@ fn Presigner::verify(
   want : String,
 ) -> Claims? {
   guard req.params.get("token") is Some(token) else { return None }
-  let payload = self.signer.loads(token.to_owned()) catch { _ => return None }
-  guard payload is Object(obj) else { return None }
-  guard obj.get("m") is Some(String(m)) && m == want else { return None }
-  guard obj.get("k") is Some(String(key)) else { return None }
-  guard obj.get("exp") is Some(Number(exp, ..)) else { return None }
-  guard (self.now)() <= exp.to_int64() else { return None }
+  let payload = self.signer.loads(token.to_owned()) catch {
+    e => {
+      let e : Error = e
+      @xlog.warn(category="moondark.files") <? { "error": e.to_string() }
+      return None
+    }
+  }
+  guard payload is Object(obj) else {
+    @xlog.debug(category="moondark.files") <?
+      { "message": "presign payload is not an object" }
+    return None
+  }
+  guard obj.get("m") is Some(String(m)) && m == want else {
+    @xlog.debug(category="moondark.files") <?
+      { "message": "presign token used for the wrong route" }
+    return None
+  }
+  guard obj.get("k") is Some(String(key)) else {
+    @xlog.debug(category="moondark.files") <?
+      { "message": "presign payload missing key" }
+    return None
+  }
+  guard obj.get("exp") is Some(Number(exp, ..)) else {
+    @xlog.debug(category="moondark.files") <?
+      { "message": "presign payload missing exp" }
+    return None
+  }
+  guard (self.now)() <= exp.to_int64() else {
+    @xlog.debug(category="moondark.files") <?
+      { "message": "presign token expired" }
+    return None
+  }
   check_key(key) catch {
-    _ => return None
+    _ => {
+      @xlog.debug(category="moondark.files") <?
+        { "message": "presign payload key rejected" }
+      return None
+    }
   }
   Some(Claims::{
     key,

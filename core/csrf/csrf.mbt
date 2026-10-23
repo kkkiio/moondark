@@ -83,7 +83,11 @@ pub fn CrossOriginProtection::middleware(
   @moonback.Middleware(next => {
     (req, res) => {
       self.check(req) catch {
-        _ => return (self.deny_handler)(req, res)
+        e => {
+          let e : Error = e
+          @xlog.warn(category="moondark.csrf") <? { "error": e.to_string() }
+          return (self.deny_handler)(req, res)
+        }
       }
       next(req, res)
     }

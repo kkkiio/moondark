@@ -48,6 +48,18 @@ pub(all) suberror BadConn {
 }
 
 ///|
+/// `BadConn(inner)` — renders through the inner error's own `Show`,
+/// so the wrapped driver cause stays printable.
+pub impl Show for BadConn with fn to_string(self) {
+  match self {
+    BadConn(e) => "BadConn(\{e})"
+  }
+}
+
+///|
+pub extend BadConn with Show::{to_string, output}
+
+///|
 /// A physical database connection.
 ///
 /// SQL text flows into a driver through `prepare` verbatim. Like Go's

@@ -12,6 +12,7 @@ import {
   "moonbitlang/async@0.22.5",
   "moonbitlang/moonback@0.8.9",
   "moonbitlang/x@0.5.5",
+  "tonyfettes/xlog@0.4.2",
 }
 
 preferred_target = "native"

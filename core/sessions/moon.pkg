@@ -1,8 +1,11 @@
+supported_targets = "native"
+
 import {
   "moonbitlang/moonback",
   "moonbitlang/async/io",
   "moonbitlang/core/env",
   "moonbitlang/core/json",
+  "tonyfettes/xlog",
 }
 
 import {

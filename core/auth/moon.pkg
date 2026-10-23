@@ -1,3 +1,5 @@
+supported_targets = "native"
+
 import {
   "moonbitlang/x/bcrypt",
   "moonbitlang/x/encoding/percent",
@@ -7,6 +9,7 @@ import {
   "moonbitlang/moonback",
   "KKKIIO/moondark/auth/oauth2",
   "KKKIIO/moondark/sessions",
+  "tonyfettes/xlog",
 }
 
 import {
