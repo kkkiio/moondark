@@ -174,19 +174,24 @@ pub async fn[U : AuthUser] SessionAuth::login_by_id(
 
 ///|
 /// The `login_required` decorator: anonymous requests get a 302 to
-/// `login_url?next=<current path>`; authenticated ones run `handler` with
+/// `login_url?next=<current path>`; `login_url=None` returns JSON 401 for APIs.
+/// Authenticated requests run `handler` with
 /// the resolved user as a third argument. A request that never saw
 /// `middleware` gets a loud 500 — silent redirect loops are worse.
 pub fn[U] SessionAuth::login_required(
   self : SessionAuth[U],
   handler : async (@moonback.Request, @moonback.Responder, U) -> Unit,
-  login_url~ : String = "/login/",
+  login_url~ : String? = Some("/login/"),
 ) -> @moonback.Handler {
   let key = self.key
   (req, res) => {
     match req.ctx.get_userdata(key) {
       Some(Some(user)) => handler(req, res, user)
       Some(None) => {
+        guard login_url is Some(login_url) else {
+          res.send_json({ "error": "authentication required." }, status=401)
+          return
+        }
         let next = match req.search {
           Some(search) => "\{req.path}?\{search}"
           None => "\{req.path}"

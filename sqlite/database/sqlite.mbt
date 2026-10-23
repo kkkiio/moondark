@@ -60,10 +60,14 @@ struct Connector {
 /// SQLite connections are self-sufficient: `connect` pairs the fresh
 /// `sqlite3.Connection` with a `@driver.NoopExecutor`.
 pub impl @driver.Connector for Connector with fn connect(self) {
-  (
-    (Conn::{ inner: @sqlite3.Connection::open_async(self.dsn), } : &@driver.Conn),
-    @driver.NoopExecutor::{ },
-  )
+  let inner = @sqlite3.Connection::open_async(self.dsn)
+  errdefer inner.close()
+  for sql in ["PRAGMA busy_timeout = 5000", "PRAGMA foreign_keys = ON"] {
+    let stmt = inner.prepare_async(sql)
+    defer stmt.finalize()
+    ignore(stmt.step_async())
+  }
+  ((Conn::{ inner, } : &@driver.Conn), @driver.NoopExecutor::{ })
 }
 
 ///|

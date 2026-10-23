@@ -105,7 +105,7 @@ pub impl @moondark_tasks.TaskStore for PostgresTaskBackend with fn save(
 ) {
   ignore(
     self.db.execute(
-      "UPDATE \{self.table} SET status=$1, run_after=$2, started_at=$3, finished_at=$4, attempts=$5, return_value=$6, errors=$7, worker_ids=$8 WHERE id=$9",
+      "UPDATE \{self.table} SET status=$1, run_after=$2, started_at=$3, finished_at=$4, attempts=$5, return_value=$6, errors=$7, worker_ids=$8 WHERE id=$9 AND status='running' AND attempts=$5 AND worker_ids=$8",
       params=[
         status_text(result.status),
         timestamp(result.run_after),

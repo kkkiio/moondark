@@ -338,3 +338,44 @@ async test "concurrent claims never pick the same row" {
     assert_true(one.worker_ids != two.worker_ids)
   })
 }
+
+///|
+async test "a reclaimed task keeps the newer attempt when an old worker completes" {
+  run_db(db => {
+    let backend = @tasks.PostgresTaskBackend::new(db)
+    let def : @moondark_tasks.TransactionalTaskDef[Json] = @moondark_tasks.TransactionalTaskDef::new(
+      name="fenced",
+      max_attempts=3,
+    )
+    let id = db.with_transaction(tx => {
+      def.enqueue_on(backend, tx, args=Json::null())
+    })
+    let old = backend.claim(worker_id="old", now=0, stale_before=None).unwrap()
+    let current = backend
+      .claim(worker_id="current", now=100000, stale_before=Some(50000))
+      .unwrap()
+    backend.save({
+      ..old,
+      status: Successful,
+      return_value: Some(Json("stale")),
+    })
+    let stored = def.get_result(backend, id).unwrap()
+    assert_eq(stored.attempts, 2)
+    assert_eq(stored.status, @moondark_tasks.TaskResultStatus::Running)
+    assert_eq(stored.worker_ids, ["old", "current"])
+    backend.save({
+      ..current,
+      status: Successful,
+      return_value: Some(Json("current")),
+    })
+    assert_eq(
+      def.get_result(backend, id).unwrap().return_value,
+      Some(Json("current")),
+    )
+    backend.save({ ..old, status: Failed, })
+    assert_eq(
+      def.get_result(backend, id).unwrap().status,
+      @moondark_tasks.TaskResultStatus::Successful,
+    )
+  })
+}

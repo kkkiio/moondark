@@ -136,3 +136,14 @@ Drop `auth` for OAuth-only apps (`/auth/login` is not mounted), drop
 `flows` for password-only ones, and pass `url_prefix` to move the whole
 set. Mount the underlying handlers manually when a different URL layout
 is needed.
+
+## Protecting JSON APIs
+
+Pass `login_url=None` to return JSON 401 when a request has no authenticated
+session:
+
+```mbt nocheck
+ctx.get("/api/me", session_auth.login_required((_req, res, user) => {
+  res.send_json({ "id": user.id() })
+}, login_url=None))
+```
