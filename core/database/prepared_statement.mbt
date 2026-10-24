@@ -38,9 +38,15 @@ pub async fn[T] PreparedStatement::with_stream(
   f : async (RowStream) -> T,
 ) -> T {
   self.scope.check()
-  self.state.operation(() => {
+  self.state.operation_with_permit(permit => {
     self.scope.check()
-    stream_scope(self.state, self.stmt, params, f)
+    let statement = StreamStatement::{
+      state: self.state,
+      stmt: self.stmt,
+      close_on_finish: false,
+      closed: false,
+    }
+    stream_scope(self.state, statement, params, permit, f)
   })
 }
 

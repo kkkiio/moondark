@@ -22,27 +22,17 @@ pub async fn Transaction::commit(self : Transaction) -> Unit {
   defer self.finish_gate.release()
   self.check()
   if self.state.active_stream is Some(stream) {
-    @async.protect_from_cancel(() => {
-      errdefer {
-        self.state.bad = true
-      }
-      stream.close_rows()
-      self.check()
-      self.tx.commit()
-      self.completed = true
-      self.state.completed = true
-    })
-  } else {
-    self.state.operation(() => {
-      self.check()
-      errdefer {
-        self.state.bad = true
-      }
-      @async.protect_from_cancel(() => self.tx.commit())
-      self.completed = true
-      self.state.completed = true
-    })
+    @async.protect_from_cancel(() => stream.close_rows())
   }
+  self.state.operation(() => {
+    self.check()
+    errdefer {
+      self.state.bad = true
+    }
+    @async.protect_from_cancel(() => self.tx.commit())
+    self.completed = true
+    self.state.completed = true
+  })
 }
 
 ///|
@@ -53,27 +43,17 @@ pub async fn Transaction::rollback(self : Transaction) -> Unit {
   defer self.finish_gate.release()
   self.check()
   if self.state.active_stream is Some(stream) {
-    @async.protect_from_cancel(() => {
-      errdefer {
-        self.state.bad = true
-      }
-      stream.close_rows()
-      self.check()
-      self.tx.rollback()
-      self.completed = true
-      self.state.completed = true
-    })
-  } else {
-    self.state.operation(() => {
-      self.check()
-      errdefer {
-        self.state.bad = true
-      }
-      @async.protect_from_cancel(() => self.tx.rollback())
-      self.completed = true
-      self.state.completed = true
-    })
+    @async.protect_from_cancel(() => stream.close_rows())
   }
+  self.state.operation(() => {
+    self.check()
+    errdefer {
+      self.state.bad = true
+    }
+    @async.protect_from_cancel(() => self.tx.rollback())
+    self.completed = true
+    self.state.completed = true
+  })
 }
 
 ///|
@@ -84,9 +64,7 @@ pub async fn[T] Transaction::with_stream(
   f : async (RowStream) -> T,
 ) -> T {
   self.check()
-  self.state.with_statement(sql, stmt => {
-    stream_scope(self.state, stmt, params, f)
-  })
+  self.state.with_stream(sql, params, f)
 }
 
 ///|

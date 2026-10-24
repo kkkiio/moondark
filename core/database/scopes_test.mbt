@@ -376,3 +376,61 @@ async test "cached statements belong to their physical connection" {
     })
   })
 }
+
+///|
+async test "finished streams allow another operation before their callback returns" {
+  for capacity in [0, 1, 100] {
+    let connector = MockConnector()
+    run_db(
+      @database.DB::create(
+        connector,
+        max_open=1,
+        statement_cache_capacity=capacity,
+      ),
+      db => {
+        let result = @async.with_timeout_opt(1000, () => {
+          db.with_conn(conn => {
+            conn.with_stream("SELECT", stream => {
+              stream.finish()
+              conn.ping()
+              ignore(conn.execute("different statement"))
+              assert_true(stream.next() is None)
+            })
+            conn.with_stream("SELECT", stream => {
+              ignore(stream.collect())
+              conn.ping()
+            })
+            conn.with_prepared("SELECT", stmt => {
+              stmt.with_stream(stream => {
+                stream.finish()
+                ignore(stmt.execute())
+                ignore(stmt.query_one())
+                conn.ping()
+              })
+            })
+          })
+          db.with_transaction(tx => {
+            tx.with_stream("SELECT", stream => {
+              stream.finish()
+              tx.ping()
+              ignore(tx.execute("different statement"))
+            })
+            tx.with_prepared("SELECT", stmt => {
+              stmt.with_stream(stream => {
+                stream.finish()
+                ignore(stmt.execute())
+                tx.ping()
+              })
+            })
+          })
+        })
+        assert_true(
+          result is Some(_),
+          msg="finished stream retained operation gate",
+        )
+        assert_eq(db.stats().in_use, 0)
+        db.ping()
+      },
+    )
+  }
+}

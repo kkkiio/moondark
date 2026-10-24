@@ -87,9 +87,7 @@ pub async fn[T] Conn::with_stream(
   f : async (RowStream) -> T,
 ) -> T {
   self.state.scope.check()
-  self.state.with_statement(sql, stmt => {
-    stream_scope(self.state, stmt, params, f)
-  })
+  self.state.with_stream(sql, params, f)
 }
 
 ///|

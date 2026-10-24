@@ -101,6 +101,7 @@ impl @driver.Connector for MockConnector with fn connect(self) {
     fail_ready: self.fail_ready,
     fail_exec: self.fail_exec,
     fail_begin: None,
+    fail_prepare: None,
     reset_count: 0,
     ping_count: 0,
     prepare_count: 0,
@@ -121,6 +122,7 @@ priv struct MockConn {
   fail_ready : Error?
   mut fail_exec : Error?
   mut fail_begin : Error?
+  mut fail_prepare : Error?
   mut reset_count : Int32
   mut ping_count : Int32
   mut prepare_count : Int32
@@ -131,6 +133,9 @@ priv struct MockConn {
 ///|
 impl @driver.Conn for MockConn with fn prepare(self, _query) {
   self.prepare_count += 1
+  if self.fail_prepare is Some(e) {
+    raise e
+  }
   MockStmt::{ conn: self, executed: [], }
 }
 

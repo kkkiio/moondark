@@ -233,3 +233,43 @@ async test "cached SQLite statements recover after constraint errors" {
     assert_eq(db.query_all("SELECT id FROM unique_items").length(), 2)
   })
 }
+
+///|
+async test "finished SQLite streams release the connection before the callback returns" {
+  @async.with_task_group(group => {
+    let (db, executor) = @database.open_db(
+      ":memory:",
+      max_open=1,
+      statement_cache_capacity=1,
+    )
+    group.spawn_bg(no_wait=true, () => executor.run())
+    db.ready()
+    defer db.close()
+    @async.with_timeout(1000, () => {
+      db.with_conn(conn => {
+        conn.with_stream("SELECT 1 AS n", stream => {
+          stream.finish()
+          assert_eq((conn.query_one("SELECT 2 AS n").get_name("n") : Int32), 2)
+          conn.with_stream("SELECT 3 AS n", inner => {
+            ignore(inner.collect())
+            conn.ping()
+          })
+          assert_true(stream.next() is None)
+        })
+        conn.with_prepared("SELECT ? AS n", stmt => {
+          stmt.with_stream(params=[4], stream => {
+            stream.finish()
+            assert_eq((stmt.query_one(params=[5]).get_name("n") : Int32), 5)
+          })
+        })
+      })
+      db.with_transaction(tx => {
+        tx.with_stream("SELECT 6 AS n", stream => {
+          stream.finish()
+          assert_eq((tx.query_one("SELECT 7 AS n").get_name("n") : Int32), 7)
+        })
+      })
+    })
+    assert_eq(db.stats().in_use, 0)
+  })
+}

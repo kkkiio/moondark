@@ -6,17 +6,65 @@ struct RowStream {
   names : Array[String]
   mut closed : Bool
   gate : @async.Mutex
+  permit : OperationPermit
+  statement : StreamStatement
+}
+
+///|
+priv struct StreamStatement {
+  state : ClientState
+  stmt : &@driver.Stmt
+  close_on_finish : Bool
+  mut closed : Bool
+}
+
+///|
+async fn StreamStatement::close(self : StreamStatement) -> Unit {
+  if self.closed {
+    return
+  }
+  self.closed = true
+  if self.close_on_finish {
+    errdefer {
+      self.state.bad = true
+    }
+    self.stmt.close()
+  }
+}
+
+///|
+async fn[T] ClientState::with_stream(
+  self : ClientState,
+  sql : String,
+  params : ArrayView[&ToSql],
+  f : async (RowStream) -> T,
+) -> T {
+  self.operation_with_permit(permit => {
+    let statement = StreamStatement::{
+      state: self,
+      stmt: self.statement(sql),
+      close_on_finish: self.pool.statement_cache_capacity == 0,
+      closed: false,
+    }
+    errdefer @async.protect_from_cancel(() => {
+      statement.close() catch {
+        _ => ()
+      }
+    })
+    stream_scope(self, statement, params, permit, f)
+  })
 }
 
 ///|
 async fn[T] stream_scope(
   state : ClientState,
-  stmt : &@driver.Stmt,
+  statement : StreamStatement,
   params : ArrayView[&ToSql],
+  permit : OperationPermit,
   f : async (RowStream) -> T,
 ) -> T {
-  let args = bind(stmt, params)
-  let rows = @async.protect_from_cancel(() => stmt.query(args[:]))
+  let args = bind(statement.stmt, params)
+  let rows = @async.protect_from_cancel(() => statement.stmt.query(args[:]))
   state.retry_safe = false
   let scope = Scope::{ active: true, }
   let stream = RowStream::{
@@ -26,18 +74,11 @@ async fn[T] stream_scope(
     names: rows.columns().to_owned(),
     closed: false,
     gate: @async.Mutex(),
+    permit,
+    statement,
   }
   state.active_stream = Some(stream)
-  scoped(
-    scope,
-    () => {
-      defer {
-        state.active_stream = None
-      }
-      stream.close_rows()
-    },
-    () => f(stream),
-  )
+  scoped(scope, () => stream.close_rows(), () => f(stream))
 }
 
 ///|
@@ -76,10 +117,18 @@ async fn RowStream::finish_inner(self : RowStream) -> Unit {
     return
   }
   self.closed = true
+  defer {
+    self.state.active_stream = None
+    self.permit.release()
+  }
   errdefer {
     self.state.bad = true
   }
-  @async.protect_from_cancel(() => self.rows.close())
+  @async.protect_from_cancel(() => {
+    errdefer (self.statement.close() catch { _ => () })
+    self.rows.close()
+    self.statement.close()
+  })
 }
 
 ///|

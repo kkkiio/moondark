@@ -104,6 +104,8 @@ async fn _use_generic_client(db : @database.DB) -> Unit {
 
 Use connection, transaction, statement, and stream handles only inside their `with_*` callback. Later operations raise `DatabaseError::ScopeExpired`, including `RowStream::columns` and `PreparedStatement::num_input`. Materialized `Row` values remain usable after the callback returns.
 
+Calling `stream.finish()` or consuming the stream to EOF releases the connection's operation permit immediately, allowing further operations on the same connection or statement before the stream callback returns.
+
 Cleanup runs under cancellation protection. A callback error is preserved if cleanup also fails; a connection whose cleanup fails is retired. Explicit `tx.commit()` or `tx.rollback()` drains an active stream and prevents automatic completion. `db.close()` waits for borrowed connections to return, so call it outside their callbacks.
 
 SQL execution uses a per-connection LRU statement cache with a default capacity of 100. Set `statement_cache_capacity=0` to disable it. `with_prepared` owns and closes a dedicated statement for repeated calls within its callback. SQL placeholders use the backend's native syntax (`?` for SQLite, `$1` for PostgreSQL).

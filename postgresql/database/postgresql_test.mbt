@@ -200,3 +200,31 @@ async test "cancellation drains PostgreSQL protocol and rolls back before reuse"
     assert_eq(db.stats().in_use, 0)
   })
 }
+
+///|
+async test "finished PostgreSQL streams release their operation permit" {
+  run_db(max_open=1, db => {
+    @async.with_timeout(5000, () => {
+      db.with_conn(conn => {
+        conn.with_stream("SELECT generate_series(1, 3) AS n", stream => {
+          stream.finish()
+          conn.ping()
+          assert_eq((conn.query_one("SELECT 4 AS n").get_name("n") : Int32), 4)
+        })
+        conn.with_prepared("SELECT $1::int4 AS n", stmt => {
+          stmt.with_stream(params=[5], stream => {
+            stream.finish()
+            assert_eq((stmt.query_one(params=[6]).get_name("n") : Int32), 6)
+          })
+        })
+      })
+      db.with_transaction(tx => {
+        tx.with_stream("SELECT 7 AS n", stream => {
+          stream.finish()
+          assert_eq((tx.query_one("SELECT 8 AS n").get_name("n") : Int32), 8)
+        })
+      })
+    })
+    assert_eq(db.stats().in_use, 0)
+  })
+}

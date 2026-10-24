@@ -46,22 +46,45 @@ async fn[T] scoped(
 }
 
 ///|
-async fn[T] ClientState::operation(self : ClientState, f : async () -> T) -> T {
+priv struct OperationPermit {
+  gate : @async.Mutex
+  mut held : Bool
+}
+
+///|
+fn OperationPermit::release(self : OperationPermit) -> Unit {
+  if self.held {
+    self.held = false
+    self.gate.release()
+  }
+}
+
+///|
+async fn[T] ClientState::operation_with_permit(
+  self : ClientState,
+  f : async (OperationPermit) -> T,
+) -> T {
   self.scope.check()
   self.gate.acquire()
-  defer self.gate.release()
+  let permit = OperationPermit::{ gate: self.gate, held: true, }
+  defer permit.release()
   self.scope.check()
   if self.bad || self.completed {
     raise DatabaseError::Closed("connection")
   }
   errdefer (if !self.entry.conn.is_valid() { self.bad = true })
-  f() catch {
+  f(permit) catch {
     @driver.BadConn(_) as e => {
       self.bad = true
       raise e
     }
     e => raise e
   }
+}
+
+///|
+async fn[T] ClientState::operation(self : ClientState, f : async () -> T) -> T {
+  self.operation_with_permit(_ => f())
 }
 
 ///|

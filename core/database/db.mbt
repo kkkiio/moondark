@@ -184,6 +184,12 @@ async fn[T] DB::retry(self : DB, f : async (Conn) -> T) -> T {
         if !safe || attempt == max_bad_conn_retries {
           raise e
         }
+        @xlog.warn(category="moondark.database") <?
+          {
+            "error": e.to_string(),
+            "attempt": attempt + 1,
+            "message": "BadConn, retrying operation on a fresh connection",
+          }
         continue
       }
       e => raise e
@@ -215,6 +221,12 @@ pub async fn[T] DB::with_transaction(
         if entered || attempt == max_bad_conn_retries {
           raise e
         }
+        @xlog.warn(category="moondark.database") <?
+          {
+            "error": e.to_string(),
+            "attempt": attempt + 1,
+            "message": "BadConn, retrying transaction startup on a fresh connection",
+          }
         continue
       }
       e => raise e
@@ -247,6 +259,12 @@ pub async fn[T] DB::with_stream(
         if entered || attempt == max_bad_conn_retries {
           raise e
         }
+        @xlog.warn(category="moondark.database") <?
+          {
+            "error": e.to_string(),
+            "attempt": attempt + 1,
+            "message": "BadConn, retrying stream startup on a fresh connection",
+          }
         continue
       }
       e => raise e
