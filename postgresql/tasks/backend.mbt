@@ -10,7 +10,7 @@
 /// statement: concurrent workers skip each other's rows instead of
 /// blocking.
 pub struct PostgresTaskBackend {
-  db : @sql.DB
+  db : @moondark_database.DB
   table : String
   now : () -> Int64
 }
@@ -22,7 +22,7 @@ pub struct PostgresTaskBackend {
 /// defaults to wall-clock epoch ms; inject it in tests for
 /// deterministic timestamps.
 pub fn PostgresTaskBackend::new(
-  db : @sql.DB,
+  db : @moondark_database.DB,
   table~ : String = "task_results",
   now~ : () -> Int64 = () => @env.now().reinterpret_as_int64(),
 ) -> PostgresTaskBackend {
@@ -58,12 +58,12 @@ pub impl @moondark_tasks.DBTaskBackend for PostgresTaskBackend with fn get_resul
   task_name,
   id,
 ) {
-  let rows = self.db.query(
+  let rows = self.db.query_opt(
     "SELECT * FROM \{self.table} WHERE id = $1 AND task_name = $2",
     params=[id, task_name],
   )
-  defer rows.close()
-  guard rows.next() is Some(row) else { return None }
+
+  guard rows is Some(row) else { return None }
   Some(result_from_row(row))
 }
 
@@ -86,12 +86,12 @@ pub impl @moondark_tasks.TaskStore for PostgresTaskBackend with fn claim(
   now~,
   stale_before~,
 ) {
-  let rows = self.db.query(
+  let rows = self.db.query_opt(
     "UPDATE \{self.table} SET status='running', attempts=attempts+1, started_at=$1, worker_ids = worker_ids || jsonb_build_array($2::text) WHERE id = (SELECT id FROM \{self.table} WHERE (status='ready' AND (run_after IS NULL OR run_after <= $3)) OR (status='running' AND $4::bigint IS NOT NULL AND started_at <= $4 AND attempts < max_attempts) ORDER BY enqueued_at FOR UPDATE SKIP LOCKED LIMIT 1) RETURNING *",
-    params=[now, worker_id, now, timestamp(stale_before)],
+    params=[now, worker_id, now, stale_before],
   )
-  defer rows.close()
-  guard rows.next() is Some(row) else { return None }
+
+  guard rows is Some(row) else { return None }
   Some(result_from_row(row))
 }
 
@@ -108,13 +108,13 @@ pub impl @moondark_tasks.TaskStore for PostgresTaskBackend with fn save(
       "UPDATE \{self.table} SET status=$1, run_after=$2, started_at=$3, finished_at=$4, attempts=$5, return_value=$6, errors=$7, worker_ids=$8 WHERE id=$9 AND status='running' AND attempts=$5 AND worker_ids=$8",
       params=[
         status_text(result.status),
-        timestamp(result.run_after),
-        timestamp(result.started_at),
-        timestamp(result.finished_at),
+        result.run_after,
+        result.started_at,
+        result.finished_at,
         result.attempts,
-        json_or_null(result.return_value),
-        Json(result.errors).stringify(),
-        Json(result.worker_ids).stringify(),
+        result.return_value,
+        Json(result.errors),
+        Json(result.worker_ids),
         result.id,
       ],
     ),
@@ -152,19 +152,19 @@ fn insert_params(
   task : @moondark_tasks.TaskArgs,
   args : Json,
   enqueued_at : Int64,
-) -> Array[&@driver.Valuer] {
+) -> Array[&@moondark_database.ToSql] {
   [
     id,
     task.name,
     "ready",
-    args.stringify(),
-    timestamp(task.run_after),
+    args,
+    task.run_after,
     enqueued_at,
-    @driver.Value::Null,
-    @driver.Value::Null,
+    (None : Int64?),
+    (None : Int64?),
     0,
     task.max_attempts,
-    @driver.Value::Null,
+    (None : Int64?),
     "[]",
     "[]",
   ]
@@ -172,56 +172,23 @@ fn insert_params(
 
 ///|
 /// Rebuild a `TaskResult` from a `SELECT *`/`RETURNING *` row.
-/// `JSONB` columns come back as `@driver.Value::String` holding JSON
-/// text and are re-parsed.
-fn result_from_row(row : @sql.Row) -> @moondark_tasks.TaskResult raise {
-  guard row.get("id") is Some(@driver.Value::String(id)) else {
-    fail("tasks: malformed id")
-  }
-  guard row.get("task_name") is Some(@driver.Value::String(task_name)) else {
-    fail("tasks: malformed task_name")
-  }
-  guard row.get("status") is Some(@driver.Value::String(status)) else {
-    fail("tasks: malformed status")
-  }
-  guard row.get("args") is Some(@driver.Value::String(args_text)) else {
-    fail("tasks: malformed args")
-  }
-  let run_after = match row.get("run_after") {
-    Some(@driver.Value::Null) => None
-    Some(@driver.Value::Int64(v)) => Some(v)
-    _ => fail("tasks: malformed run_after")
-  }
-  guard row.get("enqueued_at") is Some(@driver.Value::Int64(enqueued_at)) else {
-    fail("tasks: malformed enqueued_at")
-  }
-  let started_at = match row.get("started_at") {
-    Some(@driver.Value::Null) => None
-    Some(@driver.Value::Int64(v)) => Some(v)
-    _ => fail("tasks: malformed started_at")
-  }
-  let finished_at = match row.get("finished_at") {
-    Some(@driver.Value::Null) => None
-    Some(@driver.Value::Int64(v)) => Some(v)
-    _ => fail("tasks: malformed finished_at")
-  }
-  guard row.get("attempts") is Some(@driver.Value::Int64(attempts)) else {
-    fail("tasks: malformed attempts")
-  }
-  guard row.get("max_attempts") is Some(@driver.Value::Int64(max_attempts)) else {
-    fail("tasks: malformed max_attempts")
-  }
-  let return_value = match row.get("return_value") {
-    Some(@driver.Value::Null) => None
-    Some(@driver.Value::String(text)) => Some(@json.parse(text))
-    _ => fail("tasks: malformed return_value")
-  }
-  guard row.get("errors") is Some(@driver.Value::String(errors_text)) else {
-    fail("tasks: malformed errors")
-  }
-  guard row.get("worker_ids") is Some(@driver.Value::String(worker_ids_text)) else {
-    fail("tasks: malformed worker_ids")
-  }
+/// JSON columns decode through `FromSql`.
+fn result_from_row(
+  row : @moondark_database.Row,
+) -> @moondark_tasks.TaskResult raise {
+  let id : String = row.get_name("id")
+  let task_name : String = row.get_name("task_name")
+  let status : String = row.get_name("status")
+  let args : Json = row.get_name("args")
+  let run_after = (row.get_name("run_after") : Int64?)
+  let enqueued_at : Int64 = row.get_name("enqueued_at")
+  let started_at = (row.get_name("started_at") : Int64?)
+  let finished_at = (row.get_name("finished_at") : Int64?)
+  let attempts : Int64 = row.get_name("attempts")
+  let max_attempts : Int64 = row.get_name("max_attempts")
+  let return_value = (row.get_name("return_value") : Json?)
+  let errors : Json = row.get_name("errors")
+  let worker_ids : Json = row.get_name("worker_ids")
   @moondark_tasks.TaskResult::{
     id,
     task_name,
@@ -232,7 +199,7 @@ fn result_from_row(row : @sql.Row) -> @moondark_tasks.TaskResult raise {
       "failed" => Failed
       _ => fail("tasks: unknown status '\{status}'")
     },
-    args: @json.parse(args_text),
+    args,
     run_after,
     enqueued_at,
     started_at,
@@ -240,8 +207,8 @@ fn result_from_row(row : @sql.Row) -> @moondark_tasks.TaskResult raise {
     attempts: attempts.to_int(),
     max_attempts: max_attempts.to_int(),
     return_value,
-    errors: @json.from_json(@json.parse(errors_text)),
-    worker_ids: @json.from_json(@json.parse(worker_ids_text)),
+    errors: @json.from_json(errors),
+    worker_ids: @json.from_json(worker_ids),
   }
 }
 
@@ -254,17 +221,4 @@ fn status_text(status : @moondark_tasks.TaskResultStatus) -> String {
     Successful => "successful"
     Failed => "failed"
   }
-}
-
-///|
-/// `BIGINT` columns are nullable: `None` binds SQL `NULL`.
-fn timestamp(t : Int64?) -> @driver.Value {
-  t.map_or(@driver.Value::Null, v => @driver.Value::Int64(v))
-}
-
-///|
-/// `JSONB` columns are nullable: `None` binds SQL `NULL`, `Some` binds
-/// its JSON text.
-fn json_or_null(value : Json?) -> @driver.Value {
-  value.map_or(@driver.Value::Null, v => @driver.Value::String(v.stringify()))
 }

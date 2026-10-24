@@ -2,7 +2,7 @@
 package "KKKIIO/moondark_sqlite/files"
 
 import {
-  "KKKIIO/moondark/database/sql",
+  "KKKIIO/moondark/database",
 }
 
 // Values
@@ -12,13 +12,13 @@ import {
 // Types and methods
 type SqliteCatalog
 pub async fn SqliteCatalog::lookup(Self, key~ : String) -> @KKKIIO/moondark/files.CatalogEntry?
-pub fn SqliteCatalog::new(@sql.DB, table? : String) -> Self
+pub fn SqliteCatalog::new(@database.DB, table? : String) -> Self
 pub async fn SqliteCatalog::remove(Self, key~ : String) -> Unit
 pub async fn SqliteCatalog::upsert(Self, key~ : String, entry~ : @KKKIIO/moondark/files.CatalogEntry) -> Unit
 pub impl @KKKIIO/moondark/files.Catalog for SqliteCatalog
 
 type SqliteFileStore
-pub async fn SqliteFileStore::new(@sql.DB, root~ : String, key~ : String, url_prefix? : String, default_expires? : Int64, now? : () -> Int64) -> @KKKIIO/moondark/files.CasFileStore
+pub async fn SqliteFileStore::new(@database.DB, root~ : String, key~ : String, url_prefix? : String, default_expires? : Int64, now? : () -> Int64) -> @KKKIIO/moondark/files.CasFileStore
 
 // Type aliases
 

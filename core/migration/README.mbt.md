@@ -19,23 +19,23 @@ let migrations : Array[@migration.Migration] = [
 ///|
 async test {
   @async.with_task_group(group => {
-    let (db, executor) = @sqltest.FakeConnector::new().open_db()
+    let (db, executor) = @databasetest.FakeConnector::new().open_db()
     group.spawn_bg(no_wait=true, () => executor.run())
     db.ready()
     defer db.close()
-    let conn = db.conn()
-    defer conn.close()
-    let migrator = @migration.Migrator::new(
-      conn~,
-      dialect=@migration.Dialect::Sqlite,
-    )
-    let applied = migrator.up(migrations[:])
-    debug_inspect(
-      applied,
-      content=(
-        #|["v0001_todos", "v0002_seed_todos"]
-      ),
-    )
+    db.with_conn(conn => {
+      let migrator = @migration.Migrator::new(
+        conn~,
+        dialect=@migration.Dialect::Sqlite,
+      )
+      let applied = migrator.up(migrations[:])
+      debug_inspect(
+        applied,
+        content=(
+          #|["v0001_todos", "v0002_seed_todos"]
+        ),
+      )
+    })
   })
 }
 ```

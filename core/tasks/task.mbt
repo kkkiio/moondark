@@ -47,7 +47,7 @@ pub fn[T] TransactionalTaskDef::new(
 pub async fn[T : ToJson] TransactionalTaskDef::enqueue_on(
   self : TransactionalTaskDef[T],
   backend : &DBTaskBackend,
-  tx : @sql.Transaction,
+  tx : @database.Transaction,
   args~ : T,
   run_after? : Int64,
 ) -> String {

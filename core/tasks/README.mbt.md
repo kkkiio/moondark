@@ -1,6 +1,6 @@
 # tasks
 
-Transactional background task queue and worker backed by `database/sql`.
+Transactional background task queue and worker backed by `database`.
 
 ## Quick Start
 
@@ -12,7 +12,7 @@ async test {
     max_attempts=3,
   )
   let backend = @tasks.DummyBackend::new()
-  let (db, executor) = @sqltest.FakeConnector::new().open_db()
+  let (db, executor) = @databasetest.FakeConnector::new().open_db()
   @async.with_task_group(group => {
     group.spawn_bg(no_wait=true, () => executor.run())
     db.ready()

@@ -2,21 +2,21 @@
 package "KKKIIO/moondark_example_todo/app"
 
 import {
-  "KKKIIO/moondark/database/sql",
+  "KKKIIO/moondark/database",
 }
 
 // Values
-pub async fn add_todo(@sql.DB, String) -> Unit
+pub async fn add_todo(@database.DB, String) -> Unit
 
-pub async fn done_todo(@sql.DB, String) -> Unit
+pub async fn done_todo(@database.DB, String) -> Unit
 
-pub async fn list_todos(@sql.DB) -> Unit
+pub async fn list_todos(@database.DB) -> Unit
 
-pub async fn load(@sql.DB) -> Unit
+pub async fn load(@database.DB) -> Unit
 
-pub async fn migrate(@sql.DB) -> Unit
+pub async fn migrate(@database.DB) -> Unit
 
-pub async fn print_status(@sql.DB) -> Unit
+pub async fn print_status(@database.DB) -> Unit
 
 // Errors
 

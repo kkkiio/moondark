@@ -1,16 +1,17 @@
 ///|
 /// Apply the package's `tasks/schema.sql` on a pooled connection.
-async fn apply_schema(db : @sql.DB) -> Unit {
-  let conn = db.conn()
-  defer conn.close()
-  conn.execute_script(@fs.read_file("tasks/schema.sql").text())
+async fn apply_schema(db : @moondark_database.DB) -> Unit {
+  db.batch_execute(@fs.read_file("tasks/schema.sql").text())
 }
 
 ///|
 /// Start a throwaway postgres container, open a `DB` against it, apply
 /// the package's schema and run `f` with the pool executor running.
 /// Both the pool and the container are cleaned up when `f` returns.
-async fn run_db(f : async (@sql.DB) -> Unit, max_open~ : Int32 = 10) -> Unit {
+async fn run_db(
+  f : async (@moondark_database.DB) -> Unit,
+  max_open~ : Int32 = 10,
+) -> Unit {
   let pg = @postgres.run()
   defer pg.cleanup()
   let dsn = pg.connection_string(ssl_mode="disable")

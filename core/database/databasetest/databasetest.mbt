@@ -3,11 +3,11 @@
 /// `connect` returns an in-memory `FakeConn` that records every
 /// executed statement and counts commits/rollbacks, but performs no
 /// I/O. Queries always return an empty result set, so `begin`,
-/// `commit` and `rollback` exercise the real `database/sql` pooling
+/// `commit` and `rollback` exercise the real `database` pooling
 /// and transaction plumbing while the "database" itself is a no-op.
 ///
 /// Use it when the *shape* of `DB`/`Transaction` code matters — e.g.
-/// APIs taking `@sql.Transaction` — and a real driver is unavailable
+/// APIs taking `@database.Transaction` — and a real driver is unavailable
 /// or unnecessary. It cannot demonstrate durability or visibility
 /// semantics; test those against a real database.
 pub struct FakeConnector {
@@ -25,8 +25,10 @@ pub fn FakeConnector::new() -> FakeConnector {
 /// Create a `DB` pool over this connector. The returned `DBExecutor`
 /// must be spawned on a task group and `db.ready()` awaited, exactly
 /// like a real driver.
-pub fn FakeConnector::open_db(self : Self) -> (@sql.DB, @sql.DBExecutor) {
-  @sql.DB::create(self)
+pub fn FakeConnector::open_db(
+  self : Self,
+) -> (@database.DB, @database.DBExecutor) {
+  @database.DB::create(self)
 }
 
 ///|
@@ -68,7 +70,7 @@ pub impl @driver.Conn for FakeConn with fn begin(self) {
 }
 
 ///|
-pub impl @driver.Conn for FakeConn with fn execute_script(self, script) {
+pub impl @driver.Conn for FakeConn with fn batch_execute(self, script) {
   self.statements.push((script, []))
 }
 
@@ -82,13 +84,13 @@ priv struct FakeStmt {
 
 ///|
 impl @driver.Stmt for FakeStmt with fn exec(self, args) {
-  self.conn.statements.push((self.sql, args))
+  self.conn.statements.push((self.sql, args.to_owned()))
   @driver.ExecResult::{ rows_affected: Some(1), last_insert_id: None, }
 }
 
 ///|
 impl @driver.Stmt for FakeStmt with fn query(self, args) {
-  self.conn.statements.push((self.sql, args))
+  self.conn.statements.push((self.sql, args.to_owned()))
   FakeRows::{ }
 }
 
@@ -148,7 +150,7 @@ pub extend FakeConn with @driver.Conn::{
   prepare,
   close,
   begin,
-  execute_script,
+  batch_execute,
   is_valid,
   ping,
   ready,

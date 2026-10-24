@@ -1,6 +1,6 @@
 -- File-object catalog table for SqliteCatalog / SqliteFileStore
 -- (KKKIIO/moondark_sqlite/files). Apply it with the sqlite3 CLI,
--- `Conn::execute_script`, or your own migration tool, e.g.
+-- `Conn::batch_execute`, or your own migration tool, e.g.
 -- `sqlite3 app.db < schema.sql`.
 -- If you pass a different `table~` name to the catalog, rename the
 -- table here too.

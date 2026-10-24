@@ -1,6 +1,6 @@
 -- Task-result table for SqliteTaskBackend
 -- (KKKIIO/moondark_sqlite/tasks). Apply it with the sqlite3 CLI,
--- `Conn::execute_script`, or your own migration tool, e.g.
+-- `Conn::batch_execute`, or your own migration tool, e.g.
 -- `sqlite3 app.db < schema.sql`.
 -- If you pass a different `table~` name to the backend, rename the
 -- table and the index here too.

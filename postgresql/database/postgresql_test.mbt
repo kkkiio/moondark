@@ -2,7 +2,10 @@
 /// Start a throwaway postgres container, open a `DB` against it and run
 /// `f` with the pool executor running. Both the pool and the container
 /// are cleaned up when `f` returns.
-async fn[T] run_db(f : async (@sql.DB) -> T, max_open~ : Int32 = 10) -> T {
+async fn[T] run_db(
+  f : async (@moondark_database.DB) -> T,
+  max_open~ : Int32 = 10,
+) -> T {
   let pg = @postgres.run()
   defer pg.cleanup()
   let dsn = pg.connection_string(ssl_mode="disable")
@@ -41,20 +44,29 @@ async test "execute, query and value round trip" {
     assert_eq(ddl.rows_affected, None)
     let result = db.execute(
       "INSERT INTO items (id, name, price, flag, data, note) VALUES ($1, $2, $3, $4, $5, $6)",
-      params=[1, "apple", 1.5, true, b"\x01\x02", @driver.Value::Null],
+      params=[
+        1,
+        "apple",
+        1.5,
+        true,
+        b"\x01\x02",
+        @moondark_database.Value::Null,
+      ],
     )
     assert_eq(result.rows_affected, Some(1))
     // PostgreSQL has no lastrowid.
     assert_eq(result.last_insert_id, None)
-    let rows = db.query("SELECT id, name, price, flag, data, note FROM items")
-    defer rows.close()
+    let rows = db
+      .query_all("SELECT id, name, price, flag, data, note FROM items")
+      .iter()
+
     guard rows.next() is Some(row) else { fail("expected one row") }
-    assert_true(row.get("id") is Some(Int64(1)))
-    assert_true(row.get("name") is Some(String("apple")))
-    assert_true(row.get("price") is Some(Double(1.5)))
-    assert_true(row.get("flag") is Some(Bool(true)))
-    assert_true(row.get("data") is Some(Bytes(b"\x01\x02")))
-    assert_true(row.get("note") is Some(Null))
+    assert_eq((row.get_name("id") : Int64), 1)
+    assert_eq((row.get_name("name") : String), "apple")
+    assert_eq((row.get_name("price") : Double), 1.5)
+    assert_eq((row.get_name("flag") : Bool), true)
+    assert_eq((row.get_name("data") : Bytes), b"\x01\x02")
+    assert_eq((row.get_name("note") : String?), None)
     assert_true(rows.next() is None)
   })
 }
@@ -109,10 +121,10 @@ async test "with_transaction commits and rolls back" {
     } noraise {
       _ => fail("expected the transaction to propagate the error")
     }
-    let rows = db.query("SELECT value FROM entries ORDER BY value")
-    defer rows.close()
+    let rows = db.query_all("SELECT value FROM entries ORDER BY value").iter()
+
     guard rows.next() is Some(row) else { fail("expected one row") }
-    assert_true(row.get("value") is Some(Int64(1)))
+    assert_eq((row.get_name("value") : Int64), 1)
     assert_true(rows.next() is None)
   })
 }
@@ -121,22 +133,21 @@ async test "with_transaction commits and rolls back" {
 async test "errors propagate without killing the connection" {
   run_db(db => {
     // A syntax error surfaces at prepare time; the connection survives.
-    try (db.execute("SELEC bogus") : @driver.ExecResult) catch {
+    try (db.execute("SELEC bogus") : @moondark_database.ExecResult) catch {
       _ => ()
     } noraise {
       _ => fail("expected a syntax error")
     }
     // A server error raised mid-stream leaves a reusable connection too.
-    let rows = db.query("SELECT 1 / 0")
-    try (rows.next() : @sql.Row?) catch {
+    try (db.query_opt("SELECT 1 / 0") : @moondark_database.Row?) catch {
       _ => ()
     } noraise {
       _ => fail("expected a division-by-zero error")
     }
-    let rows = db.query("SELECT 42 AS answer")
-    defer rows.close()
+    let rows = db.query_all("SELECT 42 AS answer").iter()
+
     guard rows.next() is Some(row) else { fail("expected one row") }
-    assert_true(row.get("answer") is Some(Int64(42)))
+    assert_eq((row.get_name("answer") : Int64), 42)
   })
 }
 
@@ -146,17 +157,46 @@ async test "concurrent queries serialize on pool slots" {
     let results = @async.all(
       [1, 2, 3, 4, 5, 6].map(n => {
         () => {
-          let rows = db.query("SELECT $1::int4 * 10 AS v", params=[n])
-          defer rows.close()
+          let rows = db
+            .query_all("SELECT $1::int4 * 10 AS v", params=[n])
+            .iter()
+
           guard rows.next() is Some(row) else { fail("expected a row") }
-          match row.get("v") {
-            Some(@driver.Value::Int64(v)) => v.to_int()
-            _ => fail("unexpected value")
-          }
+          (row.get_name("v") : Int32)
         }
       }),
       max_concurrent=6,
     )
     assert_eq(results, [10, 20, 30, 40, 50, 60])
+  })
+}
+
+///|
+async test "cancellation drains PostgreSQL protocol and rolls back before reuse" {
+  run_db(max_open=1, db => {
+    db.batch_execute("CREATE TABLE cancelled (id INT4)")
+    let result = @async.with_timeout_opt(10, () => {
+      db.with_transaction(tx => {
+        ignore(tx.execute("INSERT INTO cancelled VALUES ($1)", params=[1]))
+        tx.with_prepared("SELECT id FROM cancelled", stmt => {
+          stmt.with_stream(stream => {
+            assert_true(stream.next() is Some(_))
+            @async.sleep(100)
+          })
+        })
+      })
+    })
+    assert_true(result is None)
+    assert_eq(db.query_all("SELECT id FROM cancelled").length(), 0)
+    db.with_transaction(tx => {
+      tx.with_stream("SELECT generate_series(1, 10)", _ => tx.commit())
+    })
+    let row = db.query_one("SELECT $1::jsonb AS payload, $2::text AS text", params=[
+      ({ "value": 42 } : Json),
+      (None : String?),
+    ])
+    assert_eq((row.get_name("payload") : Json), { "value": 42 })
+    assert_eq((row.get_name("text") : String?), None)
+    assert_eq(db.stats().in_use, 0)
   })
 }

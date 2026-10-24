@@ -2,7 +2,7 @@
 package "KKKIIO/moondark_sqlite/sessions"
 
 import {
-  "KKKIIO/moondark/database/sql",
+  "KKKIIO/moondark/database",
 }
 
 // Values
@@ -11,7 +11,7 @@ import {
 
 // Types and methods
 type SqliteSessionStore
-pub fn SqliteSessionStore::SqliteSessionStore(@sql.DB, table? : String) -> Self
+pub fn SqliteSessionStore::SqliteSessionStore(@database.DB, table? : String) -> Self
 pub async fn SqliteSessionStore::create(Self, @KKKIIO/moondark/sessions.Session) -> Bool
 pub async fn SqliteSessionStore::delete(Self, String) -> Unit
 pub async fn SqliteSessionStore::get(Self, String) -> @KKKIIO/moondark/sessions.Session?

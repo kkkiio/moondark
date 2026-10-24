@@ -1,6 +1,6 @@
 # moondark_sqlite
 
-SQLite integration module for MoonDark, providing a `database/sql` driver, `SqliteSessionStore`, `SqliteTaskBackend`, `SqliteFileStore`, and `SqliteCredentialStore`.
+SQLite integration module for MoonDark, providing a `database` driver, `SqliteSessionStore`, `SqliteTaskBackend`, `SqliteFileStore`, and `SqliteCredentialStore`.
 
 ## Quick Start
 
@@ -12,8 +12,8 @@ async test {
     group.spawn_bg(no_wait=true, () => executor.run())
     db.ready()
     defer db.close()
-    let rows = db.query("SELECT ? + 1 AS n", params=[41])
-    defer rows.close()
+    let row = db.query_one("SELECT ? + 1 AS n", params=[41])
+    assert_eq((row.get_name("n") : Int32), 42)
   })
 }
 ```
@@ -22,7 +22,7 @@ async test {
 
 | Package | Core Interface | Public API |
 |---|---|---|
-| `KKKIIO/moondark_sqlite/database` | `database/sql/driver` | `open_db`, `Driver` |
+| `KKKIIO/moondark_sqlite/database` | `database/driver` | `open_db`, `Driver` |
 | `KKKIIO/moondark_sqlite/sessions` | `sessions.SessionStore` | `SqliteSessionStore` |
 | `KKKIIO/moondark_sqlite/tasks` | `tasks.DBTaskBackend`, `tasks.TaskStore` | `SqliteTaskBackend` |
 | `KKKIIO/moondark_sqlite/files` | `files.Catalog`, `files.FileStore` | `SqliteCatalog`, `SqliteFileStore` |

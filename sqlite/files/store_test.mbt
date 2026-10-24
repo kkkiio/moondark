@@ -7,16 +7,14 @@
 async fn with_store(
   root~ : String,
   key~ : String = "test-secret",
-  f : async (@moondark_files.CasFileStore, @sql.DB) -> Unit,
+  f : async (@moondark_files.CasFileStore, @moondark_database.DB) -> Unit,
 ) -> Unit {
   @async.with_task_group(group => {
     let (db, executor) = @sqlite_database.open_db("\{root}/catalog.db")
     group.spawn_bg(no_wait=true, () => executor.run())
     db.ready()
     defer db.close()
-    let conn = db.conn()
-    defer conn.close()
-    conn.execute_script(@fs.read_file("files/schema.sql").text())
+    db.batch_execute(@fs.read_file("files/schema.sql").text())
     let store = @files.SqliteFileStore::new(db, root~, key~)
     ignore(db.execute("DELETE FROM file_objects"))
     f(store, db)
@@ -54,14 +52,14 @@ async test "catalog dedups blobs and delete unmaps the key" {
     // cursor is closed before the writes below grab the write lock)
     store.put(key="a.txt", "same bytes", content_type="text/plain")
     let hash = {
-      let rows = db.query("SELECT hash FROM file_objects WHERE key = ?", params=[
-        "a.txt",
-      ])
-      defer rows.close()
+      let rows = db
+        .query_all("SELECT hash FROM file_objects WHERE key = ?", params=[
+          "a.txt",
+        ])
+        .iter()
+
       guard rows.next() is Some(row) else { fail("expected a catalog row") }
-      guard row.get("hash") is Some(@driver.Value::String(hash)) else {
-        fail("malformed hash column")
-      }
+      let hash : String = row.get_name("hash")
       hash
     }
     let blobs = blob_paths(root)

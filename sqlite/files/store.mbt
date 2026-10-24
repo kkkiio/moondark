@@ -15,7 +15,7 @@ type SqliteFileStore
 /// - `default_expires`：`presign_*` 未传 `expires` 时的默认有效期（毫秒）。
 /// - `now`：当前 unix 毫秒，测试可注入固定/可变时钟。
 pub async fn SqliteFileStore::new(
-  db : @sql.DB,
+  db : @moondark_database.DB,
   root~ : String,
   key~ : String,
   url_prefix~ : String = "/_files",

@@ -1,6 +1,0 @@
-supported_targets = "native"
-
-import {
-  "KKKIIO/moondark/database/sql",
-  "KKKIIO/moondark/database/sql/driver",
-}

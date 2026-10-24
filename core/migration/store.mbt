@@ -8,17 +8,17 @@
 ///|
 /// The applied set: `name -> (checksum, applied_at)`.
 async fn Migrator::applied_set(self : Migrator) -> Map[String, (String, Int64)] {
-  let rows = self.conn.query(
+  let rows = self.conn.query_all(
     "SELECT name, checksum, applied_at FROM \{self.migrations_table}",
   )
   let out : Map[String, (String, Int64)] = Map([])
-  while rows.next() is Some(row) {
-    out[as_str(row.get("name"))] = (
-      as_str(row.get("checksum")),
-      as_i64(row.get("applied_at")),
+  for row in rows {
+    out[(row.get_name("name") : String)] = (
+      (row.get_name("checksum") : String),
+      (row.get_name("applied_at") : Int64),
     )
   }
-  rows.close()
+
   out
 }
 
@@ -26,28 +26,28 @@ async fn Migrator::applied_set(self : Migrator) -> Map[String, (String, Int64)] 
 /// Names of migrations whose newest attempt never finished — either a
 /// crash mid-migration or a concurrent run.
 async fn Migrator::unfinished(self : Migrator) -> Array[String] {
-  let rows = self.conn.query(
+  let rows = self.conn.query_all(
     "SELECT DISTINCT name FROM \{self.records_table} WHERE status = 'started'",
   )
   let out : Array[String] = []
-  while rows.next() is Some(row) {
-    out.push(as_str(row.get("name")))
+  for row in rows {
+    out.push((row.get_name("name") : String))
   }
-  rows.close()
+
   out
 }
 
 ///|
 /// Latest attempt status per migration name.
 async fn Migrator::last_status(self : Migrator) -> Map[String, String] {
-  let rows = self.conn.query(
+  let rows = self.conn.query_all(
     "SELECT name, status FROM \{self.records_table} ORDER BY id",
   )
   let out : Map[String, String] = Map([])
-  while rows.next() is Some(row) {
-    out[as_str(row.get("name"))] = as_str(row.get("status"))
+  for row in rows {
+    out[(row.get_name("name") : String)] = (row.get_name("status") : String)
   }
-  rows.close()
+
   out
 }
 
@@ -57,15 +57,15 @@ async fn Migrator::last_status(self : Migrator) -> Map[String, String] {
 /// SQLite and MySQL.
 async fn Migrator::insert_started(self : Migrator, name : String) -> Int64 {
   if self.dialect is Postgres {
-    let rows = self.conn.query(
+    let rows = self.conn.query_opt(
       "INSERT INTO \{self.records_table} (name, status, started_at) VALUES ($1, 'started', $2) RETURNING id",
       params=[name, now_ms()],
     )
-    let id = match rows.next() {
-      Some(row) => as_i64(row.get("id"))
+    let id = match rows {
+      Some(row) => (row.get_name("id") : Int64)
       None => -1
     }
-    rows.close()
+
     id
   } else {
     let result = self.conn.execute(
@@ -121,23 +121,4 @@ async fn Migrator::insert_applied(
       "INSERT INTO \{self.migrations_table} (name, checksum, applied_at) VALUES (?, ?, ?)"
   }
   ignore(self.conn.execute(sql, params=[name, checksum, applied_at]))
-}
-
-///|
-/// Driver `Value` → `String`; BIGINT columns arrive as `Int64`.
-fn as_str(v : @driver.Value?) -> String {
-  match v {
-    Some(String(s)) => s
-    Some(Int64(i)) => i.to_string()
-    _ => ""
-  }
-}
-
-///|
-/// Driver `Value` → `Int64`.
-fn as_i64(v : @driver.Value?) -> Int64 {
-  match v {
-    Some(Int64(i)) => i
-    _ => 0
-  }
 }

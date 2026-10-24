@@ -60,7 +60,7 @@ pub(open) trait Conn {
   async fn close(Self) -> Unit
   /// Begin a transaction on this connection.
   async fn begin(Self) -> &Tx
-  /// Reset session state before returning the connection to the idle pool.
+  /// Reset session state before returning the connection to the idle pool; a failure retires the connection.
   async fn reset_session(Self) -> Unit = _
   /// Report whether the connection is still usable when checked out from the pool.
   fn is_valid(Self) -> Bool = _

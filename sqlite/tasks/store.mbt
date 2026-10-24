@@ -9,7 +9,7 @@
 /// row-picking subselect and the update cannot race — there is no
 /// `FOR UPDATE` and none is needed.
 struct SqliteTaskBackend {
-  db : @sql.DB
+  db : @moondark_database.DB
   table : String
   now : () -> Int64
 }
@@ -22,7 +22,7 @@ struct SqliteTaskBackend {
 /// unix-ms timestamp stamped into `enqueued_at`; inject it in tests
 /// for a deterministic clock.
 pub fn SqliteTaskBackend::new(
-  db : @sql.DB,
+  db : @moondark_database.DB,
   table~ : String = "task_results",
   now~ : () -> Int64 = () => @env.now().reinterpret_as_int64(),
 ) -> SqliteTaskBackend {
@@ -57,12 +57,12 @@ pub impl @moondark_tasks.DBTaskBackend for SqliteTaskBackend with fn get_result(
   task_name,
   id,
 ) {
-  let rows = self.db.query(
+  let rows = self.db.query_opt(
     "SELECT \{RESULT_COLUMNS} FROM \{self.table} WHERE id = ? AND task_name = ?",
     params=[id, task_name],
   )
-  defer rows.close()
-  guard rows.next() is Some(row) else { return None }
+
+  guard rows is Some(row) else { return None }
   Some(result_of_row(row))
 }
 
@@ -86,15 +86,15 @@ pub impl @moondark_tasks.TaskStore for SqliteTaskBackend with fn claim(
   now~,
   stale_before~,
 ) {
-  let stale = opt_int64(stale_before)
+  let stale = stale_before
   // One statement: the subselect and the update execute under the same
   // write lock, so the pick cannot race a concurrent claim.
-  let rows = self.db.query(
+  let rows = self.db.query_opt(
     "UPDATE \{self.table} SET status = 'running', attempts = attempts + 1, started_at = ?, worker_ids = json_insert(worker_ids, '$[#]', ?) WHERE id = (SELECT id FROM \{self.table} WHERE (status = 'ready' AND (run_after IS NULL OR run_after <= ?)) OR (status = 'running' AND ? IS NOT NULL AND started_at <= ? AND attempts < max_attempts) ORDER BY enqueued_at LIMIT 1) RETURNING \{RESULT_COLUMNS}",
     params=[now, worker_id, now, stale, stale],
   )
-  defer rows.close()
-  guard rows.next() is Some(row) else { return None }
+
+  guard rows is Some(row) else { return None }
   Some(result_of_row(row))
 }
 
@@ -110,16 +110,16 @@ pub impl @moondark_tasks.TaskStore for SqliteTaskBackend with fn save(
       "UPDATE \{self.table} SET status = ?, run_after = ?, started_at = ?, finished_at = ?, attempts = ?, return_value = ?, errors = ?, worker_ids = ? WHERE id = ? AND status = 'running' AND attempts = ? AND worker_ids = ?",
       params=[
         status_text(result.status),
-        opt_int64(result.run_after),
-        opt_int64(result.started_at),
-        opt_int64(result.finished_at),
+        result.run_after,
+        result.started_at,
+        result.finished_at,
         result.attempts,
-        opt_json(result.return_value),
-        Json(result.errors).stringify(),
-        Json(result.worker_ids).stringify(),
+        result.return_value,
+        Json(result.errors),
+        Json(result.worker_ids),
         result.id,
         result.attempts,
-        Json(result.worker_ids).stringify(),
+        Json(result.worker_ids),
       ],
     ),
   )
@@ -148,19 +148,19 @@ fn insert_params(
   task : @moondark_tasks.TaskArgs,
   args : Json,
   enqueued_at : Int64,
-) -> Array[&@driver.Valuer] {
+) -> Array[&@moondark_database.ToSql] {
   [
     id,
     task.name,
     "ready",
-    args.stringify(),
-    opt_int64(task.run_after),
+    args,
+    task.run_after,
     enqueued_at,
-    @driver.Value::Null,
-    @driver.Value::Null,
+    (None : Int64?),
+    (None : Int64?),
     0,
     task.max_attempts,
-    @driver.Value::Null,
+    (None : Int64?),
     "[]",
     "[]",
   ]
@@ -169,29 +169,25 @@ fn insert_params(
 ///|
 /// Rebuild the `TaskResult` of one row selected with
 /// `RESULT_COLUMNS`.
-fn result_of_row(row : @sql.Row) -> @moondark_tasks.TaskResult raise {
-  let return_value = match row.get("return_value") {
-    Some(@driver.Value::String(s)) => Some(@json.parse(s))
-    Some(@driver.Value::Null) => None
-    _ => fail("tasks: malformed return_value column")
-  }
+fn result_of_row(
+  row : @moondark_database.Row,
+) -> @moondark_tasks.TaskResult raise {
+  let return_value = (row.get_name("return_value") : Json?)
   let errors : Array[@moondark_tasks.TaskError] = @json.from_json(
-    @json.parse(text_column(row, "errors")),
+    row.get_name("errors"),
   )
-  let worker_ids : Array[String] = @json.from_json(
-    @json.parse(text_column(row, "worker_ids")),
-  )
+  let worker_ids : Array[String] = @json.from_json(row.get_name("worker_ids"))
   @moondark_tasks.TaskResult::{
-    id: text_column(row, "id"),
-    task_name: text_column(row, "task_name"),
-    status: status_of(text_column(row, "status")),
-    args: @json.parse(text_column(row, "args")),
-    run_after: opt_int64_column(row, "run_after"),
-    enqueued_at: int64_column(row, "enqueued_at"),
-    started_at: opt_int64_column(row, "started_at"),
-    finished_at: opt_int64_column(row, "finished_at"),
-    attempts: int64_column(row, "attempts").to_int(),
-    max_attempts: int64_column(row, "max_attempts").to_int(),
+    id: (row.get_name("id") : String),
+    task_name: (row.get_name("task_name") : String),
+    status: status_of((row.get_name("status") : String)),
+    args: row.get_name("args"),
+    run_after: (row.get_name("run_after") : Int64?),
+    enqueued_at: (row.get_name("enqueued_at") : Int64),
+    started_at: (row.get_name("started_at") : Int64?),
+    finished_at: (row.get_name("finished_at") : Int64?),
+    attempts: (row.get_name("attempts") : Int64).to_int(),
+    max_attempts: (row.get_name("max_attempts") : Int64).to_int(),
     return_value,
     errors,
     worker_ids,
@@ -218,52 +214,6 @@ fn status_of(text : String) -> @moondark_tasks.TaskResultStatus raise {
     "successful" => @moondark_tasks.TaskResultStatus::Successful
     "failed" => @moondark_tasks.TaskResultStatus::Failed
     _ => fail("tasks: unknown stored status '\{text}'")
-  }
-}
-
-///|
-/// `NULL` or the value, for the optional `BIGINT` columns.
-fn opt_int64(value : Int64?) -> @driver.Value {
-  match value {
-    Some(v) => @driver.Value::Int64(v)
-    None => @driver.Value::Null
-  }
-}
-
-///|
-/// `NULL` or the stringified JSON, for `return_value`.
-fn opt_json(value : Json?) -> @driver.Value {
-  match value {
-    Some(v) => @driver.Value::String(v.stringify())
-    None => @driver.Value::Null
-  }
-}
-
-///|
-/// The required `TEXT` column `name` of `row`.
-fn text_column(row : @sql.Row, name : String) -> String raise {
-  guard row.get(name) is Some(@driver.Value::String(s)) else {
-    fail("tasks: malformed \{name} column")
-  }
-  s
-}
-
-///|
-/// The required `INTEGER`/`BIGINT` column `name` of `row`.
-fn int64_column(row : @sql.Row, name : String) -> Int64 raise {
-  guard row.get(name) is Some(@driver.Value::Int64(v)) else {
-    fail("tasks: malformed \{name} column")
-  }
-  v
-}
-
-///|
-/// The nullable `BIGINT` column `name` of `row`.
-fn opt_int64_column(row : @sql.Row, name : String) -> Int64? raise {
-  match row.get(name) {
-    Some(@driver.Value::Int64(v)) => Some(v)
-    Some(@driver.Value::Null) => None
-    _ => fail("tasks: malformed \{name} column")
   }
 }
 

@@ -18,13 +18,15 @@ pub fn open_db(
   max_open~ : Int32 = 10,
   max_lifetime~ : @time.Duration = @time.Duration::zero(),
   max_idle_time~ : @time.Duration = @time.Duration::zero(),
-) -> (@sql.DB, @sql.DBExecutor) raise {
-  @sql.DB::create(
+  statement_cache_capacity~ : Int32 = 100,
+) -> (@moondark_database.DB, @moondark_database.DBExecutor) raise {
+  @moondark_database.DB::create(
     Driver::new().open(dsn),
     max_idle~,
     max_open~,
     max_lifetime~,
     max_idle_time~,
+    statement_cache_capacity~,
   )
 }
 
@@ -32,7 +34,7 @@ pub fn open_db(
 /// SQLite driver implementing `@driver.Driver`.
 ///
 /// ```
-/// let (db, executor) = @sql.DB::create(@sqlite_database.Driver::new().open("app.db"))
+/// let (db, executor) = @moondark_database.DB::create(@sqlite_database.Driver::new().open("app.db"))
 /// ```
 struct Driver {}
 
@@ -103,6 +105,21 @@ pub impl @driver.Conn for Conn with fn is_valid(_self) {
 }
 
 ///|
+/// Roll back any transaction left open by SQL issued inside a connection scope.
+pub impl @driver.Conn for Conn with fn reset_session(self) {
+  let stmt = self.inner.prepare_async("ROLLBACK")
+  defer (stmt.finalize() catch { _ => () })
+  ignore(stmt.step_async()) catch {
+    @sqlite3.SqliteError(
+      code=Error,
+      msg="cannot rollback - no transaction is active",
+      ..
+    ) => ()
+    e => raise e
+  }
+}
+
+///|
 /// `ping` runs `SELECT 1` to verify the connection is still alive.
 pub impl @driver.Conn for Conn with fn ping(self) {
   let stmt = self.inner.prepare_async("SELECT 1")
@@ -111,12 +128,12 @@ pub impl @driver.Conn for Conn with fn ping(self) {
 }
 
 ///|
-/// `execute_script` splits `script` with `split_script` and runs each
+/// `batch_execute` splits `script` with `split_script` and runs each
 /// statement through `prepare`/`exec` — the sqlite3 bindings reject
 /// multi-statement input to `prepare_async` outright. No implicit
 /// transaction: statements before a failing one stay committed
 /// unless the script (or the caller) brackets them in `BEGIN`/`COMMIT`.
-pub impl @driver.Conn for Conn with fn execute_script(self, script) {
+pub impl @driver.Conn for Conn with fn batch_execute(self, script) {
   for sql in split_script(script) {
     let stmt = self.prepare(sql)
     let executed : Result[@driver.ExecResult, Error] = Ok(stmt.exec([])) catch {
@@ -141,7 +158,7 @@ pub extend Conn with @driver.Conn::{
   ping,
   ready,
   reset_session,
-  execute_script,
+  batch_execute,
 }
 
 ///|
@@ -173,7 +190,8 @@ struct Stmt {
 }
 
 ///|
-fn Stmt::bind(self : Stmt, args : Array[@driver.Value]) -> Unit raise {
+fn Stmt::bind(self : Stmt, args : ArrayView[@driver.Value]) -> Unit raise {
+  self.inner.reset(clear_bindings=true)
   for i, arg in args {
     let value : @sqlite3.Value = match arg {
       Null => Null
@@ -203,6 +221,7 @@ pub impl @driver.Stmt for Stmt with fn num_input(_self) {
 
 ///|
 pub impl @driver.Stmt for Stmt with fn exec(self, args) {
+  errdefer (self.inner.reset(clear_bindings=true) catch { _ => () })
   self.bind(args)
   let mut changes : Int64? = None
   while true {
@@ -255,11 +274,12 @@ struct Rows {
 
 ///|
 pub impl @driver.Rows for Rows with fn columns(self) {
-  self.columns
+  self.columns[:]
 }
 
 ///|
 pub impl @driver.Rows for Rows with fn next(self, dest) {
+  errdefer (self.inner.reset(clear_bindings=true) catch { _ => () })
   guard self.inner.step_async() is Row else { return false }
   for i in 0..<dest.length() {
     let value : @sqlite3.Value = self.inner.column(index=i)
@@ -276,7 +296,7 @@ pub impl @driver.Rows for Rows with fn next(self, dest) {
 
 ///|
 pub impl @driver.Rows for Rows with fn close(self) {
-  self.inner.finalize()
+  self.inner.reset(clear_bindings=true)
 }
 
 ///|

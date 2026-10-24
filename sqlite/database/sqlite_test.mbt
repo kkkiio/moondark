@@ -14,44 +14,33 @@ async test "execute, query and value round trip" {
     )
     let result = db.execute(
       "INSERT INTO items (name, price, flag, data, note) VALUES (?, ?, ?, ?, ?)",
-      params=["apple", 1.5, true, b"\x01\x02", @driver.Value::Null],
+      params=["apple", 1.5, true, b"\x01\x02", @moondark_database.Value::Null],
     )
     assert_eq(result.rows_affected, Some(1))
     assert_eq(result.last_insert_id, Some(1))
-    let rows = db.query("SELECT name, price, flag, data, note FROM items")
-    defer rows.close()
+    let rows = db
+      .query_all("SELECT name, price, flag, data, note FROM items")
+      .iter()
+
     guard rows.next() is Some(row) else { fail("expected one row") }
-    debug_inspect(
-      row,
-      content=(
-        #|{
-        #|  columns: <ArrayView: ["name", "price", "flag", "data", "note"]>,
-        #|  values: <ArrayView:
-        #|    [
-        #|      String("apple"),
-        #|      Double(1.5),
-        #|      Int64(1),
-        #|      Bytes(<Bytes: [0x01, 0x02]>),
-        #|      Null,
-        #|    ]>,
-        #|}
-      ),
-    )
+    assert_eq((row.get_name("name") : String), "apple")
+    assert_eq((row.get_name("price") : Double), 1.5)
+    assert_eq((row.get_name("flag") : Bool), true)
+    assert_eq((row.get_name("data") : Bytes), b"\x01\x02")
+    assert_eq((row.get_name("note") : String?), None)
     assert_true(rows.next() is None)
   })
 }
 
 ///|
-async test "execute_script runs statements and keeps trigger bodies whole" {
+async test "batch_execute runs statements and keeps trigger bodies whole" {
   @async.with_task_group(group => {
     let dir = @fs.tmpdir(prefix="moondark-sqlite-script")
     let (db, executor) = @database.open_db("\{dir}/script.db")
     group.spawn_bg(no_wait=true, () => executor.run())
     db.ready()
     defer db.close()
-    let conn = db.conn()
-    defer conn.close()
-    conn.execute_script(
+    db.batch_execute(
       (
         #|DROP TABLE IF EXISTS src; DROP TABLE IF EXISTS audit;
         #|CREATE TABLE src(v TEXT);
@@ -64,12 +53,12 @@ async test "execute_script runs statements and keeps trigger bodies whole" {
         #|INSERT INTO src VALUES ('a;b');
       ),
     )
-    let rows = db.query("SELECT v FROM audit ORDER BY v")
-    defer rows.close()
+    let rows = db.query_all("SELECT v FROM audit ORDER BY v").iter()
+
     guard rows.next() is Some(first) else { fail("expected two rows") }
-    assert_true(first.get("v") is Some(String("a;b")))
+    assert_eq((first.get_name("v") : String), "a;b")
     guard rows.next() is Some(second) else { fail("expected two rows") }
-    assert_true(second.get("v") is Some(String("a;b!")))
+    assert_eq((second.get_name("v") : String), "a;b!")
     assert_true(rows.next() is None)
   })
 }
@@ -98,10 +87,10 @@ async test "with_transaction commits and rolls back" {
     } noraise {
       _ => fail("expected the transaction to propagate the error")
     }
-    let rows = db.query("SELECT value FROM entries ORDER BY value")
-    defer rows.close()
+    let rows = db.query_all("SELECT value FROM entries ORDER BY value").iter()
+
     guard rows.next() is Some(row) else { fail("expected one row") }
-    assert_true(row.get("value") is Some(Int64(1)))
+    assert_eq((row.get_name("value") : Int64), 1)
     assert_true(rows.next() is None)
   })
 }
@@ -114,24 +103,133 @@ async test "every pooled SQLite connection enables foreign keys and lock waiting
     group.spawn_bg(no_wait=true, () => executor.run())
     db.ready()
     defer db.close()
-    let first = db.conn()
-    defer first.close()
-    let second = db.conn()
-    defer second.close()
-    for conn in [first, second] {
-      for
-        (sql, column, expected) in [
-          ("PRAGMA busy_timeout", "timeout", 5000L),
-          ("PRAGMA foreign_keys", "foreign_keys", 1L),
-        ] {
-        let rows = conn.query(sql)
-        defer rows.close()
-        let row = rows.next().unwrap()
-        guard row.get(column) is Some(Int64(actual)) else {
-          fail("Missing pragma value")
+    db.with_conn(first => {
+      db.with_conn(second => {
+        for conn in [first, second] {
+          for
+            (sql, column, expected) in [
+              ("PRAGMA busy_timeout", "timeout", 5000L),
+              ("PRAGMA foreign_keys", "foreign_keys", 1L),
+            ] {
+            let rows = conn.query_all(sql).iter()
+
+            let row = rows.next().unwrap()
+            let actual : Int64 = row.get_name(column)
+            assert_eq(actual, expected)
+          }
         }
-        assert_eq(actual, expected)
-      }
+      })
+    })
+  })
+}
+
+///|
+async test "cached and scoped statements reset bindings and preserve nullable typed rows" {
+  @async.with_task_group(group => {
+    let (db, executor) = @database.open_db(":memory:", max_open=1)
+    group.spawn_bg(no_wait=true, () => executor.run())
+    db.ready()
+    defer db.close()
+    db.batch_execute(
+      "CREATE TABLE typed (id INTEGER PRIMARY KEY, text TEXT, data BLOB, payload TEXT)",
+    )
+    let text = "hello"
+    let bytes = b"abcd"
+    ignore(
+      db.execute("INSERT INTO typed VALUES (?, ?, ?, ?)", params=[
+        1,
+        text[1:4],
+        bytes[1:3],
+        ({ "value": 42 } : Json),
+      ]),
+    )
+    ignore(
+      db.execute("INSERT INTO typed VALUES (?, ?, ?, ?)", params=[
+        2,
+        (None : String?),
+        (None : Bytes?),
+        (None : Json?),
+      ]),
+    )
+    db.with_conn(conn => {
+      conn.with_prepared("SELECT text, data, payload FROM typed WHERE id = ?", stmt => {
+        let first = stmt.query_one(params=[1])
+        assert_eq((first.get_name("text") : String), "ell")
+        assert_eq((first.get_name("data") : Bytes), b"bc")
+        assert_eq((first.get_name("payload") : Json), { "value": 42 })
+        let second = stmt.query_one(params=[2])
+        assert_eq((second.get_name("text") : String?), None)
+        assert_eq((second.get_name("data") : Bytes?), None)
+        assert_eq((second.get_name("payload") : Json?), None)
+        assert_true(stmt.query_opt(params=[3]) is None)
+      })
+    })
+    assert_eq(db.stats().in_use, 0)
+  })
+}
+
+///|
+async test "cancelled SQLite transaction rolls back and reuses the only connection" {
+  @async.with_task_group(group => {
+    let (db, executor) = @database.open_db(":memory:", max_open=1)
+    group.spawn_bg(no_wait=true, () => executor.run())
+    db.ready()
+    defer db.close()
+    db.batch_execute("CREATE TABLE cancelled (id INTEGER)")
+    let result = @async.with_timeout_opt(10, () => {
+      db.with_transaction(tx => {
+        ignore(tx.execute("INSERT INTO cancelled VALUES (1)"))
+        tx.with_stream("SELECT id FROM cancelled", stream => {
+          assert_true(stream.next() is Some(_))
+          @async.sleep(100)
+        })
+      })
+    })
+    assert_true(result is None)
+    assert_eq(db.query_all("SELECT id FROM cancelled").length(), 0)
+    assert_eq(db.stats().in_use, 0)
+    db.with_transaction(tx => tx.with_stream("SELECT 1", _ => tx.commit()))
+    db.ping()
+  })
+}
+
+///|
+async test "connection scope resets manually opened transactions after cancellation" {
+  @async.with_task_group(group => {
+    let (db, executor) = @database.open_db(":memory:", max_open=1)
+    group.spawn_bg(no_wait=true, () => executor.run())
+    db.ready()
+    defer db.close()
+    db.batch_execute("CREATE TABLE manual (id INTEGER)")
+    let result = @async.with_timeout_opt(10, () => {
+      db.with_conn(conn => {
+        conn.batch_execute("BEGIN; INSERT INTO manual VALUES (1)")
+        @async.sleep(100)
+      })
+    })
+    assert_true(result is None)
+    assert_eq(db.query_all("SELECT id FROM manual").length(), 0)
+    db.with_transaction(_ => ())
+  })
+}
+
+///|
+async test "cached SQLite statements recover after constraint errors" {
+  @async.with_task_group(group => {
+    let (db, executor) = @database.open_db(":memory:", max_open=1)
+    group.spawn_bg(no_wait=true, () => executor.run())
+    db.ready()
+    defer db.close()
+    db.batch_execute("CREATE TABLE unique_items (id INTEGER PRIMARY KEY)")
+    ignore(db.execute("INSERT INTO unique_items VALUES (?)", params=[1]))
+    try
+      ignore(db.execute("INSERT INTO unique_items VALUES (?)", params=[1]))
+    catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected constraint failure")
     }
+    ignore(db.execute("INSERT INTO unique_items VALUES (?)", params=[2]))
+    assert_eq(db.query_all("SELECT id FROM unique_items").length(), 2)
   })
 }
