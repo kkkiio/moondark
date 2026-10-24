@@ -1,0 +1,86 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "KKKIIO/moondark/database/driver"
+
+import {
+  "moonbitlang/core/debug",
+  "moonbitlang/x/time",
+}
+
+// Values
+
+// Errors
+pub(all) suberror BadConn {
+  BadConn(Error)
+}
+pub fn BadConn::output(Self, &Logger) -> Unit
+pub fn BadConn::to_string(Self) -> String
+pub impl Show for BadConn
+
+// Types and methods
+pub(all) struct ExecResult {
+  rows_affected : Int64?
+  last_insert_id : Int64?
+} derive(Eq, @debug.Debug)
+pub fn ExecResult::equal(Self, Self) -> Bool
+pub fn ExecResult::not_equal(Self, Self) -> Bool
+pub fn ExecResult::to_repr(Self) -> @debug.Repr
+
+pub(all) struct NoopExecutor {
+}
+pub async fn NoopExecutor::run(Self) -> Unit
+pub impl ConnExecutor for NoopExecutor
+
+pub(all) enum Value {
+  Null
+  Bool(Bool)
+  Int64(Int64)
+  Double(Double)
+  String(String)
+  Bytes(Bytes)
+  Timestamp(@time.ZonedDateTime)
+} derive(@debug.Debug)
+pub fn Value::to_repr(Self) -> @debug.Repr
+
+// Type aliases
+
+// Traits
+pub(open) trait Conn {
+  async fn prepare(Self, String) -> &Stmt
+  async fn close(Self) -> Unit
+  async fn begin(Self) -> &Tx
+  async fn reset_session(Self) -> Unit = _
+  fn is_valid(Self) -> Bool = _
+  async fn ping(Self) -> Unit = _
+  async fn ready(Self) -> Unit = _
+  async fn batch_execute(Self, String) -> Unit
+}
+
+pub(open) trait ConnExecutor {
+  async fn run(Self) -> Unit
+}
+
+pub(open) trait Connector {
+  async fn connect(Self) -> (&Conn, &ConnExecutor)
+}
+
+pub(open) trait Driver {
+  fn open(Self, String) -> &Connector raise
+}
+
+pub(open) trait Rows {
+  fn columns(Self) -> ArrayView[String]
+  async fn close(Self) -> Unit
+  async fn next(Self, Array[Value]) -> Bool
+}
+
+pub(open) trait Stmt {
+  async fn close(Self) -> Unit
+  fn num_input(Self) -> Int32
+  async fn exec(Self, ArrayView[Value]) -> ExecResult
+  async fn query(Self, ArrayView[Value]) -> &Rows
+}
+
+pub(open) trait Tx {
+  async fn commit(Self) -> Unit
+  async fn rollback(Self) -> Unit
+}

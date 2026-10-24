@@ -1,0 +1,12 @@
+supported_targets = "native"
+
+import {
+  "KKKIIO/moondark/database/driver",
+  "moonbitlang/x/time",
+}
+
+import {
+  "moonbitlang/async",
+} for "test"
+
+warnings = "-declaration_unimplemented-unused_trait_bound"
