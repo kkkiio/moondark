@@ -255,12 +255,19 @@ pub impl @driver.Stmt for Stmt with fn exec(self, args) {
 
 ///|
 pub impl @driver.Stmt for Stmt with fn query(self, args) {
+  errdefer (self.inner.reset(clear_bindings=true) catch { _ => () })
   self.bind(args)
+  let first = self.inner.step_async()
   let columns = []
   for i in 0..<self.inner.column_count() {
     columns.push(self.inner.column_name(index=i))
   }
-  Rows::{ inner: self.inner, columns, }
+  Rows::{
+    inner: self.inner,
+    columns,
+    prefetched: first is Row,
+    exhausted: first is Done(..),
+  }
 }
 
 ///|
@@ -270,6 +277,8 @@ pub extend Stmt with @driver.Stmt::{close, num_input, exec, query}
 struct Rows {
   inner : @sqlite3.Statement
   columns : Array[String]
+  mut prefetched : Bool
+  mut exhausted : Bool
 }
 
 ///|
@@ -280,7 +289,15 @@ pub impl @driver.Rows for Rows with fn columns(self) {
 ///|
 pub impl @driver.Rows for Rows with fn next(self, dest) {
   errdefer (self.inner.reset(clear_bindings=true) catch { _ => () })
-  guard self.inner.step_async() is Row else { return false }
+  if self.exhausted {
+    return false
+  }
+  if self.prefetched {
+    self.prefetched = false
+  } else if self.inner.step_async() is Done(..) {
+    self.exhausted = true
+    return false
+  }
   for i in 0..<dest.length() {
     let value : @sqlite3.Value = self.inner.column(index=i)
     dest[i] = match value {
@@ -296,6 +313,8 @@ pub impl @driver.Rows for Rows with fn next(self, dest) {
 
 ///|
 pub impl @driver.Rows for Rows with fn close(self) {
+  self.prefetched = false
+  self.exhausted = true
   self.inner.reset(clear_bindings=true)
 }
 

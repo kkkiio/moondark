@@ -273,3 +273,49 @@ async test "finished SQLite streams release the connection before the callback r
     assert_eq(db.stats().in_use, 0)
   })
 }
+
+///|
+async test "SQLite cached result metadata follows schema changes" {
+  @async.with_task_group(group => {
+    let (db, executor) = @database.open_db(":memory:", max_open=1)
+    group.spawn_bg(no_wait=true, () => executor.run())
+    db.ready()
+    defer db.close()
+    db.batch_execute(
+      "CREATE TABLE metadata (id INTEGER); INSERT INTO metadata VALUES (1), (2)",
+    )
+    let saved = db.query_all("SELECT * FROM metadata ORDER BY id")
+    assert_eq(saved[0].columns().to_owned(), ["id"])
+    db.with_stream("SELECT * FROM metadata WHERE 0", stream => {
+      assert_eq(stream.columns().to_owned(), ["id"])
+      assert_true(stream.next() is None)
+    })
+    db.batch_execute("ALTER TABLE metadata ADD COLUMN note TEXT DEFAULT 'new'")
+    let rows = db.query_all("SELECT * FROM metadata ORDER BY id")
+    assert_eq(rows[0].columns().to_owned(), ["id", "note"])
+    assert_eq(rows.map(row => (row.get_name("id") : Int32)), [1, 2])
+    assert_eq((rows[0].get_name("note") : String), "new")
+    db.batch_execute("ALTER TABLE metadata RENAME COLUMN note TO label")
+    db.with_stream("SELECT * FROM metadata WHERE 0", stream => {
+      assert_eq(stream.columns().to_owned(), ["id", "label"])
+      assert_true(stream.next() is None)
+    })
+    assert_eq(
+      db.query_all("SELECT * FROM metadata ORDER BY id")[0].columns().to_owned(),
+      ["id", "label"],
+    )
+    db.with_conn(conn => {
+      conn.with_prepared("SELECT * FROM metadata ORDER BY id", stmt => {
+        assert_eq(stmt.query_all()[0].columns().to_owned(), ["id", "label"])
+        conn.batch_execute(
+          "ALTER TABLE metadata ADD COLUMN extra INTEGER DEFAULT 42",
+        )
+        let rows = stmt.query_all()
+        assert_eq(rows.length(), 2)
+        assert_eq(rows[0].columns().to_owned(), ["id", "label", "extra"])
+        assert_eq((rows[0].get_name("extra") : Int32), 42)
+      })
+    })
+    assert_eq(saved[0].columns().to_owned(), ["id"])
+  })
+}
