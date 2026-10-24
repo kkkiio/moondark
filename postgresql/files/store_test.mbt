@@ -10,7 +10,7 @@ async test "PostgreSQL file store passes conformance and survives closing its po
     db.ready()
     defer db.close()
     db.batch_execute(@fs.read_file("files/schema.sql").text())
-    let store = @files.PostgresFileStore::new(
+    let store = @files.new_file_store(
       db,
       root~,
       key="test-secret",
@@ -36,11 +36,7 @@ async test "PostgreSQL file store passes conformance and survives closing its po
     group.spawn_bg(no_wait=true, () => executor2.run())
     second.ready()
     defer second.close()
-    let reopened = @files.PostgresFileStore::new(
-      second,
-      root~,
-      key="test-secret",
-    )
+    let reopened = @files.new_file_store(second, root~, key="test-secret")
     assert_eq(reopened.get(key="persisted.pdf").binary(), b"%PDF-persisted")
     let catalog = @files.PostgresCatalog::new(second)
     let entry = catalog.lookup(key="persisted.pdf").unwrap()

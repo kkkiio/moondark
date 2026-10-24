@@ -1,5 +1,5 @@
 ///|
-/// Open a `SqliteFileStore`-backed `CasFileStore` against a fresh
+/// Open a disk-backed `CasFileStore` against a fresh
 /// per-test catalog database inside `root` and run `f` with the pool
 /// executor running; the package's `files/schema.sql` (which also sets
 /// `busy_timeout` on that connection) has already run. Blobs are
@@ -15,7 +15,7 @@ async fn with_store(
     db.ready()
     defer db.close()
     db.batch_execute(@fs.read_file("files/schema.sql").text())
-    let store = @files.SqliteFileStore::new(db, root~, key~)
+    let store = @files.new_file_store(db, root~, key~)
     ignore(db.execute("DELETE FROM file_objects"))
     f(store, db)
   })

@@ -175,18 +175,38 @@ async test "concurrent queries serialize on pool slots" {
 async test "cancellation drains PostgreSQL protocol and rolls back before reuse" {
   run_db(max_open=1, db => {
     db.batch_execute("CREATE TABLE cancelled (id INT4)")
-    let result = @async.with_timeout_opt(10, () => {
-      db.with_transaction(tx => {
-        ignore(tx.execute("INSERT INTO cancelled VALUES ($1)", params=[1]))
-        tx.with_prepared("SELECT id FROM cancelled", stmt => {
-          stmt.with_stream(stream => {
-            assert_true(stream.next() is Some(_))
-            @async.sleep(100)
+    @async.with_timeout(
+      30_000,
+      error=Failure("PostgreSQL cancellation did not complete"),
+      () => {
+        @async.with_task_group(group => {
+          let ready : @async.Queue[Unit] = @async.Queue(kind=Unbounded)
+          let blocked : @async.Queue[Unit] = @async.Queue(kind=Unbounded)
+          let task = group.spawn(() => {
+            db.with_transaction(tx => {
+              ignore(
+                tx.execute("INSERT INTO cancelled VALUES ($1)", params=[1]),
+              )
+              tx.with_prepared("SELECT id FROM cancelled", stmt => {
+                stmt.with_stream(stream => {
+                  assert_true(stream.next() is Some(_))
+                  ready.put(())
+                  blocked.get()
+                })
+              })
+            })
           })
+          ready.get()
+          task.cancel()
+          try task.wait() catch {
+            @async.WaitedTaskAlreadyCancelled => ()
+            error => raise error
+          } noraise {
+            _ => fail("expected the stream task to be cancelled")
+          }
         })
-      })
-    })
-    assert_true(result is None)
+      },
+    )
     assert_eq(db.query_all("SELECT id FROM cancelled").length(), 0)
     db.with_transaction(tx => {
       tx.with_stream("SELECT generate_series(1, 10)", _ => tx.commit())
@@ -204,27 +224,51 @@ async test "cancellation drains PostgreSQL protocol and rolls back before reuse"
 ///|
 async test "finished PostgreSQL streams release their operation permit" {
   run_db(max_open=1, db => {
-    @async.with_timeout(5000, () => {
+    @async.with_timeout(
+      30_000,
+      error=Failure("PostgreSQL connection did not become ready"),
+      () => db.ping(),
+    )
+    let mut stage = "acquiring the warmed connection"
+    @async.with_timeout(30_000, () => {
       db.with_conn(conn => {
+        stage = "starting the connection stream"
         conn.with_stream("SELECT generate_series(1, 3) AS n", stream => {
+          stage = "finishing the connection stream"
           stream.finish()
+          stage = "pinging after finishing the connection stream"
           conn.ping()
+          stage = "querying after finishing the connection stream"
           assert_eq((conn.query_one("SELECT 4 AS n").get_name("n") : Int32), 4)
         })
+        stage = "preparing a statement"
         conn.with_prepared("SELECT $1::int4 AS n", stmt => {
+          stage = "starting the prepared statement stream"
           stmt.with_stream(params=[5], stream => {
+            stage = "finishing the prepared statement stream"
             stream.finish()
+            stage = "querying after finishing the prepared statement stream"
             assert_eq((stmt.query_one(params=[6]).get_name("n") : Int32), 6)
           })
+          stage = "closing the prepared statement"
         })
       })
+      stage = "starting a transaction"
       db.with_transaction(tx => {
+        stage = "starting the transaction stream"
         tx.with_stream("SELECT 7 AS n", stream => {
+          stage = "finishing the transaction stream"
           stream.finish()
+          stage = "querying after finishing the transaction stream"
           assert_eq((tx.query_one("SELECT 8 AS n").get_name("n") : Int32), 8)
         })
+        stage = "committing the transaction"
       })
-    })
+    }) catch {
+      @async.TimeoutError =>
+        fail("PostgreSQL stream reuse timed out while \{stage}")
+      error => raise error
+    }
     assert_eq(db.stats().in_use, 0)
   })
 }

@@ -1,6 +1,6 @@
 # moondark_postgresql/files
 
-PostgreSQL catalog for MoonDark file storage: `PostgresCatalog` persists file metadata while `PostgresFileStore` builds a content-addressed `CasFileStore` with blobs on disk.
+PostgreSQL catalog for MoonDark file storage: `PostgresCatalog` persists file metadata while `new_file_store` builds a content-addressed `CasFileStore` with blobs on disk.
 
 ## Quick Start
 
@@ -17,11 +17,7 @@ async test {
     db.ready()
     defer db.close()
     db.batch_execute(@fs.read_file("files/schema.sql").text())
-    let store = @files.PostgresFileStore::new(
-      db,
-      root="./uploads",
-      key="app-secret",
-    )
+    let store = @files.new_file_store(db, root="./uploads", key="app-secret")
     store.put(key="docs/hello.txt", "hello moondark", content_type="text/plain")
     assert_eq(store.get(key="docs/hello.txt").binary(), b"hello moondark")
     let url = store.presign_get(key="docs/hello.txt")

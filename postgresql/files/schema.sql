@@ -1,4 +1,4 @@
--- File-object catalog for PostgresCatalog / PostgresFileStore
+-- File-object catalog for PostgresCatalog / new_file_store
 -- (KKKIIO/moondark_postgresql/files). Apply it using psql,
 -- DB::batch_execute, or your migration tool before constructing the store.
 -- If you pass table~ to PostgresCatalog::new, rename this table accordingly.
