@@ -1,0 +1,25 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "KKKIIO/moondark_postgresql/files"
+
+import {
+  "KKKIIO/moondark/database/sql",
+}
+
+// Values
+
+// Errors
+
+// Types and methods
+type PostgresCatalog
+pub async fn PostgresCatalog::lookup(Self, key~ : String) -> @KKKIIO/moondark/files.CatalogEntry?
+pub fn PostgresCatalog::new(@sql.DB, table? : String) -> Self
+pub async fn PostgresCatalog::remove(Self, key~ : String) -> Unit
+pub async fn PostgresCatalog::upsert(Self, key~ : String, entry~ : @KKKIIO/moondark/files.CatalogEntry) -> Unit
+pub impl @KKKIIO/moondark/files.Catalog for PostgresCatalog
+
+type PostgresFileStore
+pub async fn PostgresFileStore::new(@sql.DB, root~ : String, key~ : String, url_prefix? : String, default_expires? : Int64, now? : () -> Int64) -> @KKKIIO/moondark/files.CasFileStore
+
+// Type aliases
+
+// Traits

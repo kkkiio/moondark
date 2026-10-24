@@ -1,6 +1,6 @@
 # moondark_postgresql
 
-PostgreSQL integration module for MoonDark, providing a `database/sql` driver, `PostgresSessionStore`, `PostgresTaskBackend`, and `PostgresCredentialStore`.
+PostgreSQL integration module for MoonDark, providing a `database/sql` driver, `PostgresSessionStore`, `PostgresTaskBackend`, `PostgresCredentialStore`, and `PostgresFileStore`.
 
 ## Quick Start
 
@@ -27,6 +27,7 @@ async test {
 | `KKKIIO/moondark_postgresql/database` | `database/sql/driver` | `open_db`, `Driver` |
 | `KKKIIO/moondark_postgresql/sessions` | `sessions.SessionStore` | `PostgresSessionStore` |
 | `KKKIIO/moondark_postgresql/tasks` | `tasks.DBTaskBackend`, `tasks.TaskStore` | `PostgresTaskBackend` |
+| `KKKIIO/moondark_postgresql/files` | `files.Catalog`, `files.FileStore` | `PostgresCatalog`, `PostgresFileStore` |
 | `KKKIIO/moondark_postgresql/auth` | `auth.CredentialStore` | `PostgresCredentialStore` |
 
 ## Sessions
@@ -44,4 +45,16 @@ CREATE TABLE IF NOT EXISTS sessions (
 ```mbt nocheck
 let store = @postgresql_sessions.PostgresSessionStore(db)
 app.add_middleware(@sessions.middleware(store))
+```
+
+## Files
+
+Apply [`files/schema.sql`](./files/schema.sql), then create a persistent file
+store. PostgreSQL holds the catalog; immutable blobs live under `root`:
+
+```mbt nocheck
+let files = @postgresql_files.PostgresFileStore::new(
+  db, root="./uploads", key="app-secret",
+)
+files.put(key="documents/paper.pdf", pdf, content_type="application/pdf")
 ```
