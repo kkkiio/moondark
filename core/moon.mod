@@ -23,10 +23,10 @@ version = "0.1.0"
 
 readme = "README.mbt.md"
 
-repository = ""
+repository = "https://github.com/kkkiio/moondark"
 
 license = "Apache-2.0"
 
-keywords = [ ]
+keywords = [ "web", "backend", "framework", "http", "server" ]
 
-description = ""
+description = "A Django-inspired backend framework for MoonBit, built on moonback"

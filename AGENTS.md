@@ -190,12 +190,24 @@ just fmt
   moon test --update
   ```
 
-### PR Review
+### Release
 
-Github PR 配置了 codex review (on pr).
-新提交的 PR 可以 watch [codex review check](.github/workflows/codex-review-check.yml) 来等待 review 结果.
+版本锁步：所有发布模块（`core/`、`sqlite/`、`postgresql/`）共用同一个 `version`，与 release tag 一一对应。`examples/todo` 标记了 `private = true`，不发布。
+
+1. 确认三个发布模块的 `moon.mod` `version` 已 bump 到同一版本（tag 必须与之匹配）。
+2. 给验证过的 commit 打 tag 并推送：`git tag v<version> && git push origin v<version>`。
+3. 在该 tag 上创建 **draft** GitHub release（`gh release create v<version> --draft`），检查后再 Publish。`release.yml` 由 `release: published` 触发：校验 tag 与各 `moon.mod` 一致，按依赖顺序 `moon publish`（core → sqlite → postgresql），需要仓库 secret `MOONCAKES_TOKEN`。
+
+### PR Merge
+
+Feature 和 Bugfix 主要通过 Github PR 合并到 main 分支.
+
+仓库配置了 OpenAI Codex review on pr opened, 新提交的 PR 会自动触发 review.
+可以 watch PR 的 [codex review check](.github/workflows/codex-review-check.yml) 来等待 review 结果.
 如果有 review 意见, 可以根据意见修复, 推送后 `@codex review` 重新 review.
-如果 review 超过 3 次仍未通过, 可能是 PR 方向有误, 或者是 codex 理解不对, 停下并联系项目维护者沟通.
+
+如果 checks 都通过了, 可以 Squash Merge.
+如果 review 超过 3 次仍未通过, 可能是 PR 方向有误, 或者是 codex reviewer 理解有误, 停下并联系项目维护者沟通.
 
 ### Utilities & Tips
 

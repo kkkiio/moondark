@@ -1,0 +1,70 @@
+name: Release
+
+# Publishing only. CI on the pushed commit is the verification gate; a
+# published release asserts that the tag was already verified. The workflow
+# checks the tag matches every published moon.mod and publishes the modules
+# to mooncakes in dependency order.
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish to mooncakes
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@v6
+
+      - name: Verify release version
+        shell: bash
+        run: |
+          set -euo pipefail
+          for mod in core sqlite postgresql; do
+            version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' "${mod}/moon.mod")"
+            if [[ "${GITHUB_REF_NAME}" != "v${version}" ]]; then
+              echo "Tag ${GITHUB_REF_NAME} does not match ${mod}/moon.mod version ${version}" >&2
+              exit 1
+            fi
+          done
+
+      - name: Set up MoonBit
+        shell: bash
+        run: |
+          curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash -s latest
+          echo "${HOME}/.moon/bin" >> "${GITHUB_PATH}"
+
+      - name: Publish to mooncakes
+        shell: bash
+        env:
+          MOONCAKES_TOKEN: ${{ secrets.MOONCAKES_TOKEN }}
+        run: |
+          set -euo pipefail
+          moon version --all
+          moon update
+          username="$(sed -n 's/^name = "\([^/]*\)\/.*"/\1/p' core/moon.mod)"
+          mkdir -p "${HOME}/.moon"
+          printf '{"token":"%s","username":"%s"}' \
+            "${MOONCAKES_TOKEN}" "${username}" > "${HOME}/.moon/credentials.json"
+          version="${GITHUB_REF_NAME#v}"
+          # Integration modules import KKKIIO/moondark, so publish it first
+          # and wait until the registry index serves the new version.
+          moon -C core publish
+          for _ in $(seq 1 60); do
+            if moon view "KKKIIO/moondark@${version}" > /dev/null 2>&1; then
+              break
+            fi
+            sleep 5
+          done
+          moon view "KKKIIO/moondark@${version}" > /dev/null
+          moon -C sqlite publish
+          moon -C postgresql publish

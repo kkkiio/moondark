@@ -9,6 +9,8 @@ preferred_target = "native"
 
 name = "KKKIIO/moondark_example_todo"
 
+private = true
+
 version = "0.1.0"
 
 readme = "README.md"

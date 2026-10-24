@@ -13,10 +13,10 @@ version = "0.1.0"
 
 readme = "README.mbt.md"
 
-repository = ""
+repository = "https://github.com/kkkiio/moondark"
 
 license = "Apache-2.0"
 
-keywords = [ ]
+keywords = [ "moondark", "sqlite", "database" ]
 
-description = ""
+description = "SQLite backends for the moondark framework"
