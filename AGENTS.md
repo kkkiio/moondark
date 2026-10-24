@@ -79,6 +79,8 @@ MoonDark 是基于 MoonBack 的 MoonBit 后端框架（功能参考 [Django](htt
 - **Provider / Identity** — OAuth2/OIDC 提供方配置 / 提供方返回的用户身份。
 - **CrossOriginProtection** — 基于 `Sec-Fetch-Site` 与 `Origin` 请求头的无状态 CSRF 防护器。
 - **Signer** — 用密钥和 salt 对字符串签名与校验的签名器。
+- **Task** — 后台任务契约（名称、重试预算与参数类型 `T`），生产侧通过 `enqueue` 在事务内入队，消费侧通过 `bind` 绑定处理函数得到 `TaskHandler`。
+- **TaskHandler** — `Task::bind` 生成的 worker 侧任务处理器，擦除参数类型后注册到 `Worker`。
 - **TaskResult** — 一次入队的执行记录（status、attempts、return_value、errors），backend 存取的快照。
 - **TaskStore** — worker 侧存储协议：`claim`（原子领任务，FIFO + 僵尸行回收）与 `save`（写回终态）。
 - **FileStore** — `files` 中的文件存储后端 trait：`presign_put`/`presign_get` 签发直传凭证，`put`/`get`/`exists`/`delete` 后端直读写。

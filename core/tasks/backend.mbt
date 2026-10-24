@@ -1,5 +1,5 @@
 ///|
-/// The contract between `TransactionalTaskDef` and a database-backed
+/// The contract between `Task` and a database-backed
 /// queue store. `enqueue` inserts one task row into the caller's
 /// transaction — the task commits atomically with the transaction's
 /// other writes, which is the basis of at-least-once delivery.
@@ -26,7 +26,7 @@ pub(open) trait DBTaskBackend {
 /// the serialized `args`.
 pub(all) struct TaskArgs {
   /// unique name used by workers to resolve the row back to a
-  /// `TaskExec`.
+  /// `TaskHandler`.
   name : String
   /// unix timestamp in ms; `None` runs as soon as a worker claims it.
   run_after : Int64?

@@ -16,12 +16,9 @@ async fn run_db(
 }
 
 ///|
-test "TransactionalTaskDef::new rejects an empty retry budget" {
+test "Task::new rejects an empty retry budget" {
   try {
-    let _d : @tasks.TransactionalTaskDef[Json] = @tasks.TransactionalTaskDef::new(
-      name="t",
-      max_attempts=0,
-    )
+    let _d : @tasks.Task[Json] = @tasks.Task::new(name="t", max_attempts=0)
   } catch {
     e => assert_true(e is @tasks.InvalidTask(_))
   } noraise {
@@ -30,15 +27,15 @@ test "TransactionalTaskDef::new rejects an empty retry budget" {
 }
 
 ///|
-async test "enqueue_on stores a ready row and returns its id" {
+async test "enqueue stores a ready row and returns its id" {
   run_db((db, _connector) => {
     let backend = @tasks.DummyBackend::new(now=() => 1000)
-    let email : @tasks.TransactionalTaskDef[Json] = @tasks.TransactionalTaskDef::new(
+    let email : @tasks.Task[Json] = @tasks.Task::new(
       name="send_email",
       max_attempts=3,
     )
     let id = db.with_transaction(tx => {
-      email.enqueue_on(backend, tx, args={ "to": "a@b.c" }, run_after=2000)
+      email.enqueue(backend, tx, args={ "to": "a@b.c" }, run_after=2000)
     })
     guard email.get_result(backend, id) is Some(stored) else {
       fail("expected the enqueued row")
@@ -56,25 +53,21 @@ async test "enqueue_on stores a ready row and returns its id" {
     assert_eq(stored.errors, [])
     assert_eq(stored.worker_ids, [])
     // a different task name is a miss, not a leak
-    let other : @tasks.TransactionalTaskDef[Json] = @tasks.TransactionalTaskDef::new(
-      name="other",
-    )
+    let other : @tasks.Task[Json] = @tasks.Task::new(name="other")
     assert_true(other.get_result(backend, id) is None)
     assert_true(email.get_result(backend, "missing") is None)
   })
 }
 
 ///|
-async test "enqueue_on rolls back with the caller transaction" {
+async test "enqueue rolls back with the caller transaction" {
   run_db((db, connector) => {
     let backend = @tasks.DummyBackend::new()
-    let email : @tasks.TransactionalTaskDef[Json] = @tasks.TransactionalTaskDef::new(
-      name="send_email",
-    )
+    let email : @tasks.Task[Json] = @tasks.Task::new(name="send_email")
     try
       (
         db.with_transaction(tx => {
-          ignore(email.enqueue_on(backend, tx, args=Json::object({})))
+          ignore(email.enqueue(backend, tx, args=Json::object({})))
           fail("rollback")
         }) : Unit)
     catch {
@@ -91,16 +84,16 @@ async test "enqueue_on rolls back with the caller transaction" {
 async test "worker runs a claimed task with typed args" {
   run_db((db, _connector) => {
     let backend = @tasks.DummyBackend::new()
-    let def : @tasks.TransactionalTaskDef[Json] = @tasks.TransactionalTaskDef::new(
-      name="echo",
-    )
+    let def : @tasks.Task[Json] = @tasks.Task::new(name="echo")
     let id = db.with_transaction(tx => {
-      def.enqueue_on(backend, tx, args={ "n": 21 })
+      def.enqueue(backend, tx, args={ "n": 21 })
     })
-    let exec = @tasks.TaskExec::from_def(def, func=(ctx, args : Json) => {
+    let handler = def.bind((ctx, args : Json) => {
       Json::object({ "attempt": ctx.attempt, "got": args })
     })
-    let worker = @tasks.Worker::new(store=backend, tasks=[exec], now=() => 5000)
+    let worker = @tasks.Worker::new(store=backend, tasks=[handler], now=() => {
+      5000
+    })
     assert_true(worker.run_once())
     assert_true(!worker.run_once())
     guard def.get_result(backend, id) is Some(stored) else {
@@ -122,20 +115,15 @@ async test "worker runs a claimed task with typed args" {
 async test "worker reschedules failures and exhausts the attempt budget" {
   run_db((db, _connector) => {
     let backend = @tasks.DummyBackend::new()
-    let def : @tasks.TransactionalTaskDef[Json] = @tasks.TransactionalTaskDef::new(
-      name="flaky",
-      max_attempts=2,
-    )
+    let def : @tasks.Task[Json] = @tasks.Task::new(name="flaky", max_attempts=2)
     let id = db.with_transaction(tx => {
-      def.enqueue_on(backend, tx, args=Json::object({}))
+      def.enqueue(backend, tx, args=Json::object({}))
     })
-    let exec = @tasks.TaskExec::from_def(def, func=(_ctx, _args : Json) => {
-      fail("boom")
-    })
+    let handler = def.bind((_ctx, _args : Json) => fail("boom"))
     let mut now = 1000L
     let worker = @tasks.Worker::new(
       store=backend,
-      tasks=[exec],
+      tasks=[handler],
       now=() => now,
       backoff=attempt => attempt.to_int64() * 100,
     )
@@ -171,15 +159,16 @@ async test "worker reschedules failures and exhausts the attempt budget" {
 async test "worker skips rows that are not due yet" {
   run_db((db, _connector) => {
     let backend = @tasks.DummyBackend::new()
-    let def : @tasks.TransactionalTaskDef[Json] = @tasks.TransactionalTaskDef::new(
-      name="later",
-    )
+    let def : @tasks.Task[Json] = @tasks.Task::new(name="later")
     let id = db.with_transaction(tx => {
-      def.enqueue_on(backend, tx, args=Json::object({}), run_after=10_000)
+      def.enqueue(backend, tx, args=Json::object({}), run_after=10_000)
     })
     let mut now = 1000L
-    let exec = @tasks.TaskExec::from_def(def, func=(_c, a : Json) => a)
-    let worker = @tasks.Worker::new(store=backend, tasks=[exec], now=() => now)
+    let worker = @tasks.Worker::new(
+      store=backend,
+      tasks=[def.bind((_c, a : Json) => a)],
+      now=() => now,
+    )
     assert_true(!worker.run_once())
     now = 10_000
     assert_true(worker.run_once())
@@ -194,12 +183,9 @@ async test "worker skips rows that are not due yet" {
 async test "worker reclaims stale running rows only when enabled" {
   run_db((db, _connector) => {
     let backend = @tasks.DummyBackend::new()
-    let def : @tasks.TransactionalTaskDef[Json] = @tasks.TransactionalTaskDef::new(
-      name="t",
-      max_attempts=3,
-    )
+    let def : @tasks.Task[Json] = @tasks.Task::new(name="t", max_attempts=3)
     let id = db.with_transaction(tx => {
-      def.enqueue_on(backend, tx, args=Json::object({}))
+      def.enqueue(backend, tx, args=Json::object({}))
     })
     // simulate a crashed worker: claimed, then abandoned mid-run
     guard backend.claim(worker_id="dead", now=0L, stale_before=None)
@@ -208,11 +194,11 @@ async test "worker reclaims stale running rows only when enabled" {
     }
     assert_eq(claimed.status, @tasks.TaskResultStatus::Running)
     assert_eq(claimed.attempts, 1)
-    let exec = @tasks.TaskExec::from_def(def, func=(_c, a : Json) => a)
+    let handler = def.bind((_c, a : Json) => a)
     // reclaim disabled: the stale row is left alone
     let once = @tasks.Worker::new(
       store=backend,
-      tasks=[exec],
+      tasks=[handler],
       reclaim_after=None,
       now=() => 100_000,
     )
@@ -220,7 +206,7 @@ async test "worker reclaims stale running rows only when enabled" {
     // reclaim enabled: the stale row is claimed again
     let worker = @tasks.Worker::new(
       store=backend,
-      tasks=[exec],
+      tasks=[handler],
       id="w2",
       reclaim_after=Some(60_000),
       now=() => 100_000,
@@ -239,13 +225,11 @@ async test "worker reclaims stale running rows only when enabled" {
 async test "worker marks a row with an unknown task name failed" {
   run_db((db, _connector) => {
     let backend = @tasks.DummyBackend::new()
-    let def : @tasks.TransactionalTaskDef[Json] = @tasks.TransactionalTaskDef::new(
-      name="ghost",
-    )
+    let def : @tasks.Task[Json] = @tasks.Task::new(name="ghost")
     let id = db.with_transaction(tx => {
-      def.enqueue_on(backend, tx, args=Json::object({}))
+      def.enqueue(backend, tx, args=Json::object({}))
     })
-    // no exec registered for "ghost"
+    // no handler registered for "ghost"
     let worker = @tasks.Worker::new(store=backend, tasks=[])
     assert_true(worker.run_once())
     guard def.get_result(backend, id) is Some(stored) else {
@@ -263,19 +247,17 @@ async test "args that fail to decode fail the attempt" {
     let backend = @tasks.DummyBackend::new()
     // producer and worker disagree on the args type — e.g. they were
     // deployed with different versions of the def. Enqueue writes a
-    // Json object; the exec expects an Int and fails to decode.
-    let producer : @tasks.TransactionalTaskDef[Json] = @tasks.TransactionalTaskDef::new(
+    // Json object; the handler expects an Int and fails to decode.
+    let producer : @tasks.Task[Json] = @tasks.Task::new(
       name="typed",
       max_attempts=1,
     )
-    let worker_def : @tasks.TransactionalTaskDef[Int32] = @tasks.TransactionalTaskDef::new(
-      name="typed",
-    )
+    let worker_def : @tasks.Task[Int32] = @tasks.Task::new(name="typed")
     let id = db.with_transaction(tx => {
-      producer.enqueue_on(backend, tx, args={ "wrong": "shape" })
+      producer.enqueue(backend, tx, args={ "wrong": "shape" })
     })
-    let exec = @tasks.TaskExec::from_def(worker_def, func=(_c, a) => Json(a))
-    let worker = @tasks.Worker::new(store=backend, tasks=[exec])
+    let handler = worker_def.bind((_c, a) => Json(a))
+    let worker = @tasks.Worker::new(store=backend, tasks=[handler])
     assert_true(worker.run_once())
     guard producer.get_result(backend, id) is Some(stored) else {
       fail("expected the stored result")

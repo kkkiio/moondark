@@ -73,7 +73,7 @@ sequenceDiagram
     Q->>W: claim
     W->>DB: 读业务数据 → 尚未提交
     App->>DB: ROLLBACK → 幽灵任务
-  else enqueue_on(tx)
+  else enqueue(backend, tx)
     App->>DB: BEGIN
     App->>DB: INSERT 业务行 + 任务行
     App->>DB: COMMIT（原子可见）
@@ -105,7 +105,7 @@ stateDiagram-v2
       <table>
         <thead><tr><th>环节</th><th>At-Most-Once 写法</th><th>At-Least-Once 写法</th></tr></thead>
         <tbody>
-          <tr><td>① 调用点</td><td>先 Commit 后 enqueue <span class="tag red">崩溃即丢</span><br>先 enqueue 后 Commit <span class="tag red">竞态 / 幽灵任务</span></td><td><code>enqueue_on(tx)</code> <span class="tag green">与业务同事务提交</span></td></tr>
+          <tr><td>① 调用点</td><td>先 Commit 后 enqueue <span class="tag red">崩溃即丢</span><br>先 enqueue 后 Commit <span class="tag red">竞态 / 幽灵任务</span></td><td><code>enqueue(backend, tx)</code> <span class="tag green">与业务同事务提交</span></td></tr>
           <tr><td>② 认领</td><td>Early Ack <span class="tag purple">取走即删</span></td><td>Lease / Reclaim <span class="tag green">超时回收</span></td></tr>
           <tr><td>③ 异常</td><td><code>max_attempts = 1</code> <span class="tag purple">报错直接 Failed</span></td><td><code>max_attempts &gt; 1</code> <span class="tag green">退避重回 Ready</span></td></tr>
           <tr><td>④ 函数体</td><td>—</td><td>DB 写入用唯一键 / 状态机；外部 API 传 <code>idempotency_key</code> <span class="tag blue">用户责任</span></td></tr>
@@ -135,7 +135,7 @@ quadrantChart
   "Akka Typed": [0.25, 0.88]
   MoonDark: [0.8, 0.72]
       </div>
-      <figcaption>MoonDark 的 <code>TransactionalTaskDef</code> 只暴露 <code>enqueue_on(tx)</code>，事务入队由类型保证；重试与回收仍靠参数</figcaption>
+      <figcaption>MoonDark 的 <code>Task</code> 只暴露 <code>enqueue(backend, tx)</code>，事务入队由类型保证；重试与回收仍靠参数</figcaption>
     </figure>
 
     <div class="table-wrap">
