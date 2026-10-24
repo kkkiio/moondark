@@ -1,6 +1,8 @@
 # MoonDark
 
+[![CI](https://github.com/kkkiio/moondark/actions/workflows/ci.yml/badge.svg)](https://github.com/kkkiio/moondark/actions/workflows/ci.yml)
 [![Coverage Status](https://coveralls.io/repos/github/kkkiio/moondark/badge.svg?branch=main)](https://coveralls.io/github/kkkiio/moondark?branch=main)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](./LICENSE)
 
 Modern Batteries-included backend framework, based on MoonBack.
 
@@ -30,6 +32,7 @@ moon add KKKIIO/moondark_postgresql
 - [migration](./core/migration/README.mbt.md): In-place SQL and code database migrations.
 - [database](./core/database/README.mbt.md): Scoped connection pool, transactions, and typed SQL queries (`SQLite` / `PostgreSQL`).
 - [csrf](./core/csrf/README.mbt.md): Stateless `Sec-Fetch-Site` / `Origin` CSRF protection middleware.
+- [logging](./core/logging/README.mbt.md): OTel-aligned access logging and error recovery middleware.
 
 ## Quick Start
 
@@ -41,6 +44,7 @@ async fn main {
     key="app-secret",
   )
   let app = @moonback.App(ctx => {
+    ctx.add_middleware(@logging.middleware())
     ctx.add_middleware(@csrf.middleware())
     ctx.add_middleware(@sessions.middleware(@sessions.MemorySessionStore()))
     ctx.use_(files.routes())

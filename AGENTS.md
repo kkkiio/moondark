@@ -192,11 +192,11 @@ just fmt
 
 ### Release
 
-版本锁步：所有发布模块（`core/`、`sqlite/`、`postgresql/`）共用同一个 `version`，与 release tag 一一对应。`examples/todo` 标记了 `private = true`，不发布。
+版本策略：三个发布模块（`core/`、`sqlite/`、`postgresql/`）在 `0.x` 阶段保持大/中版本（`0.minor.0`）对齐，破坏性变更时同步升级；兼容的小版本（`0.minor.patch`，如仅修复单个模块 bug 或文档）按需独立 bump，无需强迫未变更的模块空升版本。`examples/todo` 标记了 `private = true`，不发布。
 
-1. 确认三个发布模块的 `moon.mod` `version` 已 bump 到同一版本（tag 必须与之匹配）。
+1. 按需 bump 变更模块的 `moon.mod` `version`（若 `core` 有破坏性变更则同步更新集成模块中的 `KKKIIO/moondark` 依赖版本与自身 `version`）。
 2. 给验证过的 commit 打 tag 并推送：`git tag v<version> && git push origin v<version>`。
-3. 在该 tag 上创建 **draft** GitHub release（`gh release create v<version> --draft`），检查后再 Publish。`release.yml` 由 `release: published` 触发：校验 tag 与各 `moon.mod` 一致，按依赖顺序 `moon publish`（core → sqlite → postgresql），需要仓库 secret `MOONCAKES_TOKEN`。
+3. 在该 tag 上创建 **draft** GitHub release（`gh release create v<version> --draft`），检查后再 Publish。`release.yml` 由 `release: published` 触发：按依赖顺序（core → sqlite → postgresql）检查各模块当前 `version` 是否已在 mooncakes 发布（`moon view <name>@<version>`），仅发布尚未发布的模块，已发布的自动跳过（需要仓库 secret `MOONCAKES_TOKEN`）。
 
 ### PR Merge
 
