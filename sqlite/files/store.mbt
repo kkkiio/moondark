@@ -1,10 +1,4 @@
 ///|
-/// Constructor namespace only — `SqliteFileStore::new` returns a
-/// ready `@moondark_files.CasFileStore` whose `FileStore` methods and
-/// `routes()` are used directly, so there is no wrapper type here.
-type SqliteFileStore
-
-///|
 /// Build a `CasFileStore` whose blobs live on disk under `root` and
 /// whose key → blob catalog is a `SqliteCatalog` on `db` (the
 /// `file_objects` table, see `schema.sql`).
@@ -14,7 +8,7 @@ type SqliteFileStore
 /// - `url_prefix`：`routes()` 挂载的路由前缀，同时是 presigned URL 的前缀。
 /// - `default_expires`：`presign_*` 未传 `expires` 时的默认有效期（毫秒）。
 /// - `now`：当前 unix 毫秒，测试可注入固定/可变时钟。
-pub async fn SqliteFileStore::new(
+pub async fn new_file_store(
   db : @moondark_database.DB,
   root~ : String,
   key~ : String,

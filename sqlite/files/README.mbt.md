@@ -1,6 +1,6 @@
 # moondark_sqlite/files
 
-SQLite catalog for `KKKIIO/moondark/files`: `SqliteCatalog` stores the key → blob index in a SQLite table while `SqliteFileStore` builds a `CasFileStore` that keeps the content-addressed blobs on disk.
+SQLite catalog for `KKKIIO/moondark/files`: `SqliteCatalog` stores the key → blob index in a SQLite table while `new_file_store` builds a `CasFileStore` that keeps the content-addressed blobs on disk.
 
 ## Quick Start
 
@@ -16,11 +16,7 @@ async test {
     db.ready()
     defer db.close()
     db.batch_execute(@fs.read_file("files/schema.sql").text())
-    let store = @files.SqliteFileStore::new(
-      db,
-      root="\{dir}/files",
-      key="app-secret",
-    )
+    let store = @files.new_file_store(db, root="\{dir}/files", key="app-secret")
     store.put(key="docs/hello.txt", "hello moondark")
     assert_eq(store.get(key="docs/hello.txt").binary(), b"hello moondark")
     let url = store.presign_get(key="docs/hello.txt")

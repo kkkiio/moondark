@@ -37,11 +37,12 @@ MoonDark 是基于 MoonBack 的 MoonBit 后端框架（功能参考 [Django](htt
 ├── sqlite/                       # 集成模块 KKKIIO/moondark_sqlite
 │   ├── auth/                     # SqliteCredentialStore（credentials 表）
 │   ├── database/                 # database 驱动、open_db；迁移在 SQLite 上的集成测试
-│   ├── files/                    # SqliteCatalog（file_objects 表）+ SqliteFileStore
+│   ├── files/                    # SqliteCatalog（file_objects 表）+ new_file_store
 │   ├── sessions/                 # SqliteSessionStore
 │   └── tasks/                    # SqliteTaskBackend：单语句 CAS UPDATE claim
 ├── postgresql/                   # 集成模块 KKKIIO/moondark_postgresql
 │   ├── auth/                     # PostgresCredentialStore
+│   ├── files/                    # PostgresCatalog（file_objects 表）+ new_file_store
 │   ├── database/                 # database 驱动、open_db
 │   ├── sessions/                 # PostgresSessionStore
 │   └── tasks/                    # PostgresTaskBackend：FOR UPDATE SKIP LOCKED claim

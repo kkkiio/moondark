@@ -155,17 +155,35 @@ async test "cleanup failures preserve the business error and retire the connecti
 async test "cancellation drains, closes prepared statements, rolls back and returns capacity" {
   let connector = MockConnector()
   run_db(@database.DB::create(connector, max_open=1), db => {
-    let result = @async.with_timeout_opt(10, () => {
-      db.with_transaction(tx => {
-        tx.with_prepared("SELECT", stmt => {
-          stmt.with_stream(stream => {
-            ignore(stream.next())
-            @async.sleep(100)
+    @async.with_timeout(
+      5000,
+      error=Failure("scoped resource cancellation did not complete"),
+      () => {
+        @async.with_task_group(group => {
+          let ready : @async.Queue[Unit] = @async.Queue(kind=Unbounded)
+          let blocked : @async.Queue[Unit] = @async.Queue(kind=Unbounded)
+          let task = group.spawn(() => {
+            db.with_transaction(tx => {
+              tx.with_prepared("SELECT", stmt => {
+                stmt.with_stream(stream => {
+                  assert_true(stream.next() is Some(_))
+                  ready.put(())
+                  blocked.get()
+                })
+              })
+            })
           })
+          ready.get()
+          task.cancel()
+          try task.wait() catch {
+            @async.WaitedTaskAlreadyCancelled => ()
+            error => raise error
+          } noraise {
+            _ => fail("expected the stream task to be cancelled")
+          }
         })
-      })
-    })
-    assert_true(result is None)
+      },
+    )
     assert_eq(connector.stats.rows_closed, 1)
     assert_eq(connector.stats.statements_closed, 1)
     assert_eq(connector.stats.rollback_count, 1)

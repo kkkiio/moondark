@@ -1,6 +1,6 @@
 # moondark_sqlite
 
-SQLite integration module for MoonDark, providing a `database` driver, `SqliteSessionStore`, `SqliteTaskBackend`, `SqliteFileStore`, and `SqliteCredentialStore`.
+SQLite integration module for MoonDark, providing a database driver and SQLite-backed sessions, task queues, credentials, and file catalogs.
 
 ## Quick Start
 
@@ -25,7 +25,7 @@ async test {
 | `KKKIIO/moondark_sqlite/database` | `database/driver` | `open_db`, `Driver` |
 | `KKKIIO/moondark_sqlite/sessions` | `sessions.SessionStore` | `SqliteSessionStore` |
 | `KKKIIO/moondark_sqlite/tasks` | `tasks.DBTaskBackend`, `tasks.TaskStore` | `SqliteTaskBackend` |
-| `KKKIIO/moondark_sqlite/files` | `files.Catalog`, `files.FileStore` | `SqliteCatalog`, `SqliteFileStore` |
+| `KKKIIO/moondark_sqlite/files` | `files.Catalog`, `files.FileStore` | `SqliteCatalog`, `new_file_store` |
 | `KKKIIO/moondark_sqlite/auth` | `auth.CredentialStore` | `SqliteCredentialStore` |
 
 ## Sessions

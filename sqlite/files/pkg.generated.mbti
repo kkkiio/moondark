@@ -6,6 +6,7 @@ import {
 }
 
 // Values
+pub async fn new_file_store(@database.DB, root~ : String, key~ : String, url_prefix? : String, default_expires? : Int64, now? : () -> Int64) -> @KKKIIO/moondark/files.CasFileStore
 
 // Errors
 
@@ -16,9 +17,6 @@ pub fn SqliteCatalog::new(@database.DB, table? : String) -> Self
 pub async fn SqliteCatalog::remove(Self, key~ : String) -> Unit
 pub async fn SqliteCatalog::upsert(Self, key~ : String, entry~ : @KKKIIO/moondark/files.CatalogEntry) -> Unit
 pub impl @KKKIIO/moondark/files.Catalog for SqliteCatalog
-
-type SqliteFileStore
-pub async fn SqliteFileStore::new(@database.DB, root~ : String, key~ : String, url_prefix? : String, default_expires? : Int64, now? : () -> Int64) -> @KKKIIO/moondark/files.CasFileStore
 
 // Type aliases
 
