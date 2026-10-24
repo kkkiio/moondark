@@ -5,7 +5,7 @@
 /// that connection) has already run.
 async fn with_backend(
   now~ : () -> Int64 = () => @env.now().reinterpret_as_int64(),
-  f : async (@tasks.SqliteTaskBackend, @sql.DB) -> Unit,
+  f : async (@tasks.SqliteTaskBackend, @moondark_database.DB) -> Unit,
 ) -> Unit {
   @async.with_task_group(group => {
     let dir = @fs.tmpdir(prefix="moondark-sqlite-tasks")
@@ -13,9 +13,7 @@ async fn with_backend(
     group.spawn_bg(no_wait=true, () => executor.run())
     db.ready()
     defer db.close()
-    let conn = db.conn()
-    defer conn.close()
-    conn.execute_script(@fs.read_file("tasks/schema.sql").text())
+    db.batch_execute(@fs.read_file("tasks/schema.sql").text())
     let backend = @tasks.SqliteTaskBackend::new(db, now~)
     ignore(db.execute("DELETE FROM task_results"))
     f(backend, db)

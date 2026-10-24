@@ -2,8 +2,10 @@
 /// Run `f` with a `DB` over the fake `sqltest` driver. The pool
 /// executor and readiness dance is identical to a real driver; the
 /// connector is returned so tests can inspect recorded statements.
-async fn run_db(f : async (@sql.DB, @sqltest.FakeConnector) -> Unit) -> Unit {
-  let connector = @sqltest.FakeConnector::new()
+async fn run_db(
+  f : async (@database.DB, @databasetest.FakeConnector) -> Unit,
+) -> Unit {
+  let connector = @databasetest.FakeConnector::new()
   let (db, executor) = connector.open_db()
   @async.with_task_group(group => {
     group.spawn_bg(no_wait=true, () => executor.run())

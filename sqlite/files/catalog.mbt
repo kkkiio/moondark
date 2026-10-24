@@ -5,7 +5,7 @@
 /// (`?` placeholders). The blob bytes themselves live on disk under
 /// the `CasFileStore` root; this table is only the key → blob index.
 struct SqliteCatalog {
-  db : @sql.DB
+  db : @moondark_database.DB
   table : String
 }
 
@@ -15,7 +15,7 @@ struct SqliteCatalog {
 /// interpolated into SQL statements verbatim, so it must be a trusted
 /// identifier.
 pub fn SqliteCatalog::new(
-  db : @sql.DB,
+  db : @moondark_database.DB,
   table~ : String = "file_objects",
 ) -> SqliteCatalog {
   SqliteCatalog::{ db, table, }
@@ -33,7 +33,7 @@ pub impl @moondark_files.Catalog for SqliteCatalog with fn upsert(
   ignore(
     self.db.execute(
       "INSERT INTO \{self.table} (key, hash, size, content_type) VALUES (?, ?, ?, ?) ON CONFLICT(key) DO UPDATE SET hash = excluded.hash, size = excluded.size, content_type = excluded.content_type",
-      params=[key, entry.hash, entry.size, opt_text(entry.content_type)],
+      params=[key, entry.hash, entry.size, entry.content_type],
     ),
   )
 }
@@ -42,25 +42,15 @@ pub impl @moondark_files.Catalog for SqliteCatalog with fn upsert(
 /// Fetch the catalog row of `key`, or `None` when the key has no
 /// object.
 pub impl @moondark_files.Catalog for SqliteCatalog with fn lookup(self, key~) {
-  let rows = self.db.query(
+  let rows = self.db.query_opt(
     "SELECT hash, size, content_type FROM \{self.table} WHERE key = ?",
     params=[key],
   )
-  defer rows.close()
-  guard rows.next() is Some(row) else { return None }
-  let hash = match row.get("hash") {
-    Some(@driver.Value::String(s)) => s
-    _ => fail("files: malformed hash column")
-  }
-  let size = match row.get("size") {
-    Some(@driver.Value::Int64(v)) => v
-    _ => fail("files: malformed size column")
-  }
-  let content_type = match row.get("content_type") {
-    Some(@driver.Value::String(s)) => Some(s)
-    Some(@driver.Value::Null) => None
-    _ => fail("files: malformed content_type column")
-  }
+
+  guard rows is Some(row) else { return None }
+  let hash = (row.get_name("hash") : String)
+  let size = (row.get_name("size") : Int64)
+  let content_type = (row.get_name("content_type") : String?)
   Some(@moondark_files.CatalogEntry::{ hash, size, content_type, })
 }
 
@@ -74,12 +64,3 @@ pub impl @moondark_files.Catalog for SqliteCatalog with fn remove(self, key~) {
 
 ///|
 pub extend SqliteCatalog with @moondark_files.Catalog::{upsert, lookup, remove}
-
-///|
-/// `NULL` or the text, for the nullable `content_type` column.
-fn opt_text(value : String?) -> @driver.Value {
-  match value {
-    Some(v) => @driver.Value::String(v)
-    None => @driver.Value::Null
-  }
-}

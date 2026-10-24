@@ -1,5 +1,5 @@
 // Generated using `moon info`, DON'T EDIT IT
-package "KKKIIO/moondark/database/sql/driver"
+package "KKKIIO/moondark/database/driver"
 
 import {
   "moonbitlang/core/debug",
@@ -20,7 +20,10 @@ pub impl Show for BadConn
 pub(all) struct ExecResult {
   rows_affected : Int64?
   last_insert_id : Int64?
-}
+} derive(Eq, @debug.Debug)
+pub fn ExecResult::equal(Self, Self) -> Bool
+pub fn ExecResult::not_equal(Self, Self) -> Bool
+pub fn ExecResult::to_repr(Self) -> @debug.Repr
 
 pub(all) struct NoopExecutor {
 }
@@ -37,9 +40,6 @@ pub(all) enum Value {
   Timestamp(@time.ZonedDateTime)
 } derive(@debug.Debug)
 pub fn Value::to_repr(Self) -> @debug.Repr
-#deprecated
-pub fn Value::to_value(Self) -> Self
-pub impl Valuer for Value
 
 // Type aliases
 
@@ -52,7 +52,7 @@ pub(open) trait Conn {
   fn is_valid(Self) -> Bool = _
   async fn ping(Self) -> Unit = _
   async fn ready(Self) -> Unit = _
-  async fn execute_script(Self, String) -> Unit
+  async fn batch_execute(Self, String) -> Unit
 }
 
 pub(open) trait ConnExecutor {
@@ -68,7 +68,7 @@ pub(open) trait Driver {
 }
 
 pub(open) trait Rows {
-  fn columns(Self) -> Array[String]
+  fn columns(Self) -> ArrayView[String]
   async fn close(Self) -> Unit
   async fn next(Self, Array[Value]) -> Bool
 }
@@ -76,22 +76,11 @@ pub(open) trait Rows {
 pub(open) trait Stmt {
   async fn close(Self) -> Unit
   fn num_input(Self) -> Int32
-  async fn exec(Self, Array[Value]) -> ExecResult
-  async fn query(Self, Array[Value]) -> &Rows
+  async fn exec(Self, ArrayView[Value]) -> ExecResult
+  async fn query(Self, ArrayView[Value]) -> &Rows
 }
 
 pub(open) trait Tx {
   async fn commit(Self) -> Unit
   async fn rollback(Self) -> Unit
 }
-
-pub(open) trait Valuer {
-  fn to_value(Self) -> Value
-}
-pub impl Valuer for Bool
-pub impl Valuer for Int32
-pub impl Valuer for Int64
-pub impl Valuer for Double
-pub impl Valuer for String
-pub impl Valuer for Bytes
-pub impl Valuer for @time.ZonedDateTime

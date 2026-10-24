@@ -15,9 +15,7 @@ async test {
     group.spawn_bg(no_wait=true, () => executor.run())
     db.ready()
     defer db.close()
-    let conn = db.conn()
-    defer conn.close()
-    conn.execute_script(@fs.read_file("files/schema.sql").text())
+    db.batch_execute(@fs.read_file("files/schema.sql").text())
     let store = @files.SqliteFileStore::new(
       db,
       root="\{dir}/files",

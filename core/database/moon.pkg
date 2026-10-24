@@ -1,14 +1,12 @@
 supported_targets = "native"
 
 import {
-  "KKKIIO/moondark/database/sql/driver",
+  "KKKIIO/moondark/database/driver",
   "moonbitlang/async",
   "moonbitlang/async/aqueue",
   "moonbitlang/core/env",
+  "moonbitlang/core/json",
+  "moonbitlang/core/string",
   "moonbitlang/x/time",
   "tonyfettes/xlog",
 }
-
-import {
-  "moonbitlang/async",
-} for "test"

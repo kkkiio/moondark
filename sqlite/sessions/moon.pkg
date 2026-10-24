@@ -1,6 +1,5 @@
 import {
-  "KKKIIO/moondark/database/sql",
-  "KKKIIO/moondark/database/sql/driver",
+  "KKKIIO/moondark/database" @moondark_database,
   "KKKIIO/moondark/sessions" @moondark_sessions,
   "moonbitlang/core/json",
 }

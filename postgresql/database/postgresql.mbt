@@ -37,13 +37,15 @@ pub fn open_db(
   max_open~ : Int32 = 10,
   max_lifetime~ : @time.Duration = @time.Duration::zero(),
   max_idle_time~ : @time.Duration = @time.Duration::zero(),
-) -> (@sql.DB, @sql.DBExecutor) raise {
-  @sql.DB::create(
+  statement_cache_capacity~ : Int32 = 100,
+) -> (@moondark_database.DB, @moondark_database.DBExecutor) raise {
+  @moondark_database.DB::create(
     Driver::new().open(dsn),
     max_idle~,
     max_open~,
     max_lifetime~,
     max_idle_time~,
+    statement_cache_capacity~,
   )
 }
 
@@ -59,7 +61,7 @@ pub(all) suberror InvalidDsn {
 /// `moonbit-community/postgres`.
 ///
 /// ```
-/// let (db, executor) = @sql.DB::create(@postgresql_database.Driver::new().open("postgres://u:p@h/db"))
+/// let (db, executor) = @moondark_database.DB::create(@postgresql_database.Driver::new().open("postgres://u:p@h/db"))
 /// ```
 struct Driver {}
 
@@ -190,12 +192,12 @@ pub impl @driver.Conn for Conn with fn ping(self) {
 }
 
 ///|
-/// `execute_script` sends the whole script through the simple query
+/// `batch_execute` sends the whole script through the simple query
 /// protocol: the server parses the statements itself (dollar-quoted
 /// bodies and all) and runs them in a single implicit transaction —
 /// any failing statement rolls back the whole script unless it
 /// contains explicit `BEGIN`/`COMMIT`.
-pub impl @driver.Conn for Conn with fn execute_script(self, script) {
+pub impl @driver.Conn for Conn with fn batch_execute(self, script) {
   self.op(() => self.inner.batch_execute(script))
 }
 
@@ -208,7 +210,7 @@ pub extend Conn with @driver.Conn::{
   ping,
   ready,
   reset_session,
-  execute_script,
+  batch_execute,
 }
 
 ///|
@@ -371,7 +373,7 @@ struct Rows {
 
 ///|
 pub impl @driver.Rows for Rows with fn columns(self) {
-  self.stream.columns().map(column => column.name)
+  self.stream.columns().map(column => column.name)[:]
 }
 
 ///|

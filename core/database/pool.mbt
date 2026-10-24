@@ -28,6 +28,9 @@ priv struct Pool {
   /// Completed by `DBExecutor::run` when it exits; `Pool::close` waits
   /// on it when the executor was started.
   done : Completion
+  released : Completion
+  pending : Map[Int64, CreateRequest]
+  mut next_request_id : Int64
   /// Whether `DBExecutor::run` was called.
   mut started : Bool
   /// Whether `Pool::close` was called.
@@ -38,8 +41,8 @@ priv struct Pool {
   mut in_use : Int32
   max_open : Int32
   /// Maximum number of prepared statements cached per connection;
-  /// `0` disables the limit (unbounded, as in Go).
-  max_stmts_per_conn : Int32
+  /// `0` disables caching; the default capacity is 100.
+  statement_cache_capacity : Int32
   /// Id assigned to the next pooled connection entry.
   mut next_conn_id : Int64
   /// Maximum connection lifetime in milliseconds; `<= 0` disables it.
@@ -64,7 +67,9 @@ priv struct Pool {
 /// the entry is `put` into it, on failure the queue is closed with the
 /// connection error so `acquire` observes the driver's original error.
 priv struct CreateRequest {
+  id : Int64
   result : @aqueue.Queue[ConnEntry]
+  mut abandoned : Bool
 }
 
 ///|
@@ -121,7 +126,7 @@ fn Pool::Pool(
   max_open~ : Int32,
   max_lifetime~ : @time.Duration,
   max_idle_time~ : @time.Duration,
-  max_stmts_per_conn~ : Int32,
+  statement_cache_capacity~ : Int32,
 ) -> Pool {
   let slots : @aqueue.Queue[Unit] = @aqueue.Queue(kind=Blocking(max_open))
   for _ in 0..<max_open {
@@ -138,12 +143,15 @@ fn Pool::Pool(
     ready: Completion::Completion(),
     shutdown: Completion::Completion(),
     done: Completion::Completion(),
+    released: Completion::Completion(),
+    pending: {},
+    next_request_id: 0,
     started: false,
     closed: false,
     active_count: 0,
     in_use: 0,
     max_open,
-    max_stmts_per_conn,
+    statement_cache_capacity,
     next_conn_id: 1,
     max_lifetime_ms: duration_ms(max_lifetime),
     max_idle_time_ms: duration_ms(max_idle_time),
@@ -218,12 +226,22 @@ async fn Pool::drain_idle(self : Pool) -> Unit {
 /// inline. Idempotent.
 async fn Pool::close(self : Pool) -> Unit {
   if self.closed {
+    if self.started {
+      self.done.wait()
+    }
     return
   }
   self.closed = true
   self.ready.complete()
   self.shutdown.complete()
   self.slots.close()
+  if self.in_use == 0 {
+    self.released.complete()
+  }
+  for _, request in self.pending {
+    request.abandoned = true
+    request.result.close(error=DatabaseError::Closed("DB"))
+  }
   if self.started {
     self.done.wait()
   } else {
@@ -241,93 +259,83 @@ async fn Pool::close(self : Pool) -> Unit {
 /// discarded connection (which keeps it until `serve_closes` finishes
 /// closing it), and is returned if the attempt fails.
 async fn Pool::acquire(self : Pool) -> ConnEntry {
-  // Wait for the executor so requests are actually served; acquisitions
-  // made before `DBExecutor::run` starts queue up instead of hanging on
-  // an unserved create request.
   self.ready.wait()
   for ;; {
+    if self.closed {
+      raise DatabaseError::Closed("DB")
+    }
     if (self.slots.try_get() catch { _ => None }) is None {
-      // The pool is exhausted: block until a connection is released or
-      // closed, recording the wait for `DB::stats`.
       let start = @env.now().reinterpret_as_int64()
+      self.wait_count += 1
       self.slots.get() catch {
-        @aqueue.QueueAlreadyClosed => fail("connection pool is closed")
+        @aqueue.QueueAlreadyClosed => raise DatabaseError::Closed("DB")
         e => raise e
       }
-      self.wait_count += 1
       self.wait_duration_ms += @env.now().reinterpret_as_int64() - start
+    }
+    if self.closed {
+      raise DatabaseError::Closed("DB")
     }
     let idle = self.idle_connections.try_get() catch { _ => None }
     match idle {
       Some(entry) => {
         let now = @env.now().reinterpret_as_int64()
-        // Expiry is lazy: there is no background reaper, so expired
-        // connections are only discarded when encountered here or in
-        // `release`.
         let lifetime_expired = self.max_lifetime_ms > 0 &&
           now - entry.created_at > self.max_lifetime_ms
         let idle_expired = entry.returned &&
           self.max_idle_time_ms > 0 &&
           now - entry.returned_at > self.max_idle_time_ms
         if lifetime_expired || idle_expired {
-          // A connection expired on both counts is attributed to its
-          // lifetime, matching Go's ordering of the checks.
           if lifetime_expired {
             self.max_lifetime_closed += 1
           } else {
             self.max_idle_time_closed += 1
           }
           self.discard_entry(entry)
-          // The discarded connection consumed the token, which
-          // `serve_closes` returns after closing it; take a fresh
-          // token before retrying.
           continue
         }
         if !entry.conn.is_valid() {
           self.discard_entry(entry)
           continue
         }
-        if entry.returned {
-          entry.conn.reset_session() catch {
-            e => {
-              @xlog.debug(category="moondark.database") <?
-                {
-                  "error": e.to_string(),
-                  "conn": entry.id,
-                  "message": "reset_session failed, discarding connection",
-                }
-              self.discard_entry(entry)
-              continue
-            }
-          }
+        if self.closed {
+          @async.protect_from_cancel(() => self.discard_entry(entry))
+          raise DatabaseError::Closed("DB")
         }
         self.in_use += 1
         return entry
       }
       None => {
+        let id = self.next_request_id
+        self.next_request_id += 1
         let request = CreateRequest::{
+          id,
           result: @aqueue.Queue(kind=Blocking(1)),
+          abandoned: false,
         }
-        // If the caller failed or was cancelled after the worker
-        // already delivered an entry, retire it instead of leaking
-        // the connection and its token; otherwise free the token.
-        errdefer (if (request.result.try_get() catch { _ => None })
-          is Some(entry) {
-          self.discard_entry(entry)
-        } else {
-          self.release_slot()
+        self.pending[id] = request
+        errdefer @async.protect_from_cancel(() => {
+          request.abandoned = true
+          if (request.result.try_get() catch { _ => None }) is Some(entry) {
+            self.discard_entry(entry)
+          }
+          request.result.close()
         })
-        self.create_requests.put(request) catch {
-          @aqueue.QueueAlreadyClosed => fail("connection pool is closed")
+        ignore(self.create_requests.try_put(request)) catch {
+          @aqueue.QueueAlreadyClosed => raise DatabaseError::Closed("DB")
           e => raise e
         }
         let entry = request.result.get()
+        if self.closed {
+          @async.protect_from_cancel(() => self.discard_entry(entry))
+          raise DatabaseError::Closed("DB")
+        }
         self.in_use += 1
         return entry
       }
     }
   }
-  panic() // unreachable: the loop only exits via return or raise
+  panic()
 }
 
 ///|
@@ -359,10 +367,24 @@ async fn create_physical(
   group : @async.TaskGroup[Unit],
   request : CreateRequest,
 ) -> Unit {
+  defer pool.pending.remove(request.id)
   let mut conn : &@driver.Conn? = None
+  errdefer @async.protect_from_cancel(() => {
+    if conn is Some(c) {
+      c.close() catch {
+        _ => ()
+      }
+    }
+    pool.release_slot()
+    request.result.close(
+      error=DatabaseError::Closed("connection creation cancelled"),
+    )
+  })
   let created : Result[ConnEntry, Error] = Ok(
     {
-      let (c, executor) = pool.connector.connect()
+      let (c, executor) = @async.protect_from_cancel(() => {
+        pool.connector.connect()
+      })
       conn = Some(c)
       group.spawn_bg(no_wait=true, allow_failure=true, () => executor.run())
       c.ready()
@@ -374,19 +396,19 @@ async fn create_physical(
   match created {
     Err(e) => {
       if conn is Some(c) {
-        c.close() catch {
+        @async.protect_from_cancel(() => c.close()) catch {
           _ => ()
         }
       }
+      pool.release_slot()
       request.result.close(error=e)
     }
     Ok(entry) => {
       pool.active_count += 1
       let delivered = !pool.closed &&
+        !request.abandoned &&
         (request.result.try_put(entry) catch { _ => false })
       if !delivered {
-        // The pool closed mid-creation, or the requester went away:
-        // retire the connection through the normal close path.
         pool.discard_entry(entry)
       }
     }
@@ -418,10 +440,25 @@ async fn Pool::release(
   entry : ConnEntry,
   bad~ : Bool = false,
 ) -> Unit {
+  let mut bad = bad || !entry.conn.is_valid()
+  if !bad && !self.closed {
+    @async.protect_from_cancel(() => entry.conn.reset_session()) catch {
+      e => {
+        bad = true
+        @xlog.debug(category="moondark.database") <?
+          {
+            "error": e.to_string(),
+            "conn": entry.id,
+            "message": "reset_session failed, discarding connection",
+          }
+      }
+    }
+  }
   self.in_use -= 1
+  if self.closed && self.in_use == 0 {
+    self.released.complete()
+  }
   let now = @env.now().reinterpret_as_int64()
-  // A connection past its maximum lifetime is discarded through the same
-  // path as a `bad` one.
   let lifetime_expired = self.max_lifetime_ms > 0 &&
     now - entry.created_at > self.max_lifetime_ms
   if bad || lifetime_expired || self.closed {
@@ -435,12 +472,9 @@ async fn Pool::release(
   entry.returned_at = now
   let queued = self.idle_connections.try_put(entry) catch { _ => false }
   if queued {
-    // The idle connection no longer needs the checkout permit: return
-    // the token so a blocked acquirer can pick the connection up.
     self.release_slot()
     return
   }
-  // The idle queue is full (`max_idle`): the connection is closed.
   self.max_idle_closed += 1
   self.discard_entry(entry)
 }
@@ -453,67 +487,11 @@ async fn Pool::release(
 let max_bad_conn_retries : Int32 = 2
 
 ///|
-/// Acquire a connection for attempt `attempt` of a retried operation.
-/// Returns `None` when acquisition fails with `BadConn` and attempts
-/// remain, signaling the caller to retry; any other error is raised.
-async fn acquire_retry(pool : Pool, attempt : Int32) -> ConnEntry? {
-  let result : Result[ConnEntry, Error] = Ok(pool.acquire()) catch {
-    e => Err(e)
-  }
-  match result {
-    Ok(entry) => Some(entry)
-    Err(e) =>
-      if e is @driver.BadConn(_) && attempt < max_bad_conn_retries {
-        @xlog.warn(category="moondark.database") <?
-          {
-            "error": e.to_string(),
-            "attempt": attempt,
-            "message": "BadConn on acquire, retrying on a fresh connection",
-          }
-        None
-      } else {
-        raise e
-      }
-  }
-}
-
-///|
-/// Release `entry` after a failed operation, discarding it when `e` is
-/// `BadConn` or the driver connection already reports itself dead.
-/// Returns `true` when the error is a `BadConn` and attempts remain,
-/// i.e. the operation may be retried on a fresh connection.
-async fn release_failed(
-  pool : Pool,
-  entry : ConnEntry,
-  e : Error,
-  attempt : Int32,
-) -> Bool {
-  // A non-BadConn error still discards the entry when the driver
-  // connection reports itself dead — the error propagates (no retry:
-  // the operation may have reached the server) but a provably dead
-  // connection is never handed out again.
-  let bad = e is @driver.BadConn(_) || !entry.conn.is_valid()
-  pool.release(entry, bad~)
-  if e is @driver.BadConn(_) && attempt < max_bad_conn_retries {
-    @xlog.warn(category="moondark.database") <?
-      {
-        "error": e.to_string(),
-        "conn": entry.id,
-        "attempt": attempt,
-        "message": "BadConn, retrying operation on a fresh connection",
-      }
-    true
-  } else {
-    false
-  }
-}
-
-///|
 /// A connection managed by the pool: the queue element wrapping a
 /// driver connection with its identity, bookkeeping timestamps and
 /// per-connection prepared statement cache.
 priv struct ConnEntry {
-  /// Unique id assigned by the pool; keys `Stmt::handles`.
+  /// Unique id assigned by the pool.
   id : Int64
   conn : &@driver.Conn
   /// Whether the connection was used before and returned to the pool.
@@ -525,18 +503,17 @@ priv struct ConnEntry {
   mut returned_at : Int64
   /// Cached prepared statements on this connection, keyed by query
   /// text; insertion order is the LRU order (oldest first).
-  stmt_cache : Map[String, ConnStmt]
+  stmt_cache : Map[String, &@driver.Stmt]
 }
 
 ///|
 /// Close the driver connection and every statement cached on it,
-/// unregistering each from its owning `Stmt`.
+/// releasing the cached backend resources.
 async fn ConnEntry::close(self : ConnEntry) -> Unit {
   for _, cs in self.stmt_cache {
-    cs.stmt.close() catch {
+    cs.close() catch {
       _ => ()
     }
-    cs.owner.handles.remove(self.id)
   }
   self.stmt_cache.clear()
   self.conn.close()

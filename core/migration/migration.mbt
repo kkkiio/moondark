@@ -7,22 +7,22 @@
 /// `moondark_migrations` and an append-only attempt log
 /// `moondark_migration_records` whose `started` rows expose runs that
 /// crashed mid-migration. DDL is applied in place through
-/// `Conn::execute_script`; `use_tx` wraps the body plus the applied-set
+/// `Conn::batch_execute`; `use_tx` wraps the body plus the applied-set
 /// row in `BEGIN`/`COMMIT` on drivers with transactional DDL.
 ///
 /// Typical startup wiring:
 ///
 /// ```moonbit nocheck
-/// let conn = db.conn()
-/// let migrator = @migration.Migrator::new(conn~, dialect=Sqlite)
-/// migrator.up(migrations)  // raises MigrationError on failure
-/// conn.close()
+/// db.with_conn(conn => {
+///   let migrator = @migration.Migrator::new(conn~, dialect=Sqlite)
+///   ignore(migrator.up(migrations))
+/// })
 /// ```
 
 ///|
 /// One named migration, ordered lexicographically by `name`.
 ///
-/// `Sql` carries a script executed via `Conn::execute_script`; `Run`
+/// `Sql` carries a script executed via `Conn::batch_execute`; `Run`
 /// carries arbitrary MoonBit code for data migrations that plain SQL
 /// cannot express (the callback receives the migrator's connection).
 /// `use_tx` (default `true`) brackets the body and the bookkeeping
@@ -30,7 +30,7 @@
 /// cannot run inside a transaction.
 pub(all) enum Migration {
   Sql(name~ : String, sql~ : String, use_tx~ : Bool)
-  Run(name~ : String, use_tx~ : Bool, run~ : async (@sql.Conn) -> Unit)
+  Run(name~ : String, use_tx~ : Bool, run~ : async (@database.Conn) -> Unit)
 }
 
 ///|
@@ -45,7 +45,7 @@ pub fn Migration::sql(
 ///|
 pub fn Migration::run(
   name~ : String,
-  run~ : async (@sql.Conn) -> Unit,
+  run~ : async (@database.Conn) -> Unit,
   use_tx~ : Bool = true,
 ) -> Migration {
   Run(name~, use_tx~, run~)
@@ -142,9 +142,9 @@ pub extend MigrationError with Show::{to_string, output}
 ///|
 /// Runs pending migrations against `conn` and keeps the bookkeeping
 /// tables. Holds the connection for the whole migration run — check it
-/// out of the pool with `db.conn()` and close it afterwards.
+/// from `db.with_conn(conn => ...)` and use the migrator inside that callback.
 pub struct Migrator {
-  conn : @sql.Conn
+  conn : @database.Conn
   dialect : Dialect
   migrations_table : String
   records_table : String
@@ -155,7 +155,7 @@ pub struct Migrator {
 /// `moondark_migrations`/`moondark_migration_records`; override them
 /// only when sharing a database with another tool's tables.
 pub fn Migrator::new(
-  conn~ : @sql.Conn,
+  conn~ : @database.Conn,
   dialect~ : Dialect,
   migrations_table~ : String = "moondark_migrations",
   records_table~ : String = "moondark_migration_records",
@@ -179,7 +179,7 @@ pub async fn Migrator::ensure_tables(self : Migrator) -> Unit {
     Postgres => bookkeeping_postgres
     Mysql => bookkeeping_mysql
   }
-  self.conn.execute_script(
+  self.conn.batch_execute(
     ddl
     .replace_all(old="{migrations_table}", new=self.migrations_table)
     .replace_all(old="{records_table}", new=self.records_table),
@@ -303,7 +303,7 @@ pub async fn Migrator::bootstrap(
       if use_tx {
         ignore(self.conn.execute("BEGIN"))
       }
-      self.conn.execute_script(schema)
+      self.conn.batch_execute(schema)
       let ts = now_ms()
       for mig in sorted {
         self.insert_applied(mig.name(), mig.checksum(), ts)
@@ -358,7 +358,7 @@ async fn Migrator::apply(self : Migrator, mig : Migration) -> Unit {
         ignore(self.conn.execute("BEGIN"))
       }
       match mig {
-        Sql(sql~, ..) => self.conn.execute_script(sql)
+        Sql(sql~, ..) => self.conn.batch_execute(sql)
         Run(run~, ..) => run(self.conn)
       }
       self.insert_applied(name, mig.checksum(), now_ms())

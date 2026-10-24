@@ -2,7 +2,7 @@
 package "KKKIIO/moondark/migration"
 
 import {
-  "KKKIIO/moondark/database/sql",
+  "KKKIIO/moondark/database",
 }
 
 // Values
@@ -31,11 +31,11 @@ pub fn Dialect::suffix(Self) -> String
 
 pub(all) enum Migration {
   Sql(name~ : String, sql~ : String, use_tx~ : Bool)
-  Run(name~ : String, use_tx~ : Bool, run~ : async (@sql.Conn) -> Unit)
+  Run(name~ : String, use_tx~ : Bool, run~ : async (@database.Conn) -> Unit)
 }
 pub async fn Migration::load(dir~ : String, dialect~ : Dialect, use_tx? : Bool) -> Self
 pub fn Migration::name(Self) -> String
-pub fn Migration::run(name~ : String, run~ : async (@sql.Conn) -> Unit, use_tx? : Bool) -> Self
+pub fn Migration::run(name~ : String, run~ : async (@database.Conn) -> Unit, use_tx? : Bool) -> Self
 pub fn Migration::sql(name~ : String, sql~ : String, use_tx? : Bool) -> Self
 
 pub(all) struct MigrationStatus {
@@ -47,14 +47,14 @@ pub(all) struct MigrationStatus {
 }
 
 pub struct Migrator {
-  conn : @sql.Conn
+  conn : @database.Conn
   dialect : Dialect
   migrations_table : String
   records_table : String
 }
 pub async fn Migrator::bootstrap(Self, schema~ : String, migrations~ : ArrayView[Migration], use_tx? : Bool) -> Unit
 pub async fn Migrator::ensure_tables(Self) -> Unit
-pub fn Migrator::new(conn~ : @sql.Conn, dialect~ : Dialect, migrations_table? : String, records_table? : String) -> Self raise
+pub fn Migrator::new(conn~ : @database.Conn, dialect~ : Dialect, migrations_table? : String, records_table? : String) -> Self raise
 pub async fn Migrator::pending(Self, ArrayView[Migration]) -> Array[Migration]
 pub async fn Migrator::status(Self, ArrayView[Migration]) -> Array[MigrationStatus]
 pub async fn Migrator::up(Self, ArrayView[Migration]) -> Array[String]

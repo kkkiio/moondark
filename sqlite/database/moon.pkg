@@ -1,7 +1,7 @@
 import {
   "moonbit-community/sqlite3",
-  "KKKIIO/moondark/database/sql",
-  "KKKIIO/moondark/database/sql/driver",
+  "KKKIIO/moondark/database" @moondark_database,
+  "KKKIIO/moondark/database/driver",
   "moonbitlang/x/time",
 }
 

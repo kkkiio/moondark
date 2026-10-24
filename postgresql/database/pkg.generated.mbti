@@ -2,13 +2,12 @@
 package "KKKIIO/moondark_postgresql/database"
 
 import {
-  "KKKIIO/moondark/database/sql",
-  "KKKIIO/moondark/database/sql/driver",
+  "KKKIIO/moondark/database/driver",
   "moonbitlang/x/time",
 }
 
 // Values
-pub fn open_db(String, max_idle? : Int32, max_open? : Int32, max_lifetime? : @time.Duration, max_idle_time? : @time.Duration) -> (@sql.DB, @sql.DBExecutor) raise
+pub fn open_db(String, max_idle? : Int32, max_open? : Int32, max_lifetime? : @time.Duration, max_idle_time? : @time.Duration, statement_cache_capacity? : Int32) -> (@KKKIIO/moondark/database.DB, @KKKIIO/moondark/database.DBExecutor) raise
 
 // Errors
 pub(all) suberror InvalidDsn {
@@ -17,9 +16,9 @@ pub(all) suberror InvalidDsn {
 
 // Types and methods
 type Conn
+pub async fn Conn::batch_execute(Self, String) -> Unit
 pub async fn Conn::begin(Self) -> &@driver.Tx
 pub async fn Conn::close(Self) -> Unit
-pub async fn Conn::execute_script(Self, String) -> Unit
 pub fn Conn::is_valid(Self) -> Bool
 pub async fn Conn::ping(Self) -> Unit
 pub async fn Conn::prepare(Self, String) -> &@driver.Stmt
@@ -42,15 +41,15 @@ pub impl @driver.ConnExecutor for Executor
 
 type Rows
 pub async fn Rows::close(Self) -> Unit
-pub fn Rows::columns(Self) -> Array[String]
+pub fn Rows::columns(Self) -> ArrayView[String]
 pub async fn Rows::next(Self, Array[@driver.Value]) -> Bool
 pub impl @driver.Rows for Rows
 
 type Stmt
 pub async fn Stmt::close(Self) -> Unit
-pub async fn Stmt::exec(Self, Array[@driver.Value]) -> @driver.ExecResult
+pub async fn Stmt::exec(Self, ArrayView[@driver.Value]) -> @driver.ExecResult
 pub fn Stmt::num_input(Self) -> Int32
-pub async fn Stmt::query(Self, Array[@driver.Value]) -> &@driver.Rows
+pub async fn Stmt::query(Self, ArrayView[@driver.Value]) -> &@driver.Rows
 pub impl @driver.Stmt for Stmt
 
 type Tx

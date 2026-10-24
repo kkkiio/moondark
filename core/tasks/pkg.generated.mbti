@@ -2,7 +2,7 @@
 package "KKKIIO/moondark/tasks"
 
 import {
-  "KKKIIO/moondark/database/sql",
+  "KKKIIO/moondark/database",
   "moonbitlang/core/debug",
   "moonbitlang/core/json",
 }
@@ -22,7 +22,7 @@ pub struct DummyBackend {
 }
 pub async fn DummyBackend::claim(Self, worker_id~ : String, now~ : Int64, stale_before~ : Int64?) -> TaskResult?
 pub fn DummyBackend::clear(Self) -> Unit
-pub async fn DummyBackend::enqueue(Self, @sql.Transaction, TaskArgs, Json) -> String
+pub async fn DummyBackend::enqueue(Self, @database.Transaction, TaskArgs, Json) -> String
 pub async fn DummyBackend::get_result(Self, String, String) -> TaskResult?
 pub fn DummyBackend::new(now? : () -> Int64) -> Self
 pub async fn DummyBackend::save(Self, TaskResult) -> Unit
@@ -91,7 +91,7 @@ pub(all) struct TransactionalTaskDef[T] {
   name : String
   max_attempts : Int32
 }
-pub async fn[T : ToJson] TransactionalTaskDef::enqueue_on(Self[T], &DBTaskBackend, @sql.Transaction, args~ : T, run_after? : Int64) -> String
+pub async fn[T : ToJson] TransactionalTaskDef::enqueue_on(Self[T], &DBTaskBackend, @database.Transaction, args~ : T, run_after? : Int64) -> String
 pub async fn[T] TransactionalTaskDef::get_result(Self[T], &DBTaskBackend, String) -> TaskResult?
 pub fn[T] TransactionalTaskDef::new(name~ : String, max_attempts? : Int32) -> Self[T] raise InvalidTask
 
@@ -118,7 +118,7 @@ pub async fn Worker::run_once(Self) -> Bool
 
 // Traits
 pub(open) trait DBTaskBackend {
-  async fn enqueue(Self, @sql.Transaction, TaskArgs, Json) -> String
+  async fn enqueue(Self, @database.Transaction, TaskArgs, Json) -> String
   async fn get_result(Self, String, String) -> TaskResult?
 }
 

@@ -28,7 +28,7 @@ moon add KKKIIO/moondark_postgresql
 - [tasks](./core/tasks/README.mbt.md): Transactional background task queue and worker.
 - [files](./core/files/README.mbt.md): File/attachment storage with presigned upload/download URLs.
 - [migration](./core/migration/README.mbt.md): In-place SQL and code database migrations.
-- [database/sql](./core/database/sql/README.mbt.md): Connection pool and SQL query API (`SQLite` / `PostgreSQL`).
+- [database](./core/database/README.mbt.md): Scoped connection pool, transactions, and typed SQL queries (`SQLite` / `PostgreSQL`).
 - [csrf](./core/csrf/README.mbt.md): Stateless `Sec-Fetch-Site` / `Origin` CSRF protection middleware.
 
 ## Quick Start

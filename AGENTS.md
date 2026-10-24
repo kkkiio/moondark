@@ -22,9 +22,9 @@ MoonDark 是基于 MoonBack 的 MoonBit 后端框架（功能参考 [Django](htt
 │   │   ├── authtest/             # CredentialStore conformance test suite
 │   │   └── oauth2/               # OAuth2/OIDC 协议层：Provider、Identity
 │   ├── csrf/                     # 无状态 CSRF 防护（CrossOriginProtection、CSRF 中间件）
-│   ├── database/sql/             # Go database/sql 风格的连接池与查询 API（DB、Conn、Rows、Tx、Stmt）
+│   ├── database/                 # 作用域连接池、事务与类型安全查询（DB、Conn、Transaction、RowStream）
 │   │   ├── driver/               # 驱动 trait：Driver、Connector、Conn、Stmt、Rows、Tx、Value
-│   │   └── sqltest/              # 测试用内存驱动（FakeConnector）
+│   │   └── databasetest/         # 测试用内存驱动（FakeConnector）
 │   ├── files/                    # FileStore（presign_put/presign_get + put/get/delete）、CasFileStore（CAS 本地后端）、Catalog、直传路由
 │   │   └── filestest/            # FileStore conformance test suite
 │   ├── logging/                  # 请求日志中间件：access log（OTel 字段 + query 脱敏）+ handler 错误兜底
@@ -36,13 +36,13 @@ MoonDark 是基于 MoonBack 的 MoonBit 后端框架（功能参考 [Django](htt
 │   └── cmd/main/                 # 可执行入口（模板占位）
 ├── sqlite/                       # 集成模块 KKKIIO/moondark_sqlite
 │   ├── auth/                     # SqliteCredentialStore（credentials 表）
-│   ├── database/                 # database/sql 驱动、open_db；迁移在 SQLite 上的集成测试
+│   ├── database/                 # database 驱动、open_db；迁移在 SQLite 上的集成测试
 │   ├── files/                    # SqliteCatalog（file_objects 表）+ SqliteFileStore
 │   ├── sessions/                 # SqliteSessionStore
 │   └── tasks/                    # SqliteTaskBackend：单语句 CAS UPDATE claim
 ├── postgresql/                   # 集成模块 KKKIIO/moondark_postgresql
 │   ├── auth/                     # PostgresCredentialStore
-│   ├── database/                 # database/sql 驱动、open_db
+│   ├── database/                 # database 驱动、open_db
 │   ├── sessions/                 # PostgresSessionStore
 │   └── tasks/                    # PostgresTaskBackend：FOR UPDATE SKIP LOCKED claim
 ├── examples/todo/                # 示例应用 KKKIIO/moondark_example_todo：演示 migration 的典型接线
@@ -59,12 +59,13 @@ MoonDark 是基于 MoonBack 的 MoonBit 后端框架（功能参考 [Django](htt
 
 ## Domain Language
 
-- **DB** — `database/sql` 中的连接池句柄，由 `DB::create` 与 `DBExecutor` 成对返回。
+- **DB** — `database` 中的连接池句柄，由 `DB::create` 与 `DBExecutor` 成对返回。
+- **Conn / Transaction / PreparedStatement / RowStream** — 仅在所属 `with_*` 回调内有效，离开作用域后操作抛出 `DatabaseError::ScopeExpired`；清理由库在取消保护下完成。
 - **DBExecutor** — 驱动连接创建与销毁的池执行器，必须在 task group 中 `spawn_bg` 运行。
 - **Integration module（集成模块）** — 封装一种第三方技术、实现 core 后端接口的模块，如 `moondark_postgresql`。
   _Avoid_: 驱动模块、contrib
 - **Backend** — 某个 core 接口的一个实现，如数据库驱动、`SessionStore`、任务后端。
-- **Driver / Connector** — `database/sql/driver` 中的 trait，由集成模块的 `database/` 子包实现，负责打开底层数据库连接。
+- **Driver / Connector** — `database/driver` 中的 trait，由集成模块的 `database/` 子包实现，负责打开底层数据库连接。
 - **Migration** — 一个具名的 SQL 或代码迁移步骤。
 - **Migrator** — 在某个 `Conn` 上记录并执行 `Migration` 的运行器。
 - **Session** — 一次浏览器会话的键值数据（`Json`），由会话中间件挂到请求上。
@@ -197,7 +198,7 @@ Github PR 配置了 codex review (on pr).
 
 - 代码导航（定义、大纲、引用），详见 moonbit-agent-guide skill：
   ```bash
-  moon ide outline core/database/sql
+  moon ide outline core/database
   ```
 - 查看未覆盖的代码：
   ```bash

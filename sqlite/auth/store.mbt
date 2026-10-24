@@ -2,7 +2,7 @@
 /// `@moondark_auth.CredentialStore` backed by a SQLite table, written in
 /// SQLite's native SQL (`?` placeholders).
 struct SqliteCredentialStore {
-  db : @sql.DB
+  db : @moondark_database.DB
   table : String
 }
 
@@ -11,7 +11,7 @@ struct SqliteCredentialStore {
 /// its schema. It is interpolated into SQL statements verbatim, so it
 /// must be a trusted identifier.
 pub fn SqliteCredentialStore::SqliteCredentialStore(
-  db : @sql.DB,
+  db : @moondark_database.DB,
   table~ : String = "credentials",
 ) -> SqliteCredentialStore {
   SqliteCredentialStore::{ db, table, }
@@ -19,41 +19,27 @@ pub fn SqliteCredentialStore::SqliteCredentialStore(
 
 ///|
 /// Decode one row of `CREDENTIAL_COLUMNS` into a `CredentialModel`.
-fn row_to_credential(row : @sql.Row) -> @moondark_auth.CredentialModel raise {
-  guard row.get("user_id") is Some(@driver.Value::String(user_id)) else {
-    fail("credentialstore: malformed user_id")
-  }
-  guard row.get("kind") is Some(@driver.Value::String(kind)) else {
-    fail("credentialstore: malformed kind")
-  }
+fn row_to_credential(
+  row : @moondark_database.Row,
+) -> @moondark_auth.CredentialModel raise {
+  let user_id : String = row.get_name("user_id")
+  let kind : String = row.get_name("kind")
   guard @moondark_auth.CredentialKind::of_name(kind) is Some(kind) else {
     fail("credentialstore: unknown kind \{kind}")
   }
-  guard row.get("provider") is Some(@driver.Value::String(provider)) else {
-    fail("credentialstore: malformed provider")
-  }
-  guard row.get("identifier") is Some(@driver.Value::String(identifier)) else {
-    fail("credentialstore: malformed identifier")
-  }
-  guard row.get("secret") is Some(@driver.Value::String(secret)) else {
-    fail("credentialstore: malformed secret")
-  }
-  guard row.get("verified") is Some(@driver.Value::Int64(verified)) else {
-    fail("credentialstore: malformed verified")
-  }
-  guard row.get("created_at") is Some(@driver.Value::Int64(created_at)) else {
-    fail("credentialstore: malformed created_at")
-  }
-  guard row.get("last_used_at") is Some(@driver.Value::Int64(last_used_at)) else {
-    fail("credentialstore: malformed last_used_at")
-  }
+  let provider : String = row.get_name("provider")
+  let identifier : String = row.get_name("identifier")
+  let secret : String = row.get_name("secret")
+  let verified : Bool = row.get_name("verified")
+  let created_at : Int64 = row.get_name("created_at")
+  let last_used_at : Int64 = row.get_name("last_used_at")
   @moondark_auth.CredentialModel::{
     user_id,
     kind,
     provider,
     identifier,
     secret,
-    verified: verified != 0,
+    verified,
     created_at,
     last_used_at,
   }
@@ -101,12 +87,12 @@ pub impl @moondark_auth.CredentialStore for SqliteCredentialStore with fn find_c
   provider,
   identifier,
 ) {
-  let rows = self.db.query(
+  let rows = self.db.query_opt(
     "SELECT \{CREDENTIAL_COLUMNS} FROM \{self.table} WHERE kind = ? AND provider = ? AND identifier = ?",
     params=[kind.name(), provider, identifier],
   )
-  defer rows.close()
-  guard rows.next() is Some(row) else { return None }
+
+  guard rows is Some(row) else { return None }
   Some(row_to_credential(row))
 }
 
@@ -117,13 +103,13 @@ pub impl @moondark_auth.CredentialStore for SqliteCredentialStore with fn creden
 ) {
   // creation order: created_at first, natural key as a deterministic
   // tie-break for credentials minted in the same millisecond.
-  let rows = self.db.query(
+  let rows = self.db.query_all(
     "SELECT \{CREDENTIAL_COLUMNS} FROM \{self.table} WHERE user_id = ? ORDER BY created_at, kind, provider, identifier",
     params=[user_id],
   )
-  defer rows.close()
+
   let creds = []
-  while rows.next() is Some(row) {
+  for row in rows {
     creds.push(row_to_credential(row))
   }
   creds
@@ -144,23 +130,7 @@ pub impl @moondark_auth.CredentialStore for SqliteCredentialStore with fn update
   }
   let result = self.db.execute(
     "UPDATE \{self.table} SET secret = COALESCE(?, secret), verified = COALESCE(?, verified), last_used_at = COALESCE(?, last_used_at) WHERE kind = ? AND provider = ? AND identifier = ?",
-    params=[
-      match secret {
-        Some(s) => @driver.Value::String(s)
-        None => @driver.Value::Null
-      },
-      match verified {
-        Some(v) => @driver.Value::Int64(if v { 1 } else { 0 })
-        None => @driver.Value::Null
-      },
-      match last_used_at {
-        Some(t) => @driver.Value::Int64(t)
-        None => @driver.Value::Null
-      },
-      kind.name(),
-      provider,
-      identifier,
-    ],
+    params=[secret, verified, last_used_at, kind.name(), provider, identifier],
   )
   match result.rows_affected {
     Some(n) if n > 0 => true
@@ -179,12 +149,12 @@ pub impl @moondark_auth.CredentialStore for SqliteCredentialStore with fn remove
   provider,
   identifier,
 ) {
-  let rows = self.db.query(
+  let rows = self.db.query_opt(
     "DELETE FROM \{self.table} WHERE kind = ? AND provider = ? AND identifier = ? RETURNING user_id",
     params=[kind.name(), provider, identifier],
   )
-  defer rows.close()
-  rows.next() is Some(_)
+
+  rows is Some(_)
 }
 
 ///|

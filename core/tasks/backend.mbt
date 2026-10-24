@@ -9,7 +9,12 @@
 /// polls to actually run tasks.
 pub(open) trait DBTaskBackend {
   /// Insert one `Ready` task row into `tx`, returning its id.
-  async fn enqueue(Self, tx : @sql.Transaction, task : TaskArgs, args : Json) -> String
+  async fn enqueue(
+    Self,
+    tx : @database.Transaction,
+    task : TaskArgs,
+    args : Json,
+  ) -> String
   /// Fetch a stored result row by task name and id; `None` when the
   /// row does not exist.
   async fn get_result(Self, task_name : String, id : String) -> TaskResult?

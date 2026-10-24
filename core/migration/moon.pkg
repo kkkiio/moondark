@@ -1,8 +1,7 @@
 supported_targets = "native"
 
 import {
-  "KKKIIO/moondark/database/sql",
-  "KKKIIO/moondark/database/sql/driver",
+  "KKKIIO/moondark/database",
   "moonbitlang/async/fs",
   "moonbitlang/core/env",
   "moonbitlang/core/encoding/utf8",
@@ -49,5 +48,5 @@ dev_build(
 
 import {
   "moonbitlang/async",
-  "KKKIIO/moondark/database/sql/sqltest",
+  "KKKIIO/moondark/database/databasetest",
 } for "test"

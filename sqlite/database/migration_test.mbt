@@ -1,5 +1,7 @@
 ///|
-async fn open(file : String) -> (@sql.DB, @sql.DBExecutor) {
+async fn open(
+  file : String,
+) -> (@moondark_database.DB, @moondark_database.DBExecutor) {
   let dir = @fs.tmpdir(prefix="moondark-mig")
   @database.open_db("\{dir}/\{file}")
 }
@@ -19,9 +21,9 @@ fn two_migrations() -> Array[@migration.Migration] {
 }
 
 ///|
-async fn count_rows(db : @sql.DB, sql : String) -> Int64 {
-  let rows = db.query(sql)
-  defer rows.close()
+async fn count_rows(db : @moondark_database.DB, sql : String) -> Int64 {
+  let rows = db.query_all(sql).iter()
+
   let mut n = 0L
   while rows.next() is Some(_) {
     n += 1
@@ -39,22 +41,24 @@ async test "migrator up applies pending and is idempotent" {
     ignore(db.execute("DROP TABLE IF EXISTS moondark_migrations"))
     ignore(db.execute("DROP TABLE IF EXISTS moondark_migration_records"))
     ignore(db.execute("DROP TABLE IF EXISTS items"))
-    let migrator = @migration.Migrator::new(
-      conn=db.conn(),
-      dialect=@migration.Dialect::Sqlite,
-    )
-    let applied = migrator.up(two_migrations()[:])
-    assert_eq(applied, ["0001_items", "0002_price"])
-    assert_eq(migrator.up(two_migrations()[:]), [])
-    let rows = db.query("SELECT name, price FROM items")
-    defer rows.close()
-    guard rows.next() is Some(row) else { fail("expected row") }
-    assert_true(row.get("name") is Some(String("a;b")))
-    assert_true(row.get("price") is Some(Double(0.0)))
-    for s in migrator.status(two_migrations()[:]) {
-      assert_true(s.applied)
-    }
-    assert_eq(count_rows(db, "SELECT id FROM moondark_migration_records"), 2)
+    db.with_conn(conn => {
+      let migrator = @migration.Migrator::new(
+        conn~,
+        dialect=@migration.Dialect::Sqlite,
+      )
+      let applied = migrator.up(two_migrations()[:])
+      assert_eq(applied, ["0001_items", "0002_price"])
+      assert_eq(migrator.up(two_migrations()[:]), [])
+      let rows = db.query_all("SELECT name, price FROM items").iter()
+
+      guard rows.next() is Some(row) else { fail("expected row") }
+      assert_eq((row.get_name("name") : String), "a;b")
+      assert_eq((row.get_name("price") : Double), 0.0)
+      for s in migrator.status(two_migrations()[:]) {
+        assert_true(s.applied)
+      }
+      assert_eq(count_rows(db, "SELECT id FROM moondark_migration_records"), 2)
+    })
   })
 }
 
@@ -68,48 +72,51 @@ async test "failed migration rolls back and records failure" {
     ignore(db.execute("DROP TABLE IF EXISTS moondark_migrations"))
     ignore(db.execute("DROP TABLE IF EXISTS moondark_migration_records"))
     ignore(db.execute("DROP TABLE IF EXISTS gone"))
-    let migrator = @migration.Migrator::new(
-      conn=db.conn(),
-      dialect=@migration.Dialect::Sqlite,
-    )
-    let bad = [
-      @migration.Migration::sql(
-        name="0001_bad",
-        sql="CREATE TABLE gone(id INTEGER); INSERT INTO nonexistent VALUES (1);",
-      ),
-    ]
-    try {
-      ignore(migrator.up(bad[:]))
-      fail("expected ApplyFailed")
-    } catch {
-      e =>
-        if e is @migration.ApplyFailed(_, name~) {
-          assert_eq(name, "0001_bad")
-        } else {
-          raise e
-        }
-    }
-    // DDL was inside the transaction: table must be gone.
-    assert_eq(
-      count_rows(db, "SELECT name FROM sqlite_master WHERE name='gone'"),
-      0,
-    )
-    // The applied set is empty and the failure is in the records table.
-    assert_eq(count_rows(db, "SELECT name FROM moondark_migrations"), 0)
-    let rows = db.query(
-      "SELECT status, error FROM moondark_migration_records ORDER BY id",
-    )
-    defer rows.close()
-    let statuses : Array[String] = []
-    while rows.next() is Some(row) {
-      guard row.get("status") is Some(String(s)) else { fail("bad record") }
-      statuses.push(s)
-      guard row.get("error") is Some(String(err)) && err.length() > 0 else {
-        fail("expected error detail")
+    db.with_conn(conn => {
+      let migrator = @migration.Migrator::new(
+        conn~,
+        dialect=@migration.Dialect::Sqlite,
+      )
+      let bad = [
+        @migration.Migration::sql(
+          name="0001_bad",
+          sql="CREATE TABLE gone(id INTEGER); INSERT INTO nonexistent VALUES (1);",
+        ),
+      ]
+      try {
+        ignore(migrator.up(bad[:]))
+        fail("expected ApplyFailed")
+      } catch {
+        e =>
+          if e is @migration.ApplyFailed(_, name~) {
+            assert_eq(name, "0001_bad")
+          } else {
+            raise e
+          }
       }
-    }
-    // one record per attempt: the `started` row is updated in place.
-    assert_eq(statuses, ["failed"])
+      // DDL was inside the transaction: table must be gone.
+      assert_eq(
+        count_rows(db, "SELECT name FROM sqlite_master WHERE name='gone'"),
+        0,
+      )
+      // The applied set is empty and the failure is in the records table.
+      assert_eq(count_rows(db, "SELECT name FROM moondark_migrations"), 0)
+      let rows = db
+        .query_all(
+          "SELECT status, error FROM moondark_migration_records ORDER BY id",
+        )
+        .iter()
+
+      let statuses : Array[String] = []
+      while rows.next() is Some(row) {
+        let s : String = row.get_name("status")
+        statuses.push(s)
+        let error : String = row.get_name("error")
+        assert_true(error.length() > 0)
+      }
+      // one record per attempt: the `started` row is updated in place.
+      assert_eq(statuses, ["failed"])
+    })
   })
 }
 
@@ -122,27 +129,29 @@ async test "dirty record blocks further migration" {
     defer db.close()
     ignore(db.execute("DROP TABLE IF EXISTS moondark_migrations"))
     ignore(db.execute("DROP TABLE IF EXISTS moondark_migration_records"))
-    let migrator = @migration.Migrator::new(
-      conn=db.conn(),
-      dialect=@migration.Dialect::Sqlite,
-    )
-    migrator.ensure_tables()
-    ignore(
-      db.execute(
-        "INSERT INTO moondark_migration_records(name, status, started_at) VALUES ('9999_stale', 'started', 0)",
-      ),
-    )
-    try {
-      ignore(migrator.up(two_migrations()[:]))
-      fail("expected DirtyState")
-    } catch {
-      e =>
-        if e is @migration.DirtyState(names) {
-          assert_eq(names, ["9999_stale"])
-        } else {
-          raise e
-        }
-    }
+    db.with_conn(conn => {
+      let migrator = @migration.Migrator::new(
+        conn~,
+        dialect=@migration.Dialect::Sqlite,
+      )
+      migrator.ensure_tables()
+      ignore(
+        db.execute(
+          "INSERT INTO moondark_migration_records(name, status, started_at) VALUES ('9999_stale', 'started', 0)",
+        ),
+      )
+      try {
+        ignore(migrator.up(two_migrations()[:]))
+        fail("expected DirtyState")
+      } catch {
+        e =>
+          if e is @migration.DirtyState(names) {
+            assert_eq(names, ["9999_stale"])
+          } else {
+            raise e
+          }
+      }
+    })
   })
 }
 
@@ -156,31 +165,36 @@ async test "checksum mismatch detects edited migration" {
     ignore(db.execute("DROP TABLE IF EXISTS moondark_migrations"))
     ignore(db.execute("DROP TABLE IF EXISTS moondark_migration_records"))
     ignore(db.execute("DROP TABLE IF EXISTS a"))
-    let migrator = @migration.Migrator::new(
-      conn=db.conn(),
-      dialect=@migration.Dialect::Sqlite,
-    )
-    let v1 = [
-      @migration.Migration::sql(name="0001_a", sql="CREATE TABLE a(x INTEGER);"),
-    ]
-    ignore(migrator.up(v1[:]))
-    let v2 = [
-      @migration.Migration::sql(
-        name="0001_a",
-        sql="CREATE TABLE a(x INTEGER, y INTEGER);",
-      ),
-    ]
-    try {
-      ignore(migrator.up(v2[:]))
-      fail("expected ChecksumMismatch")
-    } catch {
-      e =>
-        if e is @migration.ChecksumMismatch(name~, ..) {
-          assert_eq(name, "0001_a")
-        } else {
-          raise e
-        }
-    }
+    db.with_conn(conn => {
+      let migrator = @migration.Migrator::new(
+        conn~,
+        dialect=@migration.Dialect::Sqlite,
+      )
+      let v1 = [
+        @migration.Migration::sql(
+          name="0001_a",
+          sql="CREATE TABLE a(x INTEGER);",
+        ),
+      ]
+      ignore(migrator.up(v1[:]))
+      let v2 = [
+        @migration.Migration::sql(
+          name="0001_a",
+          sql="CREATE TABLE a(x INTEGER, y INTEGER);",
+        ),
+      ]
+      try {
+        ignore(migrator.up(v2[:]))
+        fail("expected ChecksumMismatch")
+      } catch {
+        e =>
+          if e is @migration.ChecksumMismatch(name~, ..) {
+            assert_eq(name, "0001_a")
+          } else {
+            raise e
+          }
+      }
+    })
   })
 }
 
@@ -194,21 +208,23 @@ async test "bootstrap stamps the full set on a fresh database" {
     ignore(db.execute("DROP TABLE IF EXISTS moondark_migrations"))
     ignore(db.execute("DROP TABLE IF EXISTS moondark_migration_records"))
     ignore(db.execute("DROP TABLE IF EXISTS items"))
-    let migrator = @migration.Migrator::new(
-      conn=db.conn(),
-      dialect=@migration.Dialect::Sqlite,
-    )
-    migrator.bootstrap(
-      schema="CREATE TABLE items(id INTEGER PRIMARY KEY, name TEXT, price REAL DEFAULT 0);",
-      migrations=two_migrations()[:],
-    )
-    assert_eq(migrator.up(two_migrations()[:]), [])
-    try {
-      migrator.bootstrap(schema="SELECT 1", migrations=two_migrations()[:])
-      fail("expected NotFresh")
-    } catch {
-      e => assert_true(e is @migration.NotFresh)
-    }
+    db.with_conn(conn => {
+      let migrator = @migration.Migrator::new(
+        conn~,
+        dialect=@migration.Dialect::Sqlite,
+      )
+      migrator.bootstrap(
+        schema="CREATE TABLE items(id INTEGER PRIMARY KEY, name TEXT, price REAL DEFAULT 0);",
+        migrations=two_migrations()[:],
+      )
+      assert_eq(migrator.up(two_migrations()[:]), [])
+      try {
+        migrator.bootstrap(schema="SELECT 1", migrations=two_migrations()[:])
+        fail("expected NotFresh")
+      } catch {
+        e => assert_true(e is @migration.NotFresh)
+      }
+    })
   })
 }
 
@@ -286,33 +302,35 @@ async test "up rejects a pending migration inserted before the latest applied" {
     ignore(db.execute("DROP TABLE IF EXISTS moondark_migrations"))
     ignore(db.execute("DROP TABLE IF EXISTS moondark_migration_records"))
     ignore(db.execute("DROP TABLE IF EXISTS items"))
-    let migrator = @migration.Migrator::new(
-      conn=db.conn(),
-      dialect=@migration.Dialect::Sqlite,
-    )
-    ignore(migrator.up(two_migrations()[:]))
-    // A late-added 0000 sorts before the already-applied 0002 —
-    // history is append-only at the tail.
-    let spliced = [
-      @migration.Migration::sql(
-        name="0000_spliced",
-        sql="CREATE TABLE spliced(x INTEGER);",
-      ),
-      ..two_migrations(),
-    ]
-    try {
-      ignore(migrator.up(spliced[:]))
-      fail("expected OutOfOrder")
-    } catch {
-      e =>
-        if e is @migration.OutOfOrder(name~, latest~) {
-          assert_eq(name, "0000_spliced")
-          assert_eq(latest, "0002_price")
-        } else {
-          raise e
-        }
-    }
-    // And nothing was applied.
-    assert_eq(count_rows(db, "SELECT name FROM moondark_migrations"), 2)
+    db.with_conn(conn => {
+      let migrator = @migration.Migrator::new(
+        conn~,
+        dialect=@migration.Dialect::Sqlite,
+      )
+      ignore(migrator.up(two_migrations()[:]))
+      // A late-added 0000 sorts before the already-applied 0002 —
+      // history is append-only at the tail.
+      let spliced = [
+        @migration.Migration::sql(
+          name="0000_spliced",
+          sql="CREATE TABLE spliced(x INTEGER);",
+        ),
+        ..two_migrations(),
+      ]
+      try {
+        ignore(migrator.up(spliced[:]))
+        fail("expected OutOfOrder")
+      } catch {
+        e =>
+          if e is @migration.OutOfOrder(name~, latest~) {
+            assert_eq(name, "0000_spliced")
+            assert_eq(latest, "0002_price")
+          } else {
+            raise e
+          }
+      }
+      // And nothing was applied.
+      assert_eq(count_rows(db, "SELECT name FROM moondark_migrations"), 2)
+    })
   })
 }

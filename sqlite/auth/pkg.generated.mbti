@@ -2,7 +2,7 @@
 package "KKKIIO/moondark_sqlite/auth"
 
 import {
-  "KKKIIO/moondark/database/sql",
+  "KKKIIO/moondark/database",
 }
 
 // Values
@@ -11,7 +11,7 @@ import {
 
 // Types and methods
 type SqliteCredentialStore
-pub fn SqliteCredentialStore::SqliteCredentialStore(@sql.DB, table? : String) -> Self
+pub fn SqliteCredentialStore::SqliteCredentialStore(@database.DB, table? : String) -> Self
 pub async fn SqliteCredentialStore::add_credential(Self, @KKKIIO/moondark/auth.CredentialModel) -> Bool
 pub async fn SqliteCredentialStore::credentials_of(Self, String) -> Array[@KKKIIO/moondark/auth.CredentialModel]
 pub async fn SqliteCredentialStore::delete_credentials_of(Self, String) -> Unit

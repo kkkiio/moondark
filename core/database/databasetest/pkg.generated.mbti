@@ -1,9 +1,9 @@
 // Generated using `moon info`, DON'T EDIT IT
-package "KKKIIO/moondark/database/sql/sqltest"
+package "KKKIIO/moondark/database/databasetest"
 
 import {
-  "KKKIIO/moondark/database/sql",
-  "KKKIIO/moondark/database/sql/driver",
+  "KKKIIO/moondark/database",
+  "KKKIIO/moondark/database/driver",
 }
 
 // Values
@@ -17,9 +17,9 @@ pub(all) struct FakeConn {
   mut commit_count : Int32
   mut rollback_count : Int32
 }
+pub async fn FakeConn::batch_execute(Self, String) -> Unit
 pub async fn FakeConn::begin(Self) -> &@driver.Tx
 pub async fn FakeConn::close(Self) -> Unit
-pub async fn FakeConn::execute_script(Self, String) -> Unit
 pub fn FakeConn::is_valid(Self) -> Bool
 pub async fn FakeConn::ping(Self) -> Unit
 pub async fn FakeConn::prepare(Self, String) -> &@driver.Stmt
@@ -32,7 +32,7 @@ pub struct FakeConnector {
 }
 pub async fn FakeConnector::connect(Self) -> (&@driver.Conn, &@driver.ConnExecutor)
 pub fn FakeConnector::new() -> Self
-pub fn FakeConnector::open_db(Self) -> (@sql.DB, @sql.DBExecutor)
+pub fn FakeConnector::open_db(Self) -> (@database.DB, @database.DBExecutor)
 pub impl @driver.Connector for FakeConnector
 
 // Type aliases

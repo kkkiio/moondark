@@ -2,7 +2,7 @@
 /// `@moondark_sessions.SessionStore` backed by a PostgreSQL table, written in
 /// PostgreSQL's native SQL (`$N` placeholders).
 struct PostgresSessionStore {
-  db : @sql.DB
+  db : @moondark_database.DB
   table : String
 }
 
@@ -11,7 +11,7 @@ struct PostgresSessionStore {
 /// schema. It is interpolated into SQL statements verbatim, so it must
 /// be a trusted identifier.
 pub fn PostgresSessionStore::PostgresSessionStore(
-  db : @sql.DB,
+  db : @moondark_database.DB,
   table~ : String = "sessions",
 ) -> PostgresSessionStore {
   PostgresSessionStore::{ db, table, }
@@ -19,12 +19,12 @@ pub fn PostgresSessionStore::PostgresSessionStore(
 
 ///|
 async fn PostgresSessionStore::exists(self : Self, key : String) -> Bool {
-  let rows = self.db.query(
+  let rows = self.db.query_opt(
     "SELECT 1 FROM \{self.table} WHERE session_key = $1",
     params=[key],
   )
-  defer rows.close()
-  rows.next() is Some(_)
+
+  rows is Some(_)
 }
 
 ///|
@@ -32,18 +32,14 @@ pub impl @moondark_sessions.SessionStore for PostgresSessionStore with fn get(
   self,
   key,
 ) {
-  let rows = self.db.query(
+  let rows = self.db.query_opt(
     "SELECT session_data, expires_at FROM \{self.table} WHERE session_key = $1",
     params=[key],
   )
-  defer rows.close()
-  guard rows.next() is Some(row) else { return None }
-  guard row.get("session_data") is Some(@driver.Value::String(data)) else {
-    fail("sessionstore: malformed session_data")
-  }
-  guard row.get("expires_at") is Some(@driver.Value::Int64(expires_at)) else {
-    fail("sessionstore: malformed expires_at")
-  }
+
+  guard rows is Some(row) else { return None }
+  let data : String = row.get_name("session_data")
+  let expires_at : Int64 = row.get_name("expires_at")
   guard @json.parse(data) is Object(data) else {
     fail("sessionstore: malformed session_data")
   }

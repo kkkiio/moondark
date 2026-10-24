@@ -1,6 +1,6 @@
 # moondark_postgresql
 
-PostgreSQL integration module for MoonDark, providing a `database/sql` driver, `PostgresSessionStore`, `PostgresTaskBackend`, and `PostgresCredentialStore`.
+PostgreSQL integration module for MoonDark, providing a `database` driver, `PostgresSessionStore`, `PostgresTaskBackend`, and `PostgresCredentialStore`.
 
 ## Quick Start
 
@@ -14,8 +14,8 @@ async test {
     group.spawn_bg(no_wait=true, () => executor.run())
     db.ready()
     defer db.close()
-    let rows = db.query("SELECT $1::int4 + 1 AS n", params=[41])
-    defer rows.close()
+    let row = db.query_one("SELECT $1::int4 + 1 AS n", params=[41])
+    assert_eq((row.get_name("n") : Int32), 42)
   })
 }
 ```
@@ -24,7 +24,7 @@ async test {
 
 | Package | Core Interface | Public API |
 |---|---|---|
-| `KKKIIO/moondark_postgresql/database` | `database/sql/driver` | `open_db`, `Driver` |
+| `KKKIIO/moondark_postgresql/database` | `database/driver` | `open_db`, `Driver` |
 | `KKKIIO/moondark_postgresql/sessions` | `sessions.SessionStore` | `PostgresSessionStore` |
 | `KKKIIO/moondark_postgresql/tasks` | `tasks.DBTaskBackend`, `tasks.TaskStore` | `PostgresTaskBackend` |
 | `KKKIIO/moondark_postgresql/auth` | `auth.CredentialStore` | `PostgresCredentialStore` |

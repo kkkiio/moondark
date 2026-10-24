@@ -2,7 +2,7 @@
 package "KKKIIO/moondark_postgresql/sessions"
 
 import {
-  "KKKIIO/moondark/database/sql",
+  "KKKIIO/moondark/database",
 }
 
 // Values
@@ -11,7 +11,7 @@ import {
 
 // Types and methods
 type PostgresSessionStore
-pub fn PostgresSessionStore::PostgresSessionStore(@sql.DB, table? : String) -> Self
+pub fn PostgresSessionStore::PostgresSessionStore(@database.DB, table? : String) -> Self
 pub async fn PostgresSessionStore::create(Self, @KKKIIO/moondark/sessions.Session) -> Bool
 pub async fn PostgresSessionStore::delete(Self, String) -> Unit
 pub async fn PostgresSessionStore::get(Self, String) -> @KKKIIO/moondark/sessions.Session?

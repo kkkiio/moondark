@@ -1,0 +1,159 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "KKKIIO/moondark/database"
+
+import {
+  "KKKIIO/moondark/database/driver",
+  "moonbitlang/core/debug",
+  "moonbitlang/x/time",
+}
+
+// Values
+
+// Errors
+pub(all) suberror DatabaseError {
+  Closed(String)
+  ScopeExpired
+  ExecutorAlreadyStarted
+  ArityMismatch(expected~ : Int32, actual~ : Int32)
+  RowCount(String)
+  ColumnNotFound(String)
+  Decode(expected~ : String, actual~ : @driver.Value)
+} derive(@debug.Debug)
+pub fn DatabaseError::to_repr(Self) -> @debug.Repr
+
+// Types and methods
+type Conn
+pub async fn Conn::batch_execute(Self, String) -> Unit
+pub async fn Conn::execute(Self, String, params? : ArrayView[&ToSql]) -> @driver.ExecResult
+pub async fn Conn::ping(Self) -> Unit
+pub async fn Conn::query_all(Self, String, params? : ArrayView[&ToSql]) -> Array[Row]
+pub async fn Conn::query_one(Self, String, params? : ArrayView[&ToSql]) -> Row
+pub async fn Conn::query_opt(Self, String, params? : ArrayView[&ToSql]) -> Row?
+pub async fn[T] Conn::with_prepared(Self, String, async (PreparedStatement) -> T) -> T
+pub async fn[T] Conn::with_stream(Self, String, params? : ArrayView[&ToSql], async (RowStream) -> T) -> T
+pub async fn[T] Conn::with_transaction(Self, async (Transaction) -> T) -> T
+pub impl GenericClient for Conn
+
+type DB
+pub async fn DB::batch_execute(Self, String) -> Unit
+pub async fn DB::close(Self) -> Unit
+pub fn DB::create(&@driver.Connector, max_idle? : Int32, max_open? : Int32, max_lifetime? : @time.Duration, max_idle_time? : @time.Duration, statement_cache_capacity? : Int32) -> (Self, DBExecutor)
+pub async fn DB::execute(Self, String, params? : ArrayView[&ToSql]) -> @driver.ExecResult
+pub async fn DB::ping(Self) -> Unit
+pub async fn DB::query_all(Self, String, params? : ArrayView[&ToSql]) -> Array[Row]
+pub async fn DB::query_one(Self, String, params? : ArrayView[&ToSql]) -> Row
+pub async fn DB::query_opt(Self, String, params? : ArrayView[&ToSql]) -> Row?
+pub async fn DB::ready(Self) -> Unit
+pub fn DB::stats(Self) -> DBStats
+pub async fn[T] DB::with_conn(Self, async (Conn) -> T) -> T
+pub async fn[T] DB::with_stream(Self, String, params? : ArrayView[&ToSql], async (RowStream) -> T) -> T
+pub async fn[T] DB::with_transaction(Self, async (Transaction) -> T) -> T
+pub impl GenericClient for DB
+
+type DBExecutor
+pub async fn DBExecutor::run(Self) -> Unit
+
+pub struct DBStats {
+  max_open : Int32
+  open : Int32
+  in_use : Int32
+  idle : Int32
+  wait_count : Int64
+  wait_duration_ms : Int64
+  max_idle_closed : Int64
+  max_idle_time_closed : Int64
+  max_lifetime_closed : Int64
+} derive(Eq, @debug.Debug)
+pub fn DBStats::equal(Self, Self) -> Bool
+pub fn DBStats::not_equal(Self, Self) -> Bool
+pub fn DBStats::to_repr(Self) -> @debug.Repr
+
+type PreparedStatement
+pub async fn PreparedStatement::execute(Self, params? : ArrayView[&ToSql]) -> @driver.ExecResult
+pub fn PreparedStatement::num_input(Self) -> Int32 raise
+pub async fn PreparedStatement::query_all(Self, params? : ArrayView[&ToSql]) -> Array[Row]
+pub async fn PreparedStatement::query_one(Self, params? : ArrayView[&ToSql]) -> Row
+pub async fn PreparedStatement::query_opt(Self, params? : ArrayView[&ToSql]) -> Row?
+pub async fn[T] PreparedStatement::with_stream(Self, params? : ArrayView[&ToSql], async (RowStream) -> T) -> T
+
+type Row
+pub fn Row::columns(Self) -> ArrayView[String]
+pub fn[T : FromSql] Row::get(Self, Int32) -> T raise
+pub fn[T : FromSql] Row::get_name(Self, String) -> T raise
+pub fn Row::index_of(Self, String) -> Int32?
+pub fn Row::len(Self) -> Int32
+pub fn[T : FromSql] Row::try_get(Self, Int32) -> T? raise
+pub fn[T : FromSql] Row::try_get_name(Self, String) -> T? raise
+pub fn Row::values(Self) -> ArrayView[@driver.Value]
+
+type RowStream
+pub async fn RowStream::collect(Self) -> Array[Row]
+pub fn RowStream::columns(Self) -> ArrayView[String] raise
+pub async fn RowStream::finish(Self) -> Unit
+pub async fn RowStream::next(Self) -> Row?
+pub async fn RowStream::one(Self) -> Row
+pub async fn RowStream::opt(Self) -> Row?
+
+type Transaction
+pub async fn Transaction::batch_execute(Self, String) -> Unit
+pub async fn Transaction::commit(Self) -> Unit
+pub async fn Transaction::execute(Self, String, params? : ArrayView[&ToSql]) -> @driver.ExecResult
+pub async fn Transaction::ping(Self) -> Unit
+pub async fn Transaction::query_all(Self, String, params? : ArrayView[&ToSql]) -> Array[Row]
+pub async fn Transaction::query_one(Self, String, params? : ArrayView[&ToSql]) -> Row
+pub async fn Transaction::query_opt(Self, String, params? : ArrayView[&ToSql]) -> Row?
+pub async fn Transaction::rollback(Self) -> Unit
+pub async fn[T] Transaction::with_prepared(Self, String, async (PreparedStatement) -> T) -> T
+pub async fn[T] Transaction::with_stream(Self, String, params? : ArrayView[&ToSql], async (RowStream) -> T) -> T
+pub impl GenericClient for Transaction
+
+// Type aliases
+pub using @driver {type ExecResult}
+
+pub using @driver {type Value}
+
+// Traits
+pub(open) trait FromSql {
+  fn from_sql(@driver.Value) -> Self raise
+}
+pub impl FromSql for Bool
+pub impl FromSql for Int32
+pub impl FromSql for Int64
+pub impl FromSql for UInt32
+pub impl FromSql for UInt64
+pub impl FromSql for Float
+pub impl FromSql for Double
+pub impl FromSql for String
+pub impl[T : FromSql] FromSql for T?
+pub impl FromSql for Bytes
+pub impl FromSql for @driver.Value
+pub impl FromSql for Json
+pub impl FromSql for @time.ZonedDateTime
+
+pub(open) trait GenericClient {
+  async fn query_all(Self, String, params? : ArrayView[&ToSql]) -> Array[Row]
+  async fn query_one(Self, String, params? : ArrayView[&ToSql]) -> Row
+  async fn query_opt(Self, String, params? : ArrayView[&ToSql]) -> Row?
+  async fn execute(Self, String, params? : ArrayView[&ToSql]) -> @driver.ExecResult
+  async fn batch_execute(Self, String) -> Unit
+  async fn ping(Self) -> Unit
+}
+
+pub(open) trait ToSql {
+  fn to_sql(Self) -> @driver.Value
+}
+pub impl ToSql for Bool
+pub impl ToSql for Int32
+pub impl ToSql for Int64
+pub impl ToSql for UInt32
+pub impl ToSql for UInt64
+pub impl ToSql for Float
+pub impl ToSql for Double
+pub impl ToSql for String
+pub impl[T : ToSql] ToSql for T?
+pub impl ToSql for Bytes
+pub impl ToSql for @driver.Value
+pub impl ToSql for Json
+pub impl ToSql for @time.ZonedDateTime
+pub impl ToSql for BytesView
+pub impl ToSql for StringView
