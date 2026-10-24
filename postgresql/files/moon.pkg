@@ -1,0 +1,15 @@
+import {
+  "KKKIIO/moondark/files" @moondark_files,
+  "KKKIIO/moondark/database" @moondark_database,
+  "moonbitlang/core/env",
+}
+
+import {
+  "moonbitlang/async",
+  "moonbitlang/async/fs",
+  "KKKIIO/moondark/files/filestest",
+  "KKKIIO/moondark_postgresql/database" @postgresql_database,
+  "xziheng/testcontainers/postgres",
+} for "test"
+
+supported_targets = "native"
