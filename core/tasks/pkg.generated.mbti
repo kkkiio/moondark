@@ -29,6 +29,15 @@ pub async fn DummyBackend::save(Self, TaskResult) -> Unit
 pub impl DBTaskBackend for DummyBackend
 pub impl TaskStore for DummyBackend
 
+pub(all) struct Task[T] {
+  name : String
+  max_attempts : Int32
+}
+pub fn[T : @json.FromJson] Task::bind(Self[T], async (TaskContext, T) -> Json) -> TaskHandler
+pub async fn[T : ToJson] Task::enqueue(Self[T], &DBTaskBackend, @database.Transaction, args~ : T, run_after? : Int64) -> String
+pub async fn[T] Task::get_result(Self[T], &DBTaskBackend, String) -> TaskResult?
+pub fn[T] Task::new(name~ : String, max_attempts? : Int32) -> Self[T] raise InvalidTask
+
 pub(all) struct TaskArgs {
   name : String
   run_after : Int64?
@@ -50,11 +59,10 @@ pub fn TaskError::not_equal(Self, Self) -> Bool
 pub fn TaskError::to_json(Self) -> Json
 pub fn TaskError::to_repr(Self) -> @debug.Repr
 
-pub struct TaskExec {
+pub struct TaskHandler {
   name : String
   func : async (TaskContext, Json) -> Json
 }
-pub fn[T : @json.FromJson] TaskExec::from_def(TransactionalTaskDef[T], func~ : async (TaskContext, T) -> Json) -> Self
 
 pub(all) struct TaskResult {
   id : String
@@ -87,17 +95,9 @@ pub fn TaskResultStatus::not_equal(Self, Self) -> Bool
 pub fn TaskResultStatus::to_json(Self) -> Json
 pub fn TaskResultStatus::to_repr(Self) -> @debug.Repr
 
-pub(all) struct TransactionalTaskDef[T] {
-  name : String
-  max_attempts : Int32
-}
-pub async fn[T : ToJson] TransactionalTaskDef::enqueue_on(Self[T], &DBTaskBackend, @database.Transaction, args~ : T, run_after? : Int64) -> String
-pub async fn[T] TransactionalTaskDef::get_result(Self[T], &DBTaskBackend, String) -> TaskResult?
-pub fn[T] TransactionalTaskDef::new(name~ : String, max_attempts? : Int32) -> Self[T] raise InvalidTask
-
 pub struct Worker {
   store : &TaskStore
-  tasks : Map[String, TaskExec]
+  tasks : Map[String, TaskHandler]
   id : String
   poll_interval : Int32
   backoff : (Int32) -> Int64
@@ -110,7 +110,7 @@ pub struct Worker {
 }
 pub fn Worker::is_healthy(Self) -> Bool
 pub fn Worker::last_heartbeat(Self) -> Int64
-pub fn Worker::new(store~ : &TaskStore, tasks~ : Array[TaskExec], id? : String, poll_interval? : Int32, backoff? : (Int32) -> Int64, reclaim_after? : Int64?, unhealthy_after? : Int64, now? : () -> Int64) -> Self
+pub fn Worker::new(store~ : &TaskStore, tasks~ : Array[TaskHandler], id? : String, poll_interval? : Int32, backoff? : (Int32) -> Int64, reclaim_after? : Int64?, unhealthy_after? : Int64, now? : () -> Int64) -> Self
 pub async fn Worker::run(Self) -> Unit
 pub async fn Worker::run_once(Self) -> Bool
 

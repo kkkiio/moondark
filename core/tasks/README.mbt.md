@@ -7,7 +7,7 @@ Transactional background task queue and worker backed by `database`.
 ```mbt check
 ///|
 async test {
-  let email : @tasks.TransactionalTaskDef[Json] = @tasks.TransactionalTaskDef::new(
+  let email : @tasks.Task[Json] = @tasks.Task::new(
     name="send_email",
     max_attempts=3,
   )
@@ -18,12 +18,10 @@ async test {
     db.ready()
     // Enqueue inside the caller's database transaction
     let id = db.with_transaction(tx => {
-      email.enqueue_on(backend, tx, args={ "to": "user@example.com" })
+      email.enqueue(backend, tx, args={ "to": "user@example.com" })
     })
     let worker = @tasks.Worker::new(store=backend, tasks=[
-      @tasks.TaskExec::from_def(email, func=(_ctx, args) => {
-        Json::object({ "sent": args })
-      }),
+      email.bind((_ctx, args) => Json::object({ "sent": args })),
     ])
     assert_true(worker.run_once())
     assert_true(

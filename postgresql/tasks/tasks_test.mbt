@@ -31,12 +31,12 @@ async test "enqueue stores a ready result and get_result reads it back" {
     let backend = @tasks.PostgresTaskBackend::new(db, now=() => 1000)
     // applying the schema is idempotent
     apply_schema(db)
-    let email : @moondark_tasks.TransactionalTaskDef[Json] = @moondark_tasks.TransactionalTaskDef::new(
+    let email : @moondark_tasks.Task[Json] = @moondark_tasks.Task::new(
       name="send_email",
       max_attempts=3,
     )
     let id = db.with_transaction(tx => {
-      email.enqueue_on(backend, tx, args={ "to": "a@b.c" }, run_after=9_000)
+      email.enqueue(backend, tx, args={ "to": "a@b.c" }, run_after=9_000)
     })
     guard email.get_result(backend, id) is Some(stored) else {
       fail("expected a stored result")
@@ -62,12 +62,10 @@ async test "enqueue stores a ready result and get_result reads it back" {
 async test "enqueue commits and rolls back with the transaction" {
   run_db(db => {
     let backend = @tasks.PostgresTaskBackend::new(db)
-    let def : @moondark_tasks.TransactionalTaskDef[Json] = @moondark_tasks.TransactionalTaskDef::new(
-      name="t",
-    )
+    let def : @moondark_tasks.Task[Json] = @moondark_tasks.Task::new(name="t")
     // committed: the task row is visible once with_transaction returns
     let committed = db.with_transaction(tx => {
-      def.enqueue_on(backend, tx, args={ "k": 1 })
+      def.enqueue(backend, tx, args={ "k": 1 })
     })
     guard def.get_result(backend, committed) is Some(stored) else {
       fail("expected the committed task row")
@@ -78,7 +76,7 @@ async test "enqueue commits and rolls back with the transaction" {
     try
       (
         db.with_transaction(tx => {
-          rolled_back = def.enqueue_on(backend, tx, args={ "k": 2 })
+          rolled_back = def.enqueue(backend, tx, args={ "k": 2 })
           fail("rollback")
         }) : Unit)
     catch {
@@ -94,16 +92,16 @@ async test "enqueue commits and rolls back with the transaction" {
 async test "worker runs a claimed task and persists the return value" {
   run_db(db => {
     let backend = @tasks.PostgresTaskBackend::new(db, now=() => 1000)
-    let def : @moondark_tasks.TransactionalTaskDef[Json] = @moondark_tasks.TransactionalTaskDef::new(
+    let def : @moondark_tasks.Task[Json] = @moondark_tasks.Task::new(
       name="echo",
     )
     let id = db.with_transaction(tx => {
-      def.enqueue_on(backend, tx, args={ "n": 21 })
+      def.enqueue(backend, tx, args={ "n": 21 })
     })
-    let exec = @moondark_tasks.TaskExec::from_def(def, func=(_c, a) => a)
+    let handler = def.bind((_c, a) => a)
     let worker = @moondark_tasks.Worker::new(
       store=backend,
-      tasks=[exec],
+      tasks=[handler],
       id="worker-1",
       now=() => 2000,
     )
@@ -127,20 +125,18 @@ async test "worker runs a claimed task and persists the return value" {
 async test "worker reschedules failures and exhausts the attempt budget" {
   run_db(db => {
     let backend = @tasks.PostgresTaskBackend::new(db, now=() => 100)
-    let def : @moondark_tasks.TransactionalTaskDef[Json] = @moondark_tasks.TransactionalTaskDef::new(
+    let def : @moondark_tasks.Task[Json] = @moondark_tasks.Task::new(
       name="flaky",
       max_attempts=2,
     )
     let id = db.with_transaction(tx => {
-      def.enqueue_on(backend, tx, args=Json::object({}))
+      def.enqueue(backend, tx, args=Json::object({}))
     })
-    let exec = @moondark_tasks.TaskExec::from_def(def, func=(_c, _a) => {
-      fail("boom")
-    })
+    let handler = def.bind((_c, _a) => fail("boom"))
     let mut now = 1000L
     let worker = @moondark_tasks.Worker::new(
       store=backend,
-      tasks=[exec],
+      tasks=[handler],
       id="w1",
       backoff=attempt => attempt.to_int64() * 100,
       reclaim_after=None,
@@ -178,22 +174,22 @@ async test "worker reschedules failures and exhausts the attempt budget" {
 async test "worker reclaims stale running rows only when enabled" {
   run_db(db => {
     let backend = @tasks.PostgresTaskBackend::new(db, now=() => 0)
-    let def : @moondark_tasks.TransactionalTaskDef[Json] = @moondark_tasks.TransactionalTaskDef::new(
+    let def : @moondark_tasks.Task[Json] = @moondark_tasks.Task::new(
       name="t",
       max_attempts=3,
     )
     let id = db.with_transaction(tx => {
-      def.enqueue_on(backend, tx, args=Json::object({}))
+      def.enqueue(backend, tx, args=Json::object({}))
     })
     // a crashed worker claimed the row long ago and never saved
     guard backend.claim(worker_id="dead", now=0L, stale_before=None) is Some(_) else {
       fail("expected the first claim to succeed")
     }
-    let exec = @moondark_tasks.TaskExec::from_def(def, func=(_c, a) => a)
+    let handler = def.bind((_c, a) => a)
     // reclaim disabled: the stale row is left alone
     let once = @moondark_tasks.Worker::new(
       store=backend,
-      tasks=[exec],
+      tasks=[handler],
       reclaim_after=None,
       now=() => 100,
     )
@@ -201,7 +197,7 @@ async test "worker reclaims stale running rows only when enabled" {
     // reclaim enabled: the stale row is claimed again and runs to success
     let worker = @moondark_tasks.Worker::new(
       store=backend,
-      tasks=[exec],
+      tasks=[handler],
       id="worker-2",
       reclaim_after=Some(60),
       now=() => 100,
@@ -214,12 +210,12 @@ async test "worker reclaims stale running rows only when enabled" {
     assert_eq(stored.attempts, 2)
     assert_eq(stored.worker_ids, ["dead", "worker-2"])
     // a running row out of attempts is never reclaimed
-    let single : @moondark_tasks.TransactionalTaskDef[Json] = @moondark_tasks.TransactionalTaskDef::new(
+    let single : @moondark_tasks.Task[Json] = @moondark_tasks.Task::new(
       name="u",
       max_attempts=1,
     )
     let spent = db.with_transaction(tx => {
-      single.enqueue_on(backend, tx, args=Json::object({}))
+      single.enqueue(backend, tx, args=Json::object({}))
     })
     ignore(backend.claim(worker_id="dead", now=0L, stale_before=None))
     assert_true(
@@ -240,17 +236,15 @@ async test "claim picks due rows in enqueue order" {
       clock += 1
       clock
     })
-    let def : @moondark_tasks.TransactionalTaskDef[Json] = @moondark_tasks.TransactionalTaskDef::new(
-      name="t",
-    )
+    let def : @moondark_tasks.Task[Json] = @moondark_tasks.Task::new(name="t")
     let first = db.with_transaction(tx => {
-      def.enqueue_on(backend, tx, args=Json::object({}))
+      def.enqueue(backend, tx, args=Json::object({}))
     })
     let second = db.with_transaction(tx => {
-      def.enqueue_on(backend, tx, args=Json::object({}))
+      def.enqueue(backend, tx, args=Json::object({}))
     })
     let deferred = db.with_transaction(tx => {
-      def.enqueue_on(backend, tx, args=Json::object({}), run_after=10_000)
+      def.enqueue(backend, tx, args=Json::object({}), run_after=10_000)
     })
     let claim = () => backend.claim(worker_id="w", now=1000L, stale_before=None)
     guard claim() is Some(a) else { fail("expected a claim") }
@@ -279,12 +273,10 @@ async test "claim picks due rows in enqueue order" {
 async test "concurrent claims never pick the same row" {
   run_db(max_open=4, db => {
     let backend = @tasks.PostgresTaskBackend::new(db)
-    let def : @moondark_tasks.TransactionalTaskDef[Json] = @moondark_tasks.TransactionalTaskDef::new(
-      name="t",
-    )
+    let def : @moondark_tasks.Task[Json] = @moondark_tasks.Task::new(name="t")
     db.with_transaction(tx => {
-      ignore(def.enqueue_on(backend, tx, args=Json::object({})))
-      ignore(def.enqueue_on(backend, tx, args=Json::object({})))
+      ignore(def.enqueue(backend, tx, args=Json::object({})))
+      ignore(def.enqueue(backend, tx, args=Json::object({})))
     })
     let claims : Array[async () -> @moondark_tasks.TaskResult?] = [
       () => backend.claim(worker_id="w1", now=1000L, stale_before=None),
@@ -303,23 +295,23 @@ async test "concurrent claims never pick the same row" {
     assert_eq(ids.length(), 2)
     assert_true(ids[0] != ids[1])
     // two run_once calls likewise never run the same task twice
-    let exec = @moondark_tasks.TaskExec::from_def(def, func=(_c, a) => a)
+    let handler = def.bind((_c, a) => a)
     let first = db.with_transaction(tx => {
-      def.enqueue_on(backend, tx, args=Json::object({}))
+      def.enqueue(backend, tx, args=Json::object({}))
     })
     let second = db.with_transaction(tx => {
-      def.enqueue_on(backend, tx, args=Json::object({}))
+      def.enqueue(backend, tx, args=Json::object({}))
     })
     let w1 = @moondark_tasks.Worker::new(
       store=backend,
-      tasks=[exec],
+      tasks=[handler],
       id="w1",
       reclaim_after=None,
       now=() => 2000,
     )
     let w2 = @moondark_tasks.Worker::new(
       store=backend,
-      tasks=[exec],
+      tasks=[handler],
       id="w2",
       reclaim_after=None,
       now=() => 2000,
@@ -344,12 +336,12 @@ async test "concurrent claims never pick the same row" {
 async test "a reclaimed task keeps the newer attempt when an old worker completes" {
   run_db(db => {
     let backend = @tasks.PostgresTaskBackend::new(db)
-    let def : @moondark_tasks.TransactionalTaskDef[Json] = @moondark_tasks.TransactionalTaskDef::new(
+    let def : @moondark_tasks.Task[Json] = @moondark_tasks.Task::new(
       name="fenced",
       max_attempts=3,
     )
     let id = db.with_transaction(tx => {
-      def.enqueue_on(backend, tx, args=Json::null())
+      def.enqueue(backend, tx, args=Json::null())
     })
     let old = backend.claim(worker_id="old", now=0, stale_before=None).unwrap()
     let current = backend

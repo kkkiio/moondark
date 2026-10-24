@@ -32,11 +32,11 @@ pub(open) trait TaskStore {
 /// outside the request-response cycle.
 ///
 /// `tasks` is the registry resolving `TaskResult.task_name` back to a
-/// `TaskExec`; workers and producers can run in the same process or
+/// `TaskHandler`; workers and producers can run in the same process or
 /// different ones — only the table is shared.
 pub struct Worker {
   store : &TaskStore
-  tasks : Map[String, TaskExec]
+  tasks : Map[String, TaskHandler]
   /// identifier recorded in `TaskResult.worker_ids` on each claim.
   id : String
   /// sleep between polls when the queue is empty, in ms.
@@ -77,34 +77,20 @@ pub fn default_backoff(attempt : Int32) -> Int64 {
 }
 
 ///|
-/// The worker-side half of a task: its name plus the function to run.
-/// Retry policy is not stored here — it lives on the task row, as
-/// snapshotted by `TransactionalTaskDef` at enqueue time.
-pub struct TaskExec {
+/// The worker-side half of a task: its name plus the function to run,
+/// built via `Task::bind`. Retry policy is not stored here — it lives
+/// on the task row, as snapshotted by `Task` at enqueue time.
+pub struct TaskHandler {
   name : String
   func : async (TaskContext, Json) -> Json
 }
 
 ///|
-/// Build a `TaskExec` for `def` out of a typed function. `args` are
-/// decoded through `T : FromJson`; a row whose serialized args fail
-/// to decode fails the attempt like any other error.
-pub fn[T : FromJson] TaskExec::from_def(
-  def : TransactionalTaskDef[T],
-  func~ : async (TaskContext, T) -> Json,
-) -> TaskExec {
-  TaskExec::{
-    name: def.name,
-    func: (ctx, args) => func(ctx, @json.from_json(args)),
-  }
-}
-
-///|
-/// Create a worker. `tasks` maps task names to definitions; a claimed
+/// Create a worker. `tasks` maps task names to handlers; a claimed
 /// result whose `task_name` is missing is marked `Failed`.
 pub fn Worker::new(
   store~ : &TaskStore,
-  tasks~ : Array[TaskExec],
+  tasks~ : Array[TaskHandler],
   id~ : String = "",
   poll_interval~ : Int32 = 200,
   backoff~ : (Int32) -> Int64 = default_backoff,

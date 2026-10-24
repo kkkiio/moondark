@@ -51,7 +51,7 @@ pub extend TaskError with FromJson::{from_json}
 pub(all) struct TaskResult {
   /// unique id assigned by the backend at enqueue time.
   id : String
-  /// `TransactionalTaskDef.name` this result belongs to.
+  /// `Task.name` this result belongs to.
   task_name : String
   status : TaskResultStatus
   /// serialized task arguments.

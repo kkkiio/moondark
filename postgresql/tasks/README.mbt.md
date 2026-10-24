@@ -18,18 +18,16 @@ async test {
     defer db.close()
 
     let backend = @postgresql_tasks.PostgresTaskBackend::new(db)
-    let email : @moondark_tasks.TransactionalTaskDef[Json] = @moondark_tasks.TransactionalTaskDef::new(
+    let email : @moondark_tasks.Task[Json] = @moondark_tasks.Task::new(
       name="send_email",
     )
     let _id = db.with_transaction(tx => {
-      email.enqueue_on(backend, tx, args={ "to": "user@example.com" })
+      email.enqueue(backend, tx, args={ "to": "user@example.com" })
     })
 
     let worker = @moondark_tasks.Worker::new(
       store=backend,
-      tasks=[
-        @moondark_tasks.TaskExec::from_def(email, func=(_ctx, args) => args),
-      ],
+      tasks=[email.bind((_ctx, args) => args)],
       reclaim_after=Some(300_000),
     )
     group.spawn_bg(no_wait=true, () => worker.run())
