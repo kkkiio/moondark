@@ -3,6 +3,7 @@ package "KKKIIO/moondark_postgresql/tasks"
 
 import {
   "KKKIIO/moondark/database",
+  "moonbitlang/core/json",
 }
 
 // Values
@@ -16,7 +17,7 @@ pub struct PostgresTaskBackend {
   now : () -> Int64
 }
 pub async fn PostgresTaskBackend::claim(Self, worker_id~ : String, now~ : Int64, stale_before~ : Int64?) -> @KKKIIO/moondark/tasks.TaskResult?
-pub async fn PostgresTaskBackend::enqueue(Self, @database.Transaction, @KKKIIO/moondark/tasks.TaskArgs, Json) -> String
+pub async fn PostgresTaskBackend::enqueue(Self, @database.Transaction, @KKKIIO/moondark/tasks.TaskArgs, @json.Json) -> String
 pub async fn PostgresTaskBackend::get_result(Self, String, String) -> @KKKIIO/moondark/tasks.TaskResult?
 pub fn PostgresTaskBackend::new(@database.DB, table? : String, now? : () -> Int64) -> Self
 pub async fn PostgresTaskBackend::save(Self, @KKKIIO/moondark/tasks.TaskResult) -> Unit

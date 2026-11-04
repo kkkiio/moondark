@@ -1,5 +1,6 @@
 ///|
 /// Execution state of one enqueued task — Django's `TaskResultStatus`.
+#derive(Eq, Debug, ToJson, FromJson)
 pub(all) enum TaskResultStatus {
   /// stored, waiting to be claimed (or due at `run_after`).
   Ready
@@ -7,7 +8,7 @@ pub(all) enum TaskResultStatus {
   Running
   Successful
   Failed
-} derive(Eq, Debug, ToJson, FromJson)
+}
 
 ///|
 pub extend TaskResultStatus with Eq::{equal, not_equal}
@@ -25,10 +26,11 @@ pub extend TaskResultStatus with FromJson::{from_json}
 /// One recorded failure of a task attempt — Django's `TaskError`.
 /// `exception` is the error's message; `traceback` is reserved for
 /// stack information and currently always empty.
+#derive(Eq, Debug, ToJson, FromJson)
 pub(all) struct TaskError {
   exception : String
   traceback : String
-} derive(Eq, Debug, ToJson, FromJson)
+}
 
 ///|
 pub extend TaskError with Eq::{equal, not_equal}
@@ -48,6 +50,7 @@ pub extend TaskError with FromJson::{from_json}
 /// An immutable snapshot of the row's state at the moment it was
 /// retrieved: poll `DBTaskBackend::get_result` again for a newer one.
 /// `return_value` is only set once `status` is `Successful`.
+#derive(Debug, ToJson, FromJson)
 pub(all) struct TaskResult {
   /// unique id assigned by the backend at enqueue time.
   id : String
@@ -72,7 +75,7 @@ pub(all) struct TaskResult {
   errors : Array[TaskError]
   /// ids of the workers that claimed each attempt.
   worker_ids : Array[String]
-} derive(Debug, ToJson, FromJson)
+}
 
 ///|
 pub extend TaskResult with Debug::{to_repr}

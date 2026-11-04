@@ -1,5 +1,6 @@
 ///|
 /// CSRF 跨源请求校验与配置错误。
+#derive(Debug, Eq)
 pub(all) suberror CsrfError {
   /// 传入的受信任源格式非法（必须为 `"scheme://host[:port]"` 且不含路径、查询或片段）
   InvalidOrigin(String)
@@ -7,7 +8,7 @@ pub(all) suberror CsrfError {
   CrossOriginWrite
   /// 无 `Sec-Fetch-Site` 时，`Origin` 请求头与 `Host` 不匹配且未命中 `trusted_origins`
   OriginMismatch
-} derive(Debug, Eq)
+}
 
 ///|
 pub extend CsrfError with Debug::{to_repr}

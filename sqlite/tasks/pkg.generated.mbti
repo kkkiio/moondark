@@ -3,6 +3,7 @@ package "KKKIIO/moondark_sqlite/tasks"
 
 import {
   "KKKIIO/moondark/database",
+  "moonbitlang/core/json",
 }
 
 // Values
@@ -12,7 +13,7 @@ import {
 // Types and methods
 type SqliteTaskBackend
 pub async fn SqliteTaskBackend::claim(Self, worker_id~ : String, now~ : Int64, stale_before~ : Int64?) -> @KKKIIO/moondark/tasks.TaskResult?
-pub async fn SqliteTaskBackend::enqueue(Self, @database.Transaction, @KKKIIO/moondark/tasks.TaskArgs, Json) -> String
+pub async fn SqliteTaskBackend::enqueue(Self, @database.Transaction, @KKKIIO/moondark/tasks.TaskArgs, @json.Json) -> String
 pub async fn SqliteTaskBackend::get_result(Self, String, String) -> @KKKIIO/moondark/tasks.TaskResult?
 pub fn SqliteTaskBackend::new(@database.DB, table? : String, now? : () -> Int64) -> Self
 pub async fn SqliteTaskBackend::save(Self, @KKKIIO/moondark/tasks.TaskResult) -> Unit

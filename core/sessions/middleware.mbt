@@ -31,11 +31,12 @@ impl @moonback.WriteFlusher for DiscardWriter
 
 ///|
 /// 会话 Cookie 的 `SameSite` 属性策略。
+#derive(Debug, Eq)
 pub(all) enum SameSite {
   Lax
   Strict
   None
-} derive(Debug, Eq)
+}
 
 ///|
 pub extend SameSite with Debug::{to_repr}

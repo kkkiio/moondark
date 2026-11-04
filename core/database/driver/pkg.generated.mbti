@@ -17,10 +17,11 @@ pub fn BadConn::to_string(Self) -> String
 pub impl Show for BadConn
 
 // Types and methods
+#derive(Eq, @debug.Debug)
 pub(all) struct ExecResult {
   rows_affected : Int64?
   last_insert_id : Int64?
-} derive(Eq, @debug.Debug)
+}
 pub fn ExecResult::equal(Self, Self) -> Bool
 pub fn ExecResult::not_equal(Self, Self) -> Bool
 pub fn ExecResult::to_repr(Self) -> @debug.Repr
@@ -30,6 +31,7 @@ pub(all) struct NoopExecutor {
 pub async fn NoopExecutor::run(Self) -> Unit
 pub impl ConnExecutor for NoopExecutor
 
+#derive(@debug.Debug)
 pub(all) enum Value {
   Null
   Bool(Bool)
@@ -38,7 +40,7 @@ pub(all) enum Value {
   String(String)
   Bytes(Bytes)
   Timestamp(@time.ZonedDateTime)
-} derive(@debug.Debug)
+}
 pub fn Value::to_repr(Self) -> @debug.Repr
 
 // Type aliases

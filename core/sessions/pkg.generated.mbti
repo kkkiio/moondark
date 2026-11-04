@@ -23,11 +23,12 @@ pub async fn MemorySessionStore::get(Self, String) -> Session?
 pub async fn MemorySessionStore::update(Self, Session) -> Bool
 pub impl SessionStore for MemorySessionStore
 
+#derive(Eq, @debug.Debug)
 pub(all) enum SameSite {
   Lax
   Strict
   None
-} derive(Eq, @debug.Debug)
+}
 pub fn SameSite::equal(Self, Self) -> Bool
 pub fn SameSite::not_equal(Self, Self) -> Bool
 pub fn SameSite::to_repr(Self) -> @debug.Repr
@@ -37,20 +38,21 @@ pub fn Session::cycle_key(Self) -> Unit
 pub fn Session::default() -> Self
 pub fn Session::flush(Self) -> Unit
 #alias("_[_]")
-pub fn Session::get(Self, String) -> Json?
+pub fn Session::get(Self, String) -> @json.Json?
 pub fn Session::of_model(SessionModel) -> Self
 #alias("_[_]=_")
-pub fn Session::set(Self, String, Json) -> Unit
+pub fn Session::set(Self, String, @json.Json) -> Unit
 pub fn Session::to_model(Self) -> SessionModel
 pub impl Default for Session
 
+#derive(@json.FromJson, @json.ToJson)
 pub(all) struct SessionModel {
   key : String
-  data : Map[String, Json]
+  data : Map[String, @json.Json]
   expires_at : Int64
-} derive(ToJson, @json.FromJson)
-pub fn SessionModel::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
-pub fn SessionModel::to_json(Self) -> Json
+}
+pub fn SessionModel::from_json(@json.Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn SessionModel::to_json(Self) -> @json.Json
 
 // Type aliases
 

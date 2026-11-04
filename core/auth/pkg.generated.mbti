@@ -11,12 +11,13 @@ import {
 // Values
 
 // Errors
+#derive(@debug.Debug)
 pub(all) suberror AuthError {
   IdentifierTaken(CredentialKind, String, String)
   NoSession
   UserInactive
   NothingToUpdate
-} derive(@debug.Debug)
+}
 pub fn AuthError::to_repr(Self) -> @debug.Repr
 
 // Types and methods
@@ -30,19 +31,21 @@ pub async fn Auth::authenticate_password(Self, identifier~ : String, password~ :
 pub async fn Auth::bind_oauth(Self, String, provider~ : String, identifier~ : String, secret? : String, verified? : Bool) -> Unit
 pub async fn Auth::set_password(Self, String, identifier~ : String, password~ : String) -> Unit
 
+#derive(Eq, @debug.Debug, @json.FromJson, @json.ToJson)
 pub(all) enum CredentialKind {
   Password
   OAuth
   Passkey
-} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+}
 pub fn CredentialKind::equal(Self, Self) -> Bool
-pub fn CredentialKind::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn CredentialKind::from_json(@json.Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
 pub fn CredentialKind::name(Self) -> String
 pub fn CredentialKind::not_equal(Self, Self) -> Bool
 pub fn CredentialKind::of_name(String) -> Self?
-pub fn CredentialKind::to_json(Self) -> Json
+pub fn CredentialKind::to_json(Self) -> @json.Json
 pub fn CredentialKind::to_repr(Self) -> @debug.Repr
 
+#derive(@debug.Debug, @json.FromJson, @json.ToJson)
 pub(all) struct CredentialModel {
   user_id : String
   kind : CredentialKind
@@ -52,9 +55,9 @@ pub(all) struct CredentialModel {
   verified : Bool
   created_at : Int64
   last_used_at : Int64
-} derive(ToJson, @debug.Debug, @json.FromJson)
-pub fn CredentialModel::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
-pub fn CredentialModel::to_json(Self) -> Json
+}
+pub fn CredentialModel::from_json(@json.Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn CredentialModel::to_json(Self) -> @json.Json
 pub fn CredentialModel::to_repr(Self) -> @debug.Repr
 
 pub(all) struct MemoryCredentialStore {

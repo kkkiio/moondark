@@ -251,6 +251,7 @@ fn b64url(bytes : BytesView) -> String {
 
 ///|
 /// OAuth 2.0 / OIDC provider configuration.
+#derive(Debug, Eq)
 pub(all) struct Provider {
   /// Stable provider identifier stored in `CredentialModel.provider`
   /// (e.g. `"google"`, `"github"`).
@@ -267,7 +268,7 @@ pub(all) struct Provider {
   /// Optional UserInfo endpoint for non-OIDC providers (e.g. GitHub).
   userinfo_url : String
   scopes : Array[String]
-} derive(Debug, Eq)
+}
 
 ///|
 pub extend Provider with Debug::{to_repr}
@@ -300,6 +301,7 @@ pub fn Provider::google(
 /// Verified third-party identity returned by `Provider::authenticate`,
 /// ready to pass into `@auth.Auth::authenticate_oauth`, `register_oauth`,
 /// or `bind_oauth`.
+#derive(Debug, Eq)
 pub(all) struct Identity {
   /// Matches `Provider.name` (e.g. `"google"`).
   provider : String
@@ -310,7 +312,7 @@ pub(all) struct Identity {
   display_name : String
   /// Raw token response (`access_token`, optional `refresh_token`, etc.).
   tokens : TokenResponse
-} derive(Debug, Eq)
+}
 
 ///|
 pub extend Identity with Debug::{to_repr}
@@ -320,6 +322,7 @@ pub extend Identity with Eq::{equal, not_equal}
 
 ///|
 /// OAuth 2.0 token endpoint response (RFC 6749 Section 5.1).
+#derive(Debug, Eq, ToJson, FromJson)
 pub(all) struct TokenResponse {
   access_token : String
   token_type : String
@@ -328,7 +331,7 @@ pub(all) struct TokenResponse {
   refresh_token : String?
   scope : String?
   id_token : String?
-} derive(Debug, Eq, ToJson, FromJson)
+}
 
 ///|
 pub extend TokenResponse with Debug::{to_repr}
@@ -353,6 +356,7 @@ pub extend TokenResponse with FromJson::{from_json}
 /// access/refresh tokens, so the printable form keeps only the
 /// variant, upstream status, and transport `cause`. The full payload
 /// stays accessible through pattern matching and `Debug`.
+#derive(Debug)
 pub(all) suberror OAuthError {
   EntropyUnavailable
   TokenExchangeFailed(Int32, String, cause~ : Error?)
@@ -361,7 +365,7 @@ pub(all) suberror OAuthError {
   ClaimMismatch(String)
   TokenExpired(Int64, Int64)
   UserInfoFailed(Int32, String, cause~ : Error?)
-} derive(Debug)
+}
 
 ///|
 pub extend OAuthError with Debug::{to_repr}

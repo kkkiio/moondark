@@ -22,7 +22,7 @@ pub struct DummyBackend {
 }
 pub async fn DummyBackend::claim(Self, worker_id~ : String, now~ : Int64, stale_before~ : Int64?) -> TaskResult?
 pub fn DummyBackend::clear(Self) -> Unit
-pub async fn DummyBackend::enqueue(Self, @database.Transaction, TaskArgs, Json) -> String
+pub async fn DummyBackend::enqueue(Self, @database.Transaction, TaskArgs, @json.Json) -> String
 pub async fn DummyBackend::get_result(Self, String, String) -> TaskResult?
 pub fn DummyBackend::new(now? : () -> Int64) -> Self
 pub async fn DummyBackend::save(Self, TaskResult) -> Unit
@@ -33,8 +33,8 @@ pub(all) struct Task[T] {
   name : String
   max_attempts : Int32
 }
-pub fn[T : @json.FromJson] Task::bind(Self[T], async (TaskContext, T) -> Json) -> TaskHandler
-pub async fn[T : ToJson] Task::enqueue(Self[T], &DBTaskBackend, @database.Transaction, args~ : T, run_after? : Int64) -> String
+pub fn[T : @json.FromJson] Task::bind(Self[T], async (TaskContext, T) -> @json.Json) -> TaskHandler
+pub async fn[T : @json.ToJson] Task::enqueue(Self[T], &DBTaskBackend, @database.Transaction, args~ : T, run_after? : Int64) -> String
 pub async fn[T] Task::get_result(Self[T], &DBTaskBackend, String) -> TaskResult?
 pub fn[T] Task::new(name~ : String, max_attempts? : Int32) -> Self[T] raise InvalidTask
 
@@ -49,50 +49,53 @@ pub(all) struct TaskContext {
   attempt : Int32
 }
 
+#derive(Eq, @debug.Debug, @json.FromJson, @json.ToJson)
 pub(all) struct TaskError {
   exception : String
   traceback : String
-} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+}
 pub fn TaskError::equal(Self, Self) -> Bool
-pub fn TaskError::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn TaskError::from_json(@json.Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
 pub fn TaskError::not_equal(Self, Self) -> Bool
-pub fn TaskError::to_json(Self) -> Json
+pub fn TaskError::to_json(Self) -> @json.Json
 pub fn TaskError::to_repr(Self) -> @debug.Repr
 
 pub struct TaskHandler {
   name : String
-  func : async (TaskContext, Json) -> Json
+  func : async (TaskContext, @json.Json) -> @json.Json
 }
 
+#derive(@debug.Debug, @json.FromJson, @json.ToJson)
 pub(all) struct TaskResult {
   id : String
   task_name : String
   status : TaskResultStatus
-  args : Json
+  args : @json.Json
   run_after : Int64?
   enqueued_at : Int64
   started_at : Int64?
   finished_at : Int64?
   attempts : Int32
   max_attempts : Int32
-  return_value : Json?
+  return_value : @json.Json?
   errors : Array[TaskError]
   worker_ids : Array[String]
-} derive(ToJson, @debug.Debug, @json.FromJson)
-pub fn TaskResult::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
-pub fn TaskResult::to_json(Self) -> Json
+}
+pub fn TaskResult::from_json(@json.Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn TaskResult::to_json(Self) -> @json.Json
 pub fn TaskResult::to_repr(Self) -> @debug.Repr
 
+#derive(Eq, @debug.Debug, @json.FromJson, @json.ToJson)
 pub(all) enum TaskResultStatus {
   Ready
   Running
   Successful
   Failed
-} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+}
 pub fn TaskResultStatus::equal(Self, Self) -> Bool
-pub fn TaskResultStatus::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn TaskResultStatus::from_json(@json.Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
 pub fn TaskResultStatus::not_equal(Self, Self) -> Bool
-pub fn TaskResultStatus::to_json(Self) -> Json
+pub fn TaskResultStatus::to_json(Self) -> @json.Json
 pub fn TaskResultStatus::to_repr(Self) -> @debug.Repr
 
 pub struct Worker {
@@ -118,7 +121,7 @@ pub async fn Worker::run_once(Self) -> Bool
 
 // Traits
 pub(open) trait DBTaskBackend {
-  async fn enqueue(Self, @database.Transaction, TaskArgs, Json) -> String
+  async fn enqueue(Self, @database.Transaction, TaskArgs, @json.Json) -> String
   async fn get_result(Self, String, String) -> TaskResult?
 }
 

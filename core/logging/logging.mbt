@@ -2,13 +2,14 @@
 /// Query-string logging policy for `middleware`: presign tokens, OAuth
 /// `code`/`state` and other credentials routinely travel in `?query`,
 /// so values are redacted Rails-`filter_parameters`-style by default.
+#derive(Debug)
 pub(all) enum QueryLog {
   /// Log `url.query` with `redact` matches replaced by `[FILTERED]`
   /// (case-insensitive substring match on the parameter name).
   Full(redact~ : Array[String])
   /// Omit the query string entirely.
   None
-} derive(Debug)
+}
 
 ///|
 pub extend QueryLog with Debug::{to_repr}

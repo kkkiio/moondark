@@ -128,21 +128,31 @@ pub impl @driver.Conn for Conn with fn ping(self) {
 }
 
 ///|
-/// `batch_execute` splits `script` with `split_script` and runs each
-/// statement through `prepare`/`exec` — the sqlite3 bindings reject
-/// multi-statement input to `prepare_async` outright. No implicit
-/// transaction: statements before a failing one stay committed
-/// unless the script (or the caller) brackets them in `BEGIN`/`COMMIT`.
+/// `batch_execute` iterates `script` with `prepare_next_async`, letting
+/// SQLite itself find statement boundaries. No implicit transaction:
+/// statements before a failing one stay committed unless the script
+/// (or the caller) brackets them in `BEGIN`/`COMMIT`.
 pub impl @driver.Conn for Conn with fn batch_execute(self, script) {
-  for sql in split_script(script) {
-    let stmt = self.prepare(sql)
-    let executed : Result[@driver.ExecResult, Error] = Ok(stmt.exec([])) catch {
+  let mut rest = script[:]
+  while true {
+    guard self.inner.prepare_next_async(rest) is Some((stmt, tail)) else {
+      break
+    }
+    rest = tail
+    let stepped : Result[Unit, Error] = Ok(
+      while true {
+        match stmt.step_async() {
+          Row => ()
+          Done(..) => break
+        }
+      },
+    ) catch {
       e => Err(e)
     }
-    stmt.close() catch {
+    stmt.finalize() catch {
       _ => ()
     }
-    match executed {
+    match stepped {
       Ok(_) => ()
       Err(e) => raise e
     }

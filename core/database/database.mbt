@@ -3,6 +3,7 @@ pub using @driver {type ExecResult, type Value}
 
 ///|
 /// Errors raised by `database` pool, scope, parameter, and row decoding operations.
+#derive(Debug)
 pub(all) suberror DatabaseError {
   /// Operation attempted on a closed `DB`, `Conn`, `Transaction`, or `RowStream`.
   Closed(String)
@@ -18,7 +19,7 @@ pub(all) suberror DatabaseError {
   ColumnNotFound(String)
   /// Column value could not be decoded into the requested MoonBit type.
   Decode(expected~ : String, actual~ : Value)
-} derive(Debug)
+}
 
 ///|
 pub extend DatabaseError with Debug::{to_repr}
@@ -42,6 +43,7 @@ pub(open) trait GenericClient {
 
 ///|
 /// Snapshot of connection pool statistics.
+#derive(Eq, Debug)
 pub struct DBStats {
   /// Maximum number of open connections (`max_open`).
   max_open : Int32
@@ -61,7 +63,7 @@ pub struct DBStats {
   max_idle_time_closed : Int64
   /// Connections closed because they exceeded `max_lifetime`.
   max_lifetime_closed : Int64
-} derive(Eq, Debug)
+}
 
 ///|
 pub extend DBStats with Eq::{equal, not_equal}
