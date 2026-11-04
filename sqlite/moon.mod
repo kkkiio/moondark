@@ -1,6 +1,6 @@
 import {
   "KKKIIO/moondark@0.1.0",
-  "moonbit-community/sqlite3@0.2.3",
+  "moonbit-community/sqlite3@0.2.4",
   "moonbitlang/async@0.22.5",
   "moonbitlang/x@0.5.5",
 }
