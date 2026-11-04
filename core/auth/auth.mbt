@@ -1,6 +1,7 @@
 ///|
 /// Errors raised by credential-binding and login operations.
 /// Authentication itself never raises — it returns `None`.
+#derive(Debug)
 pub(all) suberror AuthError {
   /// The `(kind, provider, identifier)` key is already bound to a user.
   IdentifierTaken(CredentialKind, String, String)
@@ -11,7 +12,7 @@ pub(all) suberror AuthError {
   UserInactive
   /// `update_credential` was called with no field to update.
   NothingToUpdate
-} derive(Debug)
+}
 
 ///|
 pub extend AuthError with Debug::{to_repr}

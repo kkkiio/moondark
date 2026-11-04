@@ -1,5 +1,6 @@
 ///|
 /// Which mechanism a credential belongs to.
+#derive(Debug, Eq, ToJson, FromJson)
 pub(all) enum CredentialKind {
   /// Local password credential; `identifier` is an email or username.
   Password
@@ -8,7 +9,7 @@ pub(all) enum CredentialKind {
   OAuth
   /// WebAuthn/passkey credential; `identifier` is the credential id.
   Passkey
-} derive(Debug, Eq, ToJson, FromJson)
+}
 
 ///|
 pub extend CredentialKind with Debug::{to_repr}
@@ -53,6 +54,7 @@ pub fn CredentialKind::of_name(name : String) -> CredentialKind? {
 ///
 /// `user_id` is an opaque string pointing at the application's own `users`
 /// table — the auth package never touches user rows.
+#derive(Debug, ToJson, FromJson)
 pub(all) struct CredentialModel {
   /// the user this credential authenticates
   user_id : String
@@ -73,7 +75,7 @@ pub(all) struct CredentialModel {
   created_at : Int64
   /// unix timestamp in ms of the last successful authentication; 0 = never
   last_used_at : Int64
-} derive(Debug, ToJson, FromJson)
+}
 
 ///|
 pub extend CredentialModel with Debug::{to_repr}

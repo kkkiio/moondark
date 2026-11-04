@@ -111,12 +111,13 @@ pub(open) trait Stmt {
 
 ///|
 /// Summary of a side-effecting SQL execution.
+#derive(Eq, Debug)
 pub(all) struct ExecResult {
   /// Number of rows affected, or `None` for statements without a row count (e.g. DDL).
   rows_affected : Int64?
   /// Database-generated row ID when supported (e.g. SQLite `last_insert_rowid()`), else `None`.
   last_insert_id : Int64?
-} derive(Eq, Debug)
+}
 
 ///|
 pub extend ExecResult with Eq::{equal, not_equal}
@@ -144,6 +145,7 @@ pub(open) trait Rows {
 
 ///|
 /// Backend-neutral scalar value exchanged between `database` and a driver.
+#derive(Debug)
 pub(all) enum Value {
   Null
   Bool(Bool)
@@ -152,7 +154,7 @@ pub(all) enum Value {
   String(String)
   Bytes(Bytes)
   Timestamp(@time.ZonedDateTime)
-} derive(Debug)
+}
 
 ///|
 pub extend Value with Debug::{to_repr}

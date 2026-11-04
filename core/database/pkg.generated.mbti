@@ -4,12 +4,14 @@ package "KKKIIO/moondark/database"
 import {
   "KKKIIO/moondark/database/driver",
   "moonbitlang/core/debug",
+  "moonbitlang/core/json",
   "moonbitlang/x/time",
 }
 
 // Values
 
 // Errors
+#derive(@debug.Debug)
 pub(all) suberror DatabaseError {
   Closed(String)
   ScopeExpired
@@ -18,7 +20,7 @@ pub(all) suberror DatabaseError {
   RowCount(String)
   ColumnNotFound(String)
   Decode(expected~ : String, actual~ : @driver.Value)
-} derive(@debug.Debug)
+}
 pub fn DatabaseError::to_repr(Self) -> @debug.Repr
 
 // Types and methods
@@ -53,6 +55,7 @@ pub impl GenericClient for DB
 type DBExecutor
 pub async fn DBExecutor::run(Self) -> Unit
 
+#derive(Eq, @debug.Debug)
 pub struct DBStats {
   max_open : Int32
   open : Int32
@@ -63,7 +66,7 @@ pub struct DBStats {
   max_idle_closed : Int64
   max_idle_time_closed : Int64
   max_lifetime_closed : Int64
-} derive(Eq, @debug.Debug)
+}
 pub fn DBStats::equal(Self, Self) -> Bool
 pub fn DBStats::not_equal(Self, Self) -> Bool
 pub fn DBStats::to_repr(Self) -> @debug.Repr
@@ -127,7 +130,7 @@ pub impl FromSql for String
 pub impl[T : FromSql] FromSql for T?
 pub impl FromSql for Bytes
 pub impl FromSql for @driver.Value
-pub impl FromSql for Json
+pub impl FromSql for @json.Json
 pub impl FromSql for @time.ZonedDateTime
 
 pub(open) trait GenericClient {
@@ -153,7 +156,7 @@ pub impl ToSql for String
 pub impl[T : ToSql] ToSql for T?
 pub impl ToSql for Bytes
 pub impl ToSql for @driver.Value
-pub impl ToSql for Json
+pub impl ToSql for @json.Json
 pub impl ToSql for @time.ZonedDateTime
 pub impl ToSql for BytesView
 pub impl ToSql for StringView

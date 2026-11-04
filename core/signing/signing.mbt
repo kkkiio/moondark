@@ -3,12 +3,13 @@
 /// `signing.BadSignature` 与 `signing.SignatureExpired`。
 /// Django 中 SignatureExpired 继承自 BadSignature，这里两者平级，
 /// match 时需要分别处理。
+#derive(Debug)
 pub(all) suberror SignError {
   /// 签名缺失、被篡改，或 key/salt 不匹配
   BadSignature
   /// 签名有效但超过了 `max_age`（毫秒）
   SignatureExpired
-} derive(Debug)
+}
 
 ///|
 pub extend SignError with Debug::{to_repr}

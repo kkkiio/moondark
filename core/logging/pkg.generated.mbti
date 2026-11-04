@@ -14,10 +14,11 @@ pub fn middleware(category? : String, query? : QueryLog, path_redact? : Array[St
 // Errors
 
 // Types and methods
+#derive(@debug.Debug)
 pub(all) enum QueryLog {
   Full(redact~ : Array[String])
   None
-} derive(@debug.Debug)
+}
 pub fn QueryLog::to_repr(Self) -> @debug.Repr
 
 // Type aliases

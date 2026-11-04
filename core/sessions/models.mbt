@@ -1,10 +1,11 @@
 ///|
+#derive(ToJson, FromJson)
 pub(all) struct SessionModel {
   key : String
   data : Map[String, Json]
   /// expires at (unix timestamp in ms)
   expires_at : Int64
-} derive(ToJson, FromJson)
+}
 
 ///|
 pub extend SessionModel with ToJson::{to_json}

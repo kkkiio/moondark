@@ -14,11 +14,12 @@ import {
 pub fn mount_routes(&LocalStore, Presigner) -> @moonback.Module
 
 // Errors
+#derive(Eq, @debug.Debug)
 pub(all) suberror FileError {
   InvalidKey(key~ : String)
   NotFound(key~ : String)
   TooLarge(key~ : String)
-} derive(Eq, @debug.Debug)
+}
 pub fn FileError::equal(Self, Self) -> Bool
 pub fn FileError::not_equal(Self, Self) -> Bool
 pub fn FileError::to_repr(Self) -> @debug.Repr

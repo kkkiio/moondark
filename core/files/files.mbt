@@ -73,6 +73,7 @@ pub(all) struct Download {
 }
 
 ///|
+#derive(Debug, Eq)
 pub(all) suberror FileError {
   /// `key` 不是合法的相对存储路径。
   InvalidKey(key~ : String)
@@ -80,7 +81,7 @@ pub(all) suberror FileError {
   NotFound(key~ : String)
   /// 上传字节数超出 `max_size` 约束。
   TooLarge(key~ : String)
-} derive(Debug, Eq)
+}
 
 ///|
 /// 校验 `key` 是相对 root 的安全路径：非空、不以 `/` 开头、
