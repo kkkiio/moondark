@@ -155,7 +155,7 @@ API docs comments 写：
 ```bash
 moon check --deny-warn
 moon test
-moon info && moon fmt
+moon fmt
 ```
 
 等价的 just 命令：

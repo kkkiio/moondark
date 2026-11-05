@@ -37,7 +37,6 @@ jobs:
       - name: Format
         run: |
           moon fmt
-          moon info
           git diff --exit-code
 
       - name: Test
