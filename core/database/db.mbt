@@ -114,7 +114,7 @@ pub async fn DB::ready(self : DB) -> Unit {
 /// Close the database connection pool. Returns once the executor has
 /// finished closing every pooled connection; if the executor was never
 /// started, connections are closed inline instead of waiting.
-pub async fn DB::close(self : DB) -> Unit {
+pub async fn DB::close(self : DB) -> Unit nocancel {
   @async.protect_from_cancel(() => self.pool.close())
 }
 

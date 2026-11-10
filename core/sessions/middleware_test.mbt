@@ -18,6 +18,7 @@ async test "first write creates session and sets cookie" {
     assert_eq(resp.code, 200)
     guard resp.cookies is [cookie] else { fail("expected one Set-Cookie") }
     assert_eq(cookie.name, "sessionid")
+    assert_eq(cookie.max_age, Some(1_209_600L))
     // 32 chars from [a-z0-9], server-generated
     assert_eq(cookie.value.length(), 32)
     assert_true(cookie.value.iter().all(c => c is ('a'..<='z' | '0'..<='9')))
@@ -533,7 +534,9 @@ async test "session cookie security attributes default SameSite=Lax and custom S
     assert_eq(c1.extensions, ["SameSite=Lax"])
     assert_eq(
       last_default_set_cookie.val,
-      Some("sessionid=\{c1.value}; Path=/; HttpOnly; SameSite=Lax"),
+      Some(
+        "sessionid=\{c1.value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=1209600",
+      ),
     )
     let (resp1_out, _) = @http.get("\{base1}/logout", headers={
       "cookie": "sessionid=\{c1.value}",
@@ -563,7 +566,9 @@ async test "session cookie security attributes default SameSite=Lax and custom S
     assert_eq(c2.extensions, ["SameSite=Strict"])
     assert_eq(
       last_strict_set_cookie.val,
-      Some("sessionid=\{c2.value}; Path=/; HttpOnly; SameSite=Strict; Secure"),
+      Some(
+        "sessionid=\{c2.value}; Path=/; HttpOnly; SameSite=Strict; Secure; Max-Age=1209600",
+      ),
     )
     let (resp2_out, _) = @http.get("\{base2}/logout", headers={
       "cookie": "sessionid=\{c2.value}",
@@ -582,4 +587,150 @@ async test "session cookie security attributes default SameSite=Lax and custom S
       err => raise err
     }
   })
+}
+
+///|
+async test "cookie lifetime modes follow session saves and logout" {
+  for expire_at_browser_close in [false, true] {
+    let store = @sessions.MemorySessionStore()
+    let app = @moonback.App(ctx => {
+      ctx.add_middleware(
+        @sessions.middleware(
+          store,
+          session_cookie_name="custom_session",
+          max_age=60_999,
+          expire_at_browser_close~,
+          same_site=@sessions.None,
+        ),
+      )
+      ctx.get("/write", (req, res) => {
+        @sessions.get_session(req).unwrap()["user"] = Json("alice")
+        res.send_text("ok")
+      })
+      ctx.get("/read", (req, res) => {
+        assert_true(
+          @sessions.get_session(req).unwrap()["user"] is Some(String("alice")),
+        )
+        res.send_text("ok")
+      })
+      ctx.get("/cycle", (req, res) => {
+        @sessions.get_session(req).unwrap().cycle_key()
+        res.send_text("ok")
+      })
+      ctx.get("/flush-write", (req, res) => {
+        let session = @sessions.get_session(req).unwrap()
+        session.flush()
+        session["user"] = Json("alice")
+        res.send_text("ok")
+      })
+      ctx.get("/logout", (req, res) => {
+        @sessions.get_session(req).unwrap().flush()
+        res.send_text("ok")
+      })
+    })
+    defer app.close()
+    @async.with_task_group(group => {
+      let server = @moonback.listen(port=0)
+      defer server.close()
+      let task = group.spawn(() => app.serve(server))
+      let base = "http://127.0.0.1:\{server.addr.port()}"
+      let mut key = ""
+      for path in ["/write", "/write", "/cycle", "/flush-write"] {
+        let before = @env.now().reinterpret_as_int64()
+        let (resp, _) = @http.get("\{base}\{path}", headers={
+          "cookie": "custom_session=\{key}",
+        })
+        let after = @env.now().reinterpret_as_int64()
+        assert_eq(resp.code, 200)
+        guard resp.cookies is [cookie] else { fail("expected Set-Cookie") }
+        assert_eq(cookie.name, "custom_session")
+        assert_eq(cookie.path, Some("/"))
+        assert_true(cookie.http_only)
+        assert_true(cookie.secure)
+        assert_eq(cookie.extensions, ["SameSite=None"])
+        assert_true(cookie.expires_raw is None)
+        assert_eq(
+          cookie.max_age,
+          if expire_at_browser_close {
+            None
+          } else {
+            Some(60L)
+          },
+        )
+        if path == "/cycle" || path == "/flush-write" {
+          assert_true(cookie.value != key)
+          assert_true(store.get(key) is None)
+        } else if !key.is_empty() {
+          assert_eq(cookie.value, key)
+        }
+        key = cookie.value
+        let saved = store.get(key).unwrap().to_model()
+        assert_true(saved.expires_at >= before + 60_999)
+        assert_true(saved.expires_at <= after + 60_999)
+        let (read, _) = @http.get("\{base}/read", headers={
+          "cookie": "custom_session=\{key}",
+        })
+        assert_eq(read.code, 200)
+        assert_true(read.cookies.is_empty())
+        assert_eq(
+          store.get(key).unwrap().to_model().expires_at,
+          saved.expires_at,
+        )
+      }
+      let (logout, _) = @http.get("\{base}/logout", headers={
+        "cookie": "custom_session=\{key}",
+      })
+      assert_eq(logout.code, 200)
+      guard logout.cookies is [cookie] else { fail("expected deletion cookie") }
+      assert_eq(cookie.name, "custom_session")
+      assert_eq(cookie.value, "")
+      assert_eq(cookie.path, Some("/"))
+      assert_eq(cookie.max_age, Some(0L))
+      assert_true(cookie.secure)
+      assert_true(cookie.http_only)
+      assert_eq(cookie.extensions, ["SameSite=None"])
+      assert_true(store.get(key) is None)
+      task.cancel()
+      task.wait() catch {
+        @async.WaitedTaskAlreadyCancelled => ()
+        err => raise err
+      }
+    })
+  }
+}
+
+///|
+async test "cookie Max-Age converts milliseconds to Int64 seconds" {
+  for
+    (max_age, expected_seconds) in [
+      (-1000L, 0L),
+      (0L, 0L),
+      (999L, 0L),
+      (1500L, 1L),
+      (3_000_000_000_000L, 3_000_000_000L),
+    ] {
+    let store = @sessions.MemorySessionStore()
+    let app = @moonback.App(ctx => {
+      ctx.add_middleware(@sessions.middleware(store, max_age~))
+      ctx.get("/", (req, res) => {
+        @sessions.get_session(req).unwrap()["x"] = Json(1)
+        res.send_text("ok")
+      })
+    })
+    defer app.close()
+    @async.with_task_group(group => {
+      let server = @moonback.listen(port=0)
+      defer server.close()
+      let task = group.spawn(() => app.serve(server))
+      let (resp, _) = @http.get("http://127.0.0.1:\{server.addr.port()}/")
+      assert_eq(resp.code, 200)
+      guard resp.cookies is [cookie] else { fail("expected Set-Cookie") }
+      assert_eq(cookie.max_age, Some(expected_seconds))
+      task.cancel()
+      task.wait() catch {
+        @async.WaitedTaskAlreadyCancelled => ()
+        err => raise err
+      }
+    })
+  }
 }

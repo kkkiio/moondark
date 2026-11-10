@@ -452,3 +452,55 @@ async test "finished streams allow another operation before their callback retur
     )
   }
 }
+
+///|
+async test "uncached stream close failures release capacity and retire the connection" {
+  let connector = MockConnector()
+  run_db(
+    @database.DB::create(connector, max_open=1, statement_cache_capacity=0),
+    db => {
+      connector.stats.fail_cleanup = Some(Failure("cleanup"))
+      try db.with_stream("SELECT", stream => stream.finish()) catch {
+        Failure(message) => assert_true(message.contains("cleanup"))
+        e => raise e
+      } noraise {
+        _ => fail("expected stream cleanup failure")
+      }
+      assert_eq(connector.stats.rows_closed, 1)
+      assert_eq(connector.stats.statements_closed, 1)
+      assert_eq(connector.stats.connect_count, 1)
+      assert_eq(db.stats().in_use, 0)
+      connector.stats.fail_cleanup = None
+      db.ping()
+      assert_eq(connector.stats.connect_count, 2)
+    },
+  )
+}
+
+///|
+async test "stream bind failure survives uncached statement cleanup failure" {
+  let connector = MockConnector()
+  run_db(
+    @database.DB::create(connector, max_open=1, statement_cache_capacity=0),
+    db => {
+      db.ping()
+      connector.conns[0].arity = 1
+      connector.stats.fail_cleanup = Some(Failure("cleanup"))
+      try
+        db.with_stream("SELECT ?", _ => (fail("callback must not run") : Unit))
+      catch {
+        @database.DatabaseError::ArityMismatch(expected=1, actual=0) => ()
+        e => raise e
+      } noraise {
+        _ => fail("expected original bind failure")
+      }
+      assert_eq(connector.stats.rows_closed, 0)
+      assert_eq(connector.stats.statements_closed, 1)
+      assert_eq(connector.stats.connect_count, 1)
+      assert_eq(db.stats().in_use, 0)
+      connector.stats.fail_cleanup = None
+      db.ping()
+      assert_eq(connector.stats.connect_count, 2)
+    },
+  )
+}

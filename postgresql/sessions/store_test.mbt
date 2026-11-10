@@ -1,7 +1,7 @@
 ///|
 async test "postgres session store passes the conformance suite" {
   let pg = @postgres.run()
-  defer pg.cleanup()
+  defer @async.protect_from_cancel(() => pg.cleanup())
   @async.with_task_group(group => {
     let (db, executor) = @postgresql_database.open_db(
       pg.connection_string(ssl_mode="disable"),

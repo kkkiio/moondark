@@ -7,7 +7,7 @@ async fn[T] run_db(
   max_open~ : Int32 = 10,
 ) -> T {
   let pg = @postgres.run()
-  defer pg.cleanup()
+  defer @async.protect_from_cancel(() => pg.cleanup())
   let dsn = pg.connection_string(ssl_mode="disable")
   @async.with_task_group(group => {
     let (db, executor) = @database.open_db(dsn, max_open~)
@@ -74,7 +74,7 @@ async test "execute, query and value round trip" {
 ///|
 async test "connection setup errors preserve PostgreSQL SQLSTATE" {
   let pg = @postgres.run()
-  defer pg.cleanup()
+  defer @async.protect_from_cancel(() => pg.cleanup())
   let dsn = pg.connection_string(ssl_mode="disable")
   let missing_database = dsn.replace(
     old="/" + @percent.encode(pg.database()) + "?",

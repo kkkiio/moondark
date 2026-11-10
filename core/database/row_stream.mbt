@@ -125,7 +125,11 @@ async fn RowStream::finish_inner(self : RowStream) -> Unit {
     self.state.bad = true
   }
   @async.protect_from_cancel(() => {
-    errdefer (self.statement.close() catch { _ => () })
+    errdefer @async.protect_from_cancel(() => {
+      self.statement.close() catch {
+        _ => ()
+      }
+    })
     self.rows.close()
     self.statement.close()
   })

@@ -1,7 +1,7 @@
 ///|
 async test "PostgreSQL file store passes conformance and survives closing its pool" {
   let pg = @postgres.run()
-  defer pg.cleanup()
+  defer @async.protect_from_cancel(() => pg.cleanup())
   let root = @fs.tmpdir(prefix="moondark-postgres-files")
   let dsn = pg.connection_string(ssl_mode="disable")
   @async.with_task_group(group => {
@@ -59,7 +59,7 @@ async test "PostgreSQL file store passes conformance and survives closing its po
 ///|
 async test "PostgreSQL catalog supports custom tables, nullable metadata and atomic upserts" {
   let pg = @postgres.run()
-  defer pg.cleanup()
+  defer @async.protect_from_cancel(() => pg.cleanup())
   @async.with_task_group(group => {
     let (db, executor) = @postgresql_database.open_db(
       pg.connection_string(ssl_mode="disable"),

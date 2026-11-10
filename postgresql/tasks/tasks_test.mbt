@@ -13,7 +13,7 @@ async fn run_db(
   max_open~ : Int32 = 10,
 ) -> Unit {
   let pg = @postgres.run()
-  defer pg.cleanup()
+  defer @async.protect_from_cancel(() => pg.cleanup())
   let dsn = pg.connection_string(ssl_mode="disable")
   @async.with_task_group(group => {
     let (db, executor) = @postgresql_database.open_db(dsn, max_open~)

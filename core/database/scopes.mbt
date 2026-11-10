@@ -23,6 +23,8 @@ priv struct ClientState {
 }
 
 ///|
+/// Rechecks pending cancellation after protected cleanup, even if cleanup fails.
+#warnings("-cancellable_defer")
 async fn[T] scoped(
   scope : Scope,
   cleanup : async () -> Unit,

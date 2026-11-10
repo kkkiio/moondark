@@ -38,7 +38,7 @@ pub impl GenericClient for Conn
 
 type DB
 pub async fn DB::batch_execute(Self, String) -> Unit
-pub async fn DB::close(Self) -> Unit
+pub async fn DB::close(Self) -> Unit nocancel
 pub fn DB::create(&@driver.Connector, max_idle? : Int32, max_open? : Int32, max_lifetime? : @time.Duration, max_idle_time? : @time.Duration, statement_cache_capacity? : Int32) -> (Self, DBExecutor)
 pub async fn DB::execute(Self, String, params? : ArrayView[&ToSql]) -> @driver.ExecResult
 pub async fn DB::ping(Self) -> Unit

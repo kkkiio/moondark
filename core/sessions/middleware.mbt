@@ -50,10 +50,14 @@ pub extend SameSite with Eq::{equal, not_equal}
 /// `max_age` limits the lifetime of a session in ms, 
 /// refreshed on every save (sliding expiration).
 /// Defaults to two weeks like Django.
+/// The cookie shares this lifetime, rounded down to whole seconds and
+/// clamped to zero. `expire_at_browser_close=true` omits cookie expiration
+/// attributes without changing the server-side lifetime.
 pub fn middleware(
   session_store : &SessionStore,
   session_cookie_name~ : String = "sessionid",
   max_age~ : Int64 = 1_209_600_000,
+  expire_at_browser_close~ : Bool = false,
   same_site~ : SameSite = Lax,
   secure~ : Bool = false,
 ) -> @moonback.Middleware {
@@ -66,6 +70,12 @@ pub fn middleware(
   // 会直接拒收（跨站登录失效）；这里自动补上而不是报错。
   let secure_attr = if secure || same_site is None { "; Secure" } else { "" }
   let cookie_attrs = "; Path=/; HttpOnly; SameSite=\{same_site_str}\{secure_attr}"
+  let expiration_attr = if expire_at_browser_close {
+    ""
+  } else {
+    let seconds = if max_age > 0 { max_age / 1000 } else { 0 }
+    "; Max-Age=\{seconds}"
+  }
   Middleware(next => {
     (req, res) => {
       let session_id = req.cookie().get(session_cookie_name)
@@ -117,7 +127,7 @@ pub fn middleware(
             .to_mut()
             ..set(
               "set-cookie",
-              "\{session_cookie_name}=\{session.key}\{cookie_attrs}",
+              "\{session_cookie_name}=\{session.key}\{cookie_attrs}\{expiration_attr}",
             )
             .to_immut(),
           )
