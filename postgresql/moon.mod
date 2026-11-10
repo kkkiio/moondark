@@ -1,6 +1,6 @@
 name = "KKKIIO/moondark_postgresql"
 
-version = "0.1.0"
+version = "0.2.0"
 
 readme = "README.mbt.md"
 
@@ -15,7 +15,7 @@ description = "PostgreSQL backends for the moondark framework"
 preferred_target = "native"
 
 import {
-  "KKKIIO/moondark@0.1.0",
+  "KKKIIO/moondark@0.2.0",
   "xziheng/testcontainers@0.1.0",
   "moonbit-community/postgres@0.1.2",
   "moonbitlang/async@0.22.5",

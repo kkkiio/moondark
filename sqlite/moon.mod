@@ -1,5 +1,5 @@
 import {
-  "KKKIIO/moondark@0.1.0",
+  "KKKIIO/moondark@0.2.0",
   "moonbit-community/sqlite3@0.2.4",
   "moonbitlang/async@0.22.5",
   "moonbitlang/x@0.5.5",
@@ -9,7 +9,7 @@ preferred_target = "native"
 
 name = "KKKIIO/moondark_sqlite"
 
-version = "0.1.0"
+version = "0.2.0"
 
 readme = "README.mbt.md"
 
