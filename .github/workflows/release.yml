@@ -60,6 +60,26 @@ jobs:
           printf '{"token":"%s","username":"%s"}' \
             "${MOONCAKES_TOKEN}" "${username}" > "${HOME}/.moon/credentials.json"
 
+          wait_for_registry() (
+            local name="$1" version="$2"
+            local probe attempt
+            probe="$(mktemp -d)"
+            trap 'rm -rf "${probe}"' EXIT
+            printf 'name = "release/index_probe"\nimport {\n  "%s@%s",\n}\n' \
+              "${name}" "${version}" > "${probe}/moon.mod"
+            for attempt in $(seq 1 60); do
+              echo "Waiting for ${name}@${version} in the dependency index (${attempt}/60)..."
+              if moon update && MOON_WORK=off moon -C "${probe}" tree; then
+                return 0
+              fi
+              if [[ "${attempt}" -lt 60 ]]; then
+                sleep 5
+              fi
+            done
+            echo "::error::${name}@${version} is still unavailable in the dependency index" >&2
+            return 1
+          )
+
           publish_if_needed() {
             local dir="$1"
             local wait_index="${2:-false}"
@@ -68,23 +88,15 @@ jobs:
             version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' "${dir}/moon.mod")"
             if moon view "${name}@${version}" > /dev/null 2>&1; then
               echo "Skipping ${name}@${version} (already published)"
-              return 0
+            else
+              echo "Publishing ${name}@${version}..."
+              moon -C "${dir}" publish
             fi
-            echo "Publishing ${name}@${version}..."
-            moon -C "${dir}" publish
             if [[ "${wait_index}" == "true" ]]; then
-              for _ in $(seq 1 60); do
-                if moon view "${name}@${version}" > /dev/null 2>&1; then
-                  break
-                fi
-                sleep 5
-              done
-              moon view "${name}@${version}" > /dev/null
+              wait_for_registry "${name}" "${version}"
             fi
           }
 
-          # Integration modules import KKKIIO/moondark, so publish it first
-          # and wait until the registry index serves the new version.
           publish_if_needed core true
           publish_if_needed sqlite false
           publish_if_needed postgresql false
