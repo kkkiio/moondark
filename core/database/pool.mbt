@@ -445,12 +445,16 @@ async fn Pool::release(
     @async.protect_from_cancel(() => entry.conn.reset_session()) catch {
       e => {
         bad = true
-        @xlog.debug(category="moondark.database") <?
-          {
-            "error": e.to_string(),
-            "conn": entry.id,
-            "message": "reset_session failed, discarding connection",
-          }
+        if @xlog.debug(category="moondark.database") is Some(w) {
+          w
+          ..write_object_begin()
+          ..write_object_field("error", e.to_string())
+          ..write_object_field("conn", entry.id)
+          ..write_object_field(
+            "message", "reset_session failed, discarding connection",
+          )
+          .write_object_end()
+        }
       }
     }
   }

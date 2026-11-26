@@ -151,12 +151,14 @@ pub async fn Worker::run_once(self : Self) -> Bool {
   self.last_success = (self.now)()
   guard claimed is Some(result) else { return false }
   guard self.tasks.get(result.task_name) is Some(task) else {
-    @xlog.warn(category="moondark.tasks") <?
-      {
-        "message": "unknown task claimed, marking failed",
-        "task": result.task_name,
-        "worker": self.id,
-      }
+    if @xlog.warn(category="moondark.tasks") is Some(w) {
+      w
+      ..write_object_begin()
+      ..write_object_field("message", "unknown task claimed, marking failed")
+      ..write_object_field("task", result.task_name)
+      ..write_object_field("worker", self.id)
+      .write_object_end()
+    }
     self.store.save(TaskResult::{
       ..result,
       status: Failed,
@@ -188,13 +190,15 @@ pub async fn Worker::run_once(self : Self) -> Bool {
         finished_at: Some((self.now)()),
       }
     Err(e) => {
-      @xlog.warn(category="moondark.tasks") <?
-        {
-          "error": e.to_string(),
-          "task": result.task_name,
-          "attempt": result.attempts,
-          "worker": self.id,
-        }
+      if @xlog.warn(category="moondark.tasks") is Some(w) {
+        w
+        ..write_object_begin()
+        ..write_object_field("error", e.to_string())
+        ..write_object_field("task", result.task_name)
+        ..write_object_field("attempt", result.attempts)
+        ..write_object_field("worker", self.id)
+        .write_object_end()
+      }
       let errors = [
         ..result.errors,
         TaskError::{ exception: e.to_string(), traceback: "", },
@@ -221,13 +225,17 @@ pub async fn Worker::run_once(self : Self) -> Bool {
     e => Err(e)
   }
   if saved is Err(e) {
-    @xlog.warn(category="moondark.tasks") <?
-      {
-        "message": "save failed after task executed; it may run again",
-        "error": e.to_string(),
-        "task": result.task_name,
-        "worker": self.id,
-      }
+    if @xlog.warn(category="moondark.tasks") is Some(w) {
+      w
+      ..write_object_begin()
+      ..write_object_field(
+        "message", "save failed after task executed; it may run again",
+      )
+      ..write_object_field("error", e.to_string())
+      ..write_object_field("task", result.task_name)
+      ..write_object_field("worker", self.id)
+      .write_object_end()
+    }
     raise e
   }
   self.last_success = (self.now)()
@@ -259,12 +267,14 @@ pub async fn Worker::run(self : Self) -> Unit {
       Ok(ran) => {
         if failures > 0 {
           if self.unhealthy_logged {
-            @xlog.info(category="moondark.tasks") <?
-              {
-                "message": "task store recovered",
-                "worker": self.id,
-                "consecutive_failures": failures,
-              }
+            if @xlog.info(category="moondark.tasks") is Some(w) {
+              w
+              ..write_object_begin()
+              ..write_object_field("message", "task store recovered")
+              ..write_object_field("worker", self.id)
+              ..write_object_field("consecutive_failures", failures)
+              .write_object_end()
+            }
           }
           failures = 0
           self.unhealthy_logged = false
@@ -275,22 +285,26 @@ pub async fn Worker::run(self : Self) -> Unit {
       }
       Err(e) => {
         failures += 1
-        @xlog.warn(category="moondark.tasks") <?
-          {
-            "error": e.to_string(),
-            "worker": self.id,
-            "consecutive_failures": failures,
-          }
+        if @xlog.warn(category="moondark.tasks") is Some(w) {
+          w
+          ..write_object_begin()
+          ..write_object_field("error", e.to_string())
+          ..write_object_field("worker", self.id)
+          ..write_object_field("consecutive_failures", failures)
+          .write_object_end()
+        }
         if !self.unhealthy_logged &&
           (self.now)() - self.last_success > self.unhealthy_after {
           self.unhealthy_logged = true
-          @xlog.error(category="moondark.tasks") <?
-            {
-              "message": "task store unavailable",
-              "error": e.to_string(),
-              "worker": self.id,
-              "last_success": self.last_success,
-            }
+          if @xlog.error(category="moondark.tasks") is Some(w) {
+            w
+            ..write_object_begin()
+            ..write_object_field("message", "task store unavailable")
+            ..write_object_field("error", e.to_string())
+            ..write_object_field("worker", self.id)
+            ..write_object_field("last_success", self.last_success)
+            .write_object_end()
+          }
         }
         let shift = if failures > 8 { 8 } else { failures }
         let delay = self.poll_interval.to_int64() * (1L << shift)

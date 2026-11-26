@@ -184,12 +184,16 @@ async fn[T] DB::retry(self : DB, f : async (Conn) -> T) -> T {
         if !safe || attempt == max_bad_conn_retries {
           raise e
         }
-        @xlog.warn(category="moondark.database") <?
-          {
-            "error": e.to_string(),
-            "attempt": attempt + 1,
-            "message": "BadConn, retrying operation on a fresh connection",
-          }
+        if @xlog.warn(category="moondark.database") is Some(w) {
+          w
+          ..write_object_begin()
+          ..write_object_field("error", e.to_string())
+          ..write_object_field("attempt", attempt + 1)
+          ..write_object_field(
+            "message", "BadConn, retrying operation on a fresh connection",
+          )
+          .write_object_end()
+        }
         continue
       }
       e => raise e
@@ -221,12 +225,16 @@ pub async fn[T] DB::with_transaction(
         if entered || attempt == max_bad_conn_retries {
           raise e
         }
-        @xlog.warn(category="moondark.database") <?
-          {
-            "error": e.to_string(),
-            "attempt": attempt + 1,
-            "message": "BadConn, retrying transaction startup on a fresh connection",
-          }
+        if @xlog.warn(category="moondark.database") is Some(w) {
+          w
+          ..write_object_begin()
+          ..write_object_field("error", e.to_string())
+          ..write_object_field("attempt", attempt + 1)
+          ..write_object_field(
+            "message", "BadConn, retrying transaction startup on a fresh connection",
+          )
+          .write_object_end()
+        }
         continue
       }
       e => raise e
@@ -259,12 +267,16 @@ pub async fn[T] DB::with_stream(
         if entered || attempt == max_bad_conn_retries {
           raise e
         }
-        @xlog.warn(category="moondark.database") <?
-          {
-            "error": e.to_string(),
-            "attempt": attempt + 1,
-            "message": "BadConn, retrying stream startup on a fresh connection",
-          }
+        if @xlog.warn(category="moondark.database") is Some(w) {
+          w
+          ..write_object_begin()
+          ..write_object_field("error", e.to_string())
+          ..write_object_field("attempt", attempt + 1)
+          ..write_object_field(
+            "message", "BadConn, retrying stream startup on a fresh connection",
+          )
+          .write_object_end()
+        }
         continue
       }
       e => raise e

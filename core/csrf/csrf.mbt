@@ -86,7 +86,12 @@ pub fn CrossOriginProtection::middleware(
       self.check(req) catch {
         e => {
           let e : Error = e
-          @xlog.warn(category="moondark.csrf") <? { "error": e.to_string() }
+          if @xlog.warn(category="moondark.csrf") is Some(w) {
+            w
+            ..write_object_begin()
+            ..write_object_field("error", e.to_string())
+            .write_object_end()
+          }
           return (self.deny_handler)(req, res)
         }
       }

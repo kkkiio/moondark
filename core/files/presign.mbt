@@ -117,39 +117,68 @@ fn Presigner::verify(
   let payload = self.signer.loads(token.to_owned()) catch {
     e => {
       let e : Error = e
-      @xlog.warn(category="moondark.files") <? { "error": e.to_string() }
+      if @xlog.warn(category="moondark.files") is Some(w) {
+        w
+        ..write_object_begin()
+        ..write_object_field("error", e.to_string())
+        .write_object_end()
+      }
       return None
     }
   }
   guard payload is Object(obj) else {
-    @xlog.debug(category="moondark.files") <?
-      { "message": "presign payload is not an object" }
+    if @xlog.debug(category="moondark.files") is Some(w) {
+      w
+      ..write_object_begin()
+      ..write_object_field("message", "presign payload is not an object")
+      .write_object_end()
+    }
     return None
   }
   guard obj.get("m") is Some(String(m)) && m == want else {
-    @xlog.debug(category="moondark.files") <?
-      { "message": "presign token used for the wrong route" }
+    if @xlog.debug(category="moondark.files") is Some(w) {
+      w
+      ..write_object_begin()
+      ..write_object_field("message", "presign token used for the wrong route")
+      .write_object_end()
+    }
     return None
   }
   guard obj.get("k") is Some(String(key)) else {
-    @xlog.debug(category="moondark.files") <?
-      { "message": "presign payload missing key" }
+    if @xlog.debug(category="moondark.files") is Some(w) {
+      w
+      ..write_object_begin()
+      ..write_object_field("message", "presign payload missing key")
+      .write_object_end()
+    }
     return None
   }
   guard obj.get("exp") is Some(Number(exp, ..)) else {
-    @xlog.debug(category="moondark.files") <?
-      { "message": "presign payload missing exp" }
+    if @xlog.debug(category="moondark.files") is Some(w) {
+      w
+      ..write_object_begin()
+      ..write_object_field("message", "presign payload missing exp")
+      .write_object_end()
+    }
     return None
   }
   guard (self.now)() <= exp.to_int64() else {
-    @xlog.debug(category="moondark.files") <?
-      { "message": "presign token expired" }
+    if @xlog.debug(category="moondark.files") is Some(w) {
+      w
+      ..write_object_begin()
+      ..write_object_field("message", "presign token expired")
+      .write_object_end()
+    }
     return None
   }
   check_key(key) catch {
     _ => {
-      @xlog.debug(category="moondark.files") <?
-        { "message": "presign payload key rejected" }
+      if @xlog.debug(category="moondark.files") is Some(w) {
+        w
+        ..write_object_begin()
+        ..write_object_field("message", "presign payload key rejected")
+        .write_object_end()
+      }
       return None
     }
   }

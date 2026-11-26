@@ -321,22 +321,26 @@ pub async fn Migrator::bootstrap(
       if use_tx {
         ignore(self.conn.execute("ROLLBACK")) catch {
           re =>
-            @xlog.warn(category="moondark.migration") <?
-              {
-                "error": re.to_string(),
-                "migration": "bootstrap",
-                "message": "ROLLBACK failed",
-              }
+            if @xlog.warn(category="moondark.migration") is Some(w) {
+              w
+              ..write_object_begin()
+              ..write_object_field("error", re.to_string())
+              ..write_object_field("migration", "bootstrap")
+              ..write_object_field("message", "ROLLBACK failed")
+              .write_object_end()
+            }
         }
       }
       self.finish_record(rec_id, "failed", e.to_string(), started_ms) catch {
         fe =>
-          @xlog.warn(category="moondark.migration") <?
-            {
-              "error": fe.to_string(),
-              "migration": "bootstrap",
-              "message": "records write failed",
-            }
+          if @xlog.warn(category="moondark.migration") is Some(w) {
+            w
+            ..write_object_begin()
+            ..write_object_field("error", fe.to_string())
+            ..write_object_field("migration", "bootstrap")
+            ..write_object_field("message", "records write failed")
+            .write_object_end()
+          }
       }
       raise e
     }
@@ -375,22 +379,26 @@ async fn Migrator::apply(self : Migrator, mig : Migration) -> Unit {
       if mig.use_tx() {
         ignore(self.conn.execute("ROLLBACK")) catch {
           re =>
-            @xlog.warn(category="moondark.migration") <?
-              {
-                "error": re.to_string(),
-                "migration": name,
-                "message": "ROLLBACK failed",
-              }
+            if @xlog.warn(category="moondark.migration") is Some(w) {
+              w
+              ..write_object_begin()
+              ..write_object_field("error", re.to_string())
+              ..write_object_field("migration", name)
+              ..write_object_field("message", "ROLLBACK failed")
+              .write_object_end()
+            }
         }
       }
       self.finish_record(rec_id, "failed", e.to_string(), started_ms) catch {
         fe =>
-          @xlog.warn(category="moondark.migration") <?
-            {
-              "error": fe.to_string(),
-              "migration": name,
-              "message": "records write failed",
-            }
+          if @xlog.warn(category="moondark.migration") is Some(w) {
+            w
+            ..write_object_begin()
+            ..write_object_field("error", fe.to_string())
+            ..write_object_field("migration", name)
+            ..write_object_field("message", "records write failed")
+            .write_object_end()
+          }
       }
       raise ApplyFailed(name~, e)
     }
