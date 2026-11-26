@@ -1,8 +1,8 @@
 import {
   "KKKIIO/moondark@0.2.0",
-  "KKKIIO/moondark_sqlite@0.2.0",
-  "moonbitlang/async@0.22.5",
-  "moonbitlang/x@0.5.5",
+  "KKKIIO/moondark_sqlite@0.1.0",
+  "moonbitlang/async@0.22.10",
+  "moonbitlang/x@0.5.9",
 }
 
 preferred_target = "native"

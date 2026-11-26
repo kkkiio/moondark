@@ -9,10 +9,10 @@
 //   "moonbitlang/x@0.4.6",
 // }
 import {
-  "moonbitlang/async@0.22.5",
-  "moonbitlang/moonback@0.8.9",
-  "moonbitlang/x@0.5.5",
-  "tonyfettes/xlog@0.4.2",
+  "moonbitlang/async@0.22.10",
+  "moonbitlang/moonback@0.8.11",
+  "moonbitlang/x@0.5.9",
+  "tonyfettes/xlog@0.5.1",
 }
 
 preferred_target = "native"

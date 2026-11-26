@@ -68,7 +68,7 @@ pub(all) struct TokenResponse {
   id_token : String?
 }
 pub fn TokenResponse::equal(Self, Self) -> Bool
-pub fn TokenResponse::from_json(@json.Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn TokenResponse::from_json(@json.Json, @json.DecodeContext) -> Self raise @json.JsonDecodeError
 pub fn TokenResponse::not_equal(Self, Self) -> Bool
 pub fn TokenResponse::to_json(Self) -> @json.Json
 pub fn TokenResponse::to_repr(Self) -> @debug.Repr

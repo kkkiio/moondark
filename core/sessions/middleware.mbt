@@ -135,8 +135,14 @@ pub fn middleware(
           // the session row was deleted between load and save (e.g. a
           // concurrent logout). Django raises SessionInterrupted, which
           // maps to 400 Bad Request with an empty body.
-          @xlog.debug(category="moondark.sessions") <?
-            { "message": "session row vanished between load and save" }
+          if @xlog.debug(category="moondark.sessions") is Some(w) {
+            w
+            ..write_object_begin()
+            ..write_object_field(
+              "message", "session row vanished between load and save",
+            )
+            .write_object_end()
+          }
           ignore(res(400, @moonback.Headers::default()))
           DiscardWriter::{ }
         }

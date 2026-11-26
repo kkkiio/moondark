@@ -58,7 +58,12 @@ async fn handle_put(
   }
   let reader = req.body.reader() catch {
     e => {
-      @xlog.debug(category="moondark.files") <? { "error": e.to_string() }
+      if @xlog.debug(category="moondark.files") is Some(w) {
+        w
+        ..write_object_begin()
+        ..write_object_field("error", e.to_string())
+        .write_object_end()
+      }
       return res.send_void(status=400)
     }
   }

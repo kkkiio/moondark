@@ -38,7 +38,7 @@ pub(all) enum CredentialKind {
   Passkey
 }
 pub fn CredentialKind::equal(Self, Self) -> Bool
-pub fn CredentialKind::from_json(@json.Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn CredentialKind::from_json(@json.Json, @json.DecodeContext) -> Self raise @json.JsonDecodeError
 pub fn CredentialKind::name(Self) -> String
 pub fn CredentialKind::not_equal(Self, Self) -> Bool
 pub fn CredentialKind::of_name(String) -> Self?
@@ -56,7 +56,7 @@ pub(all) struct CredentialModel {
   created_at : Int64
   last_used_at : Int64
 }
-pub fn CredentialModel::from_json(@json.Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn CredentialModel::from_json(@json.Json, @json.DecodeContext) -> Self raise @json.JsonDecodeError
 pub fn CredentialModel::to_json(Self) -> @json.Json
 pub fn CredentialModel::to_repr(Self) -> @debug.Repr
 

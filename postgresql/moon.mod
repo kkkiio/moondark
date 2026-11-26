@@ -16,8 +16,8 @@ preferred_target = "native"
 
 import {
   "KKKIIO/moondark@0.2.0",
-  "xziheng/testcontainers@0.1.0",
-  "moonbit-community/postgres@0.1.2",
-  "moonbitlang/async@0.22.5",
-  "moonbitlang/x@0.5.5",
+  "xziheng/testcontainers@0.2.0",
+  "moonbit-community/postgres@0.1.4",
+  "moonbitlang/async@0.22.10",
+  "moonbitlang/x@0.5.9",
 }

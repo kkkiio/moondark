@@ -55,7 +55,7 @@ pub(all) struct TaskError {
   traceback : String
 }
 pub fn TaskError::equal(Self, Self) -> Bool
-pub fn TaskError::from_json(@json.Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn TaskError::from_json(@json.Json, @json.DecodeContext) -> Self raise @json.JsonDecodeError
 pub fn TaskError::not_equal(Self, Self) -> Bool
 pub fn TaskError::to_json(Self) -> @json.Json
 pub fn TaskError::to_repr(Self) -> @debug.Repr
@@ -81,7 +81,7 @@ pub(all) struct TaskResult {
   errors : Array[TaskError]
   worker_ids : Array[String]
 }
-pub fn TaskResult::from_json(@json.Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn TaskResult::from_json(@json.Json, @json.DecodeContext) -> Self raise @json.JsonDecodeError
 pub fn TaskResult::to_json(Self) -> @json.Json
 pub fn TaskResult::to_repr(Self) -> @debug.Repr
 
@@ -93,7 +93,7 @@ pub(all) enum TaskResultStatus {
   Failed
 }
 pub fn TaskResultStatus::equal(Self, Self) -> Bool
-pub fn TaskResultStatus::from_json(@json.Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn TaskResultStatus::from_json(@json.Json, @json.DecodeContext) -> Self raise @json.JsonDecodeError
 pub fn TaskResultStatus::not_equal(Self, Self) -> Bool
 pub fn TaskResultStatus::to_json(Self) -> @json.Json
 pub fn TaskResultStatus::to_repr(Self) -> @debug.Repr

@@ -51,7 +51,7 @@ pub(all) struct SessionModel {
   data : Map[String, @json.Json]
   expires_at : Int64
 }
-pub fn SessionModel::from_json(@json.Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn SessionModel::from_json(@json.Json, @json.DecodeContext) -> Self raise @json.JsonDecodeError
 pub fn SessionModel::to_json(Self) -> @json.Json
 
 // Type aliases

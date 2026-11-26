@@ -54,12 +54,16 @@ pub async fn Auth::authenticate_password(
   guard cred.secret != "" else { return None }
   let ok = @bcrypt.verify(password=@utf8.encode(password), hashed=cred.secret) catch {
     e => {
-      @xlog.warn(category="moondark.auth") <?
-        {
-          "error": e.to_string(),
-          "identifier": identifier,
-          "message": "bcrypt verify failed; stored hash may be corrupt",
-        }
+      if @xlog.warn(category="moondark.auth") is Some(w) {
+        w
+        ..write_object_begin()
+        ..write_object_field("error", Show::to_string(e))
+        ..write_object_field("identifier", identifier)
+        ..write_object_field(
+          "message", "bcrypt verify failed; stored hash may be corrupt",
+        )
+        .write_object_end()
+      }
       false
     }
   }
@@ -164,11 +168,15 @@ async fn Auth::mark_used(self : Self, cred : CredentialModel) -> Unit {
     last_used_at=now_ms(),
   )
   if !updated {
-    @xlog.debug(category="moondark.auth") <?
-      {
-        "message": "last_used_at stamp skipped: credential gone",
-        "identifier": cred.identifier,
-      }
+    if @xlog.debug(category="moondark.auth") is Some(w) {
+      w
+      ..write_object_begin()
+      ..write_object_field(
+        "message", "last_used_at stamp skipped: credential gone",
+      )
+      ..write_object_field("identifier", cred.identifier)
+      .write_object_end()
+    }
   }
 }
 

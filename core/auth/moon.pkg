@@ -5,7 +5,6 @@ import {
   "moonbitlang/x/encoding/percent",
   "moonbitlang/core/encoding/utf8",
   "moonbitlang/core/env",
-  "moonbitlang/core/json",
   "moonbitlang/moonback",
   "KKKIIO/moondark/auth/oauth2",
   "KKKIIO/moondark/sessions",
